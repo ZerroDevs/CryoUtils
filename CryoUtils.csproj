@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <Resource Include="Images\CryoUtils.ico" />
+    <Resource Include="Images\CryoUtils-Tray.ico" />
   </ItemGroup>
 
   <ItemGroup>

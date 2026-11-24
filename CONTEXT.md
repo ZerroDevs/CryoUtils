@@ -134,7 +134,7 @@ Defaults:
 - `UpdaterService`: GitHub releases API, `.exe`/`.msi` setup asset selection, download, rollback backup, and delayed restart. A setup asset is run with `/S`; a non-setup executable is copied after exit.
 - `StartupService`: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, no admin.
 - `RecentCaptureService`: in-session thumbnails and paths.
-- `TrayIconManager`: packaged CryoUtils icon with a generated fallback, dark menu renderer, left-click action, right-click menu.
+- `TrayIconManager`: tightly cropped packaged CryoUtils tray icon sized from `SystemInformation.SmallIconSize` (16/20/24/32), with a generated fallback; dark menu renderer, left-click action, right-click menu.
 
 ## Domain rules
 

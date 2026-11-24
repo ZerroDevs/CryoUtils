@@ -11,6 +11,7 @@ Last updated: 2026-11-24
 - Bumped `VERSION` to `0.0.100`; aligned `app.manifest` to `0.0.100.0` and the updater fallback to `0.0.100`.
 - Updated `CryoUtils.csproj` to copy `LICENSE` and `NOTICE` to output/publish alongside `VERSION`.
 - Replaced the placeholder app icon with `Images/CryoUtils-Icon.png`, generated a multi-size `Images/CryoUtils.ico` from it, and switched the tray icon to the packaged icon with the old vector mark retained as a fallback.
+- Fixed the tray icon's tiny appearance: the source artwork had a large transparent border, so `Images/CryoUtils-Tray.ico` is tightly cropped to the visible mark and `TrayIconManager` now selects the actual notification-area size (16–48 px) instead of always loading a padded 32 px canvas.
 - Expanded `.gitignore` for build/debug output, IDE/agent state, local environment files, secrets, and temporary archives.
 
 ## Previous turn — OCR
@@ -42,9 +43,9 @@ Last updated: 2026-11-24
 
 - Version baseline is `0.0.100`; the next patch is `0.0.101`.
 - Release build into a separate verification folder passes with 0 warnings and 0 errors. The normal `bin` build was blocked because a debug `CryoUtils.exe` process (PID 34972) was already running and holding the executable; that process was not killed.
-- `build-installer.ps1` completed successfully with the new icon: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (54.13 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.8 MB), each with a `.sha256` file.
+- `build-installer.ps1` completed successfully with the tray icon fix: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (54.22 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.87 MB), each with a `.sha256` file.
 - Installer and published executable version metadata show `0.0.100`; the portable archive contains `VERSION`, `LICENSE`, and `NOTICE` and no `.pdb` files.
-- The installer was not run on this machine, the GitHub workflow was not executed against GitHub, and the new tray icon was not visually inspected in a running build.
+- The installer was not run on this machine, the GitHub workflow was not executed against GitHub, and the new tray icon was not inspected live in the notification area. Its 16/20/24 px renders were previewed on the tray's dark background.
 - The executable icon was extracted from the built `CryoUtils.exe` and inspected at 32 x 32; it matches the new CryoUtils mark.
 - Manual launch starts in the tray. With Run in background off, the dashboard opens titled `CryoUtils`.
 - Background launch (`CryoUtils.exe --background`) creates no visible windows and stays alive.
@@ -57,8 +58,8 @@ Last updated: 2026-11-24
 
 - Release compilation: 0 warnings, 0 errors in `build-check`.
 - Inno Setup compilation succeeded for `CryoUtils-Setup-0.0.100.exe`; Windows version metadata reads `0.0.100`.
-- Setup SHA-256: `3d00c4bf271aada160b5e48baf426504395174c308203d7e4583926a6c6568bb`.
-- Portable zip SHA-256: `782a712515e9cbaa35d7f83e27bad4b463e6c038662558589ef34b7879d20cca`.
+- Setup SHA-256: `cebb946034065aaa0d42599205158da896129b859071266b9a7ab5b6f2cd990a`.
+- Portable zip SHA-256: `cf2300990febc81ad28f4aba28047e4b142780f0532397bb5b327c207d866195`.
 - Portable zip: 470 entries; `CryoUtils.exe`, `CryoUtils.dll`, `VERSION`, `LICENSE`, and `NOTICE` present; no `.pdb` entries.
 - OCR workflow, capture, hotkeys, clipboard, compressor, pinner, localization, and themes from the previous verification pass remain unchanged by the packaging work.
 - Startup, dashboard, tray process lifetime. Tray icon visible as `CryoUtils`.
@@ -100,7 +101,7 @@ Last updated: 2026-11-24
 - OCR Open/Save dialogs and real drag/drop were not clicked in this environment; the shared `LoadFile` path they call was verified with `.md` and `.cs` files.
 - OCR color-swatch click/copy was not clicked in the harness; the click handler uses the same clipboard/toast path as the existing color picker.
 - Markdown is accepted and editable as source text; it is not rendered as formatted Markdown by design.
-- Tray icon visuals were not inspected; tray process behavior was tested.
+- Tray icon visuals were previewed at 16/20/24 px; live placement in the notification area was not inspected.
 
 ## Next steps
 

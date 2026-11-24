@@ -123,11 +123,13 @@ namespace CryoUtils.Tray
             try
             {
                 var resource = System.Windows.Application.GetResourceStream(
-                    new Uri("pack://application:,,,/Images/CryoUtils.ico"));
+                    new Uri("pack://application:,,,/Images/CryoUtils-Tray.ico"));
                 if (resource != null)
                 {
                     using var stream = resource.Stream;
-                    return new Drawing.Icon(stream, new Drawing.Size(32, 32));
+                    int traySize = Forms.SystemInformation.SmallIconSize.Width;
+                    traySize = Math.Clamp(traySize, 16, 48);
+                    return new Drawing.Icon(stream, new Drawing.Size(traySize, traySize));
                 }
             }
             catch

@@ -129,7 +129,7 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 
 | Feature | Status | Notes |
 |---|---|---|
-| Packaged CryoUtils icon | U | New `CryoUtils-Icon.png` rendered into a multi-size ICO and embedded in the executable/window/installer; tray resource loading was built but not visually inspected. |
+| Packaged CryoUtils icon | U | New `CryoUtils-Icon.png` rendered into a multi-size ICO and embedded in the executable/window/installer. A tightly cropped `CryoUtils-Tray.ico` fixes the oversized transparent border, and the tray loads the current 16/20/24/32 px slot size. Tray rendering was previewed at 16/20/24 px but not inspected live in the notification area. |
 | Left-click configurable | Y | Dashboard or capture. |
 | Right-click menu | Y | Capture, record, color picker, dashboard, settings, exit. |
 | Dark menu renderer | Y | Cryo surfaces, teal highlight. |
