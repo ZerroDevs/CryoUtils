@@ -41,9 +41,9 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Cancel recording | Y | Drops frames and closes bar. |
 | Red recording border | Y | Click-through frame outside the region. |
 | Offline OCR | V | `HELLO CRYOUTILS 123` recognized. |
-| OCR preview | V | Compact auto-height window; one line rendered at 640 x 250 with a 72 px text box. |
-| Editable OCR text | Y | Text starts at the top, can be edited, and scrolls when long. |
-| OCR code mode | V | C# sample rendered in mono with no-wrap horizontal scrolling. |
+| OCR preview | V | Compact auto-height window; preserves the OCR line structure. |
+| Editable OCR text | Y | Rich editable text starts at the top, scrolls when long, and re-highlights while typing. |
+| OCR code mode | V | Syntax-colored keywords/functions, strings, numbers and comments with no-wrap horizontal scrolling. |
 | OCR color swatches | V | Hex, RGB/RGBA and HSL/HSLA swatches with click-to-copy. |
 | OCR file open / save / drop | U | Markdown and code loaders verified; dialogs and real drag/drop were not clicked. |
 | OCR Markdown source | V | `sample.md` loads as wrapped editable text, without markdown rendering. |

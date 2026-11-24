@@ -119,10 +119,11 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `ClipboardService.Remove`, `Clear` | same | Remove one item or all history. |
 | `ClipboardService.Add` (internal) | same | Adds an item, detects sensitive text, starts auto-clear timer, trims to limit. |
 | `ClipItem` | same | Text/image item with display, metadata and sensitivity. |
-| `OcrService.RecognizeAsync` | `Services/OcrService.cs` | Windows OCR on a bitmap; null or localized failure on unsupported language. |
-| `TextAnalysisService.LooksLikeCode` | `Services/TextAnalysisService.cs` | Detects code by file extension or code-shaped lines; Markdown paths stay prose. |
+| `OcrService.RecognizeAsync` | `Services/OcrService.cs` | Windows OCR on a bitmap; joins `OcrResult.Lines` with newlines; null or localized failure on unsupported language. |
+| `TextAnalysisService.LooksLikeCode` | `Services/TextAnalysisService.cs` | Detects code by extension, assignments, calls or code-shaped lines; Markdown paths stay prose. |
+| `TextAnalysisService.FindCodeTokens` | same | Tokenizes keywords/functions, strings, numbers and comments for the OCR editor. |
 | `TextAnalysisService.FindColorCodes` | same | Finds distinct hex, RGB/RGBA and HSL/HSLA tokens and converts them to `Color` values. |
-| `TextColorCode` | same | Token text plus parsed color for the OCR swatches. |
+| `CodeToken` / `TextColorCode` | same | Code-token span/type and color-token text/parsed color for the OCR window. |
 | `UpdaterService.CurrentVersion` | `Services/UpdaterService.cs` | Reads the stamped informational version, falling back to `0.0.100`. |
 | `UpdaterService.CheckAsync` | same | GitHub release check and `.exe`/`.msi` asset selection. |
 | `UpdaterService.DownloadAsync` | same | Download asset to temp with progress. |
@@ -158,7 +159,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `CaptureOverlayWindow.xaml.cs` | Selection drag/move/resize, handles, double-click window, Ctrl+A, annotation tool selection, color/width, undo/redo, text editor, blur commit, OCR/pin/print/save/copy shortcuts, Esc. |
 | `CaptureSurface.cs` | Shared physical selection, annotation list, hit testing, cursor state, redraw. |
 | `HotkeyCaptureWindow.xaml` | Modal key capture with modifier display and validation. |
-| `OcrResultWindow.xaml` | Auto-height, top-aligned editable OCR text; code/wrap toggles, line/character metadata, color swatches, Open/Save as, drag/drop for Markdown and all text types. |
+| `OcrResultWindow.xaml` | Auto-height, top-aligned rich OCR editor; code/wrap toggles, syntax colors, line/character metadata, color swatches, Open/Save as, drag/drop for Markdown and all text types. |
 | `ClipboardHistoryWindow.xaml` | Searchable list, copy, remove, clear, sensitive note. |
 | `PinWindow.xaml` | Frameless always-on-top image, drag, wheel zoom, Ctrl+wheel opacity, right-click menu. |
 | `ToastWindow.xaml` | Non-intrusive toast, bottom-right, click-through. |
@@ -172,7 +173,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 - Use `AnnotationRenderer` for every annotation export.
 - Use `ThemeService.GetBrush` and DynamicResource tokens only. Do not hardcode colors.
 - Use `LocalizationService.Get` and `Format` for every visible string.
-- Use `TextAnalysisService` for OCR code detection and color-code parsing instead of duplicating regexes in a window.
+- Use `TextAnalysisService` for OCR code detection, syntax tokenization and color-code parsing instead of duplicating regexes in a window.
 - Use `SettingsService` for persistence; do not write a second JSON store.
 - Use `GlobalHotkeyService` for every global shortcut; do not create a second hotkey window.
 - Use `RecordingBarWindow` and `RecorderService` for every recording path.

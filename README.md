@@ -88,9 +88,9 @@ OCR uses the Windows OCR engine and the language packs already installed in Wind
 
 The **Text from selection** window is more than a read-only preview:
 
-- Short results use an auto-sized, top-aligned text box instead of a large empty area.
-- The text is editable and can be copied, opened from a text/code/Markdown file, saved as a text file, or loaded by drag/drop.
-- **Code mode** switches to a monospace font and horizontal scrolling; **Wrap lines** controls wrapping for prose.
+- Short results use an auto-sized, top-aligned rich text editor instead of a large empty area.
+- OCR line breaks are preserved; the text is editable and can be copied, opened from a text/code/Markdown file, saved as a text file, or loaded by drag/drop.
+- **Code mode** switches to a monospace, syntax-colored editor with horizontal scrolling; **Wrap lines** controls wrapping for prose.
 - Line and character counts are shown in the header.
 - Hex, RGB/RGBA, and HSL/HSLA color codes are detected and listed as clickable swatches. Clicking a swatch copies that code.
 - Markdown files open as editable source text; CryoUtils does not render formatted Markdown.

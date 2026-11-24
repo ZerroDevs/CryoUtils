@@ -127,8 +127,8 @@ Defaults:
 - `ScreenCaptureService`: monitor enumeration, GDI capture, window capture, crop, clamp, timestamp names, save dialogs, quick save.
 - `ImageIO`: encode PNG/JPEG/WebP, decode bytes, format bytes, resize.
 - `CompressionService`: raster and GIF compression, target presets, preview, keep-original fallback.
-- `OcrService`: `Windows.Media.Ocr` with installed language packs, including Arabic when available.
-- `TextAnalysisService`: code-shape detection by extension/content and color-code discovery for hex, RGB/RGBA and HSL/HSLA.
+- `OcrService`: `Windows.Media.Ocr` with installed language packs, including Arabic when available; joins `OcrResult.Lines` to preserve line breaks.
+- `TextAnalysisService`: code-shape detection, syntax tokenization and color-code discovery for hex, RGB/RGBA and HSL/HSLA.
 - `ClipboardService`: hidden `HwndSource` listener, in-memory history, sensitive heuristic, auto-clear timer, plain paste via `SendInput`.
 - `TopmostService`: `WS_EX_TOPMOST` toggle, title tracking, optional click-through border and sound.
 - `UpdaterService`: GitHub releases API, `.exe`/`.msi` setup asset selection, download, rollback backup, and delayed restart. A setup asset is run with `/S`; a non-setup executable is copied after exit.
@@ -144,7 +144,7 @@ Defaults:
 - All capture math is in physical pixels. Do not mix WPF device-independent units with the virtual bitmap without scaling.
 - Export must be generated from the original frozen frame plus vectors, never from the dimmed overlay.
 - Arabic UI must mirror layout but keep technical units and shortcuts LTR. The OCR result keeps code and color tokens LTR even when prose is RTL.
-- OCR result text is editable and auto-sized; do not return to a fixed-height text box. `CryoTextBox` defaults its content host to centered, and the OCR window opts into top alignment per control.
+- OCR result text is editable and auto-sized in `CryoRichTextBox`; code mode applies syntax colors while preserving the caret and selection. Do not return to a fixed-height or plain-text result box.
 - Settings JSON is the only persistent app state. No cloud sync, no telemetry.
 - The updater must never replace the running executable directly; it copies a backup and schedules a delayed script after exit.
 

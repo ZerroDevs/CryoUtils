@@ -5,6 +5,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using CryoUtils.Services;
@@ -38,7 +39,7 @@ namespace CryoUtils.Views
             {
                 _filePath = path;
                 string content = text ?? "";
-                TxtResult.Text = content;
+                SetEditorText(content);
 
                 bool code = TextAnalysisService.LooksLikeCode(content, path);
                 ChkCodeMode.IsChecked = code;
@@ -72,19 +73,173 @@ namespace CryoUtils.Views
             bool code = ChkCodeMode.IsChecked == true;
             bool wrap = ChkWrap.IsChecked != false;
             TxtResult.FontFamily = (FontFamily)FindResource(code ? "CryoMono" : "SegoeUIVariableText");
-            TxtResult.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            TxtResult.Document.PageWidth = wrap ? double.NaN : 10000;
             TxtResult.HorizontalScrollBarVisibility = wrap
                 ? ScrollBarVisibility.Disabled
                 : ScrollBarVisibility.Auto;
 
-            bool rtl = !code && ContainsArabic(TxtResult.Text);
+            bool rtl = !code && ContainsArabic(GetEditorText());
             TxtResult.FlowDirection = rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
-            TxtResult.TextAlignment = rtl ? TextAlignment.Right : TextAlignment.Left;
+            TxtResult.Document.TextAlignment = rtl ? TextAlignment.Right : TextAlignment.Left;
+            ApplyCodeHighlighting();
+        }
+
+        private string GetEditorText()
+        {
+            var range = new TextRange(TxtResult.Document.ContentStart, TxtResult.Document.ContentEnd);
+            string text = range.Text.Replace("\r\n", "\n").Replace('\r', '\n');
+            return text.EndsWith('\n') ? text[..^1] : text;
+        }
+
+        private void SetEditorText(string? text)
+        {
+            bool previous = _suppressTextChange;
+            _suppressTextChange = true;
+            try
+            {
+                TxtResult.Document.Blocks.Clear();
+                string value = (text ?? "").Replace("\r\n", "\n").Replace('\r', '\n');
+                foreach (string line in value.Split('\n'))
+                {
+                    TxtResult.Document.Blocks.Add(new Paragraph(new Run(line))
+                    {
+                        Margin = new Thickness(0)
+                    });
+                }
+            }
+            finally
+            {
+                _suppressTextChange = previous;
+            }
+        }
+
+        private void ApplyCodeHighlighting()
+        {
+            bool previous = _suppressTextChange;
+            int caretOffset = GetTextOffset(TxtResult.CaretPosition);
+            int selectionStartOffset = GetTextOffset(TxtResult.Selection.Start);
+            int selectionEndOffset = GetTextOffset(TxtResult.Selection.End);
+            bool hasSelection = !TxtResult.Selection.IsEmpty;
+            _suppressTextChange = true;
+            try
+            {
+                var start = TxtResult.Document.ContentStart;
+                var end = TxtResult.Document.ContentEnd;
+                new TextRange(start, end).ApplyPropertyValue(
+                    TextElement.ForegroundProperty,
+                    ThemeService.GetBrush("TextPrimaryBrush"));
+
+                if (ChkCodeMode.IsChecked == true)
+                {
+                    string text = GetEditorText();
+                    foreach (var token in TextAnalysisService.FindCodeTokens(text))
+                    {
+                        var tokenStart = GetTextPosition(token.Start);
+                        var tokenEnd = GetTextPosition(token.Start + token.Length);
+                        if (tokenStart == null || tokenEnd == null)
+                        {
+                            continue;
+                        }
+
+                        new TextRange(tokenStart, tokenEnd).ApplyPropertyValue(
+                            TextElement.ForegroundProperty,
+                            GetCodeTokenBrush(token.Kind));
+                    }
+                }
+            }
+            finally
+            {
+                var caret = GetTextPosition(caretOffset);
+                if (caret != null)
+                {
+                    TxtResult.CaretPosition = caret;
+                }
+
+                if (hasSelection)
+                {
+                    var selectionStart = GetTextPosition(selectionStartOffset);
+                    var selectionEnd = GetTextPosition(selectionEndOffset);
+                    if (selectionStart != null && selectionEnd != null)
+                    {
+                        TxtResult.Selection.Select(selectionStart, selectionEnd);
+                    }
+                }
+
+                _suppressTextChange = previous;
+            }
+        }
+
+        private int GetTextOffset(TextPointer pointer)
+        {
+            var range = new TextRange(TxtResult.Document.ContentStart, pointer);
+            return range.Text.Replace("\r\n", "\n").Replace('\r', '\n').Length;
+        }
+
+        private TextPointer? GetTextPosition(int offset)
+        {
+            var document = TxtResult.Document;
+            TextPointer? pointer = document.ContentStart;
+            int index = 0;
+
+            while (pointer != null)
+            {
+                var next = pointer.GetPositionAtOffset(1, LogicalDirection.Forward);
+                if (next == null)
+                {
+                    break;
+                }
+
+                var adjacent = pointer.GetAdjacentElement(LogicalDirection.Forward);
+                if (pointer.GetPointerContext(LogicalDirection.Forward) == TextPointerContext.ElementEnd &&
+                    adjacent is Paragraph)
+                {
+                    index++;
+                    if (offset == index)
+                    {
+                        return next;
+                    }
+                }
+
+                string raw = new TextRange(pointer, next).Text;
+                string segment = raw.Replace("\r\n", "\n").Replace('\r', '\n');
+                if (segment.Length == 0)
+                {
+                    pointer = next;
+                    continue;
+                }
+
+                if (offset < index + segment.Length)
+                {
+                    return pointer.GetPositionAtOffset(offset - index, LogicalDirection.Forward);
+                }
+
+                index += segment.Length;
+                pointer = next;
+                if (offset == index)
+                {
+                    return pointer;
+                }
+            }
+
+            return index == offset ? pointer : null;
+        }
+
+        private static Brush GetCodeTokenBrush(CodeTokenKind kind)
+        {
+            return kind switch
+            {
+                CodeTokenKind.Keyword => ThemeService.GetBrush("AccentTextBrush"),
+                CodeTokenKind.String => ThemeService.GetBrush("SuccessTextBrush"),
+                CodeTokenKind.Number => ThemeService.GetBrush("WarningTextBrush"),
+                CodeTokenKind.Comment => ThemeService.GetBrush("TextMutedBrush"),
+                CodeTokenKind.Function => ThemeService.GetBrush("AccentBrush"),
+                _ => ThemeService.GetBrush("TextPrimaryBrush")
+            };
         }
 
         private void UpdateTextDetails()
         {
-            string text = TxtResult.Text ?? "";
+            string text = GetEditorText();
             int lines = text.Length == 0 ? 0 : text.Count(character => character == '\n') + 1;
             TxtMeta.Text = lines == 1
                 ? LocalizationService.Format("Ocr_MetaLine", text.Length)
@@ -151,7 +306,7 @@ namespace CryoUtils.Views
 
         private void FitTextHeight()
         {
-            string text = TxtResult.Text ?? "";
+            string text = GetEditorText();
             bool noWrap = ChkWrap.IsChecked == false;
             int visualLines;
 
@@ -173,7 +328,11 @@ namespace CryoUtils.Views
             }
 
             double lineHeight = TxtResult.FontSize * (ChkCodeMode.IsChecked == true ? 1.6 : 1.7);
-            TxtResult.Height = Math.Clamp(visualLines * lineHeight + 28, 72, 360);
+            double horizontalScrollBar = noWrap ? SystemParameters.HorizontalScrollBarHeight : 0;
+            TxtResult.Height = Math.Clamp(
+                visualLines * lineHeight + 28 + horizontalScrollBar,
+                72,
+                360);
         }
 
         private static bool ContainsArabic(string? text)
@@ -225,7 +384,8 @@ namespace CryoUtils.Views
 
         private void TxtResult_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (_suppressTextChange)
+            if (_suppressTextChange || TxtMeta == null || ChkCodeMode == null || ChkWrap == null ||
+                ColorSwatchesPanel == null || ColorPanel == null)
             {
                 return;
             }
@@ -282,7 +442,7 @@ namespace CryoUtils.Views
 
             try
             {
-                File.WriteAllText(dialog.FileName, TxtResult.Text, new UTF8Encoding(false));
+                File.WriteAllText(dialog.FileName, GetEditorText(), new UTF8Encoding(false));
                 _filePath = dialog.FileName;
                 TxtSource.Text = Path.GetFileName(dialog.FileName);
                 TxtSource.ToolTip = dialog.FileName;
@@ -299,7 +459,7 @@ namespace CryoUtils.Views
         {
             try
             {
-                Clipboard.SetText(TxtResult.Text);
+                Clipboard.SetText(GetEditorText());
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
                 Close();
             }

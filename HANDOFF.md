@@ -2,7 +2,16 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — title-bar close behavior
+## Latest turn — OCR line breaks and syntax coloring
+
+- `OcrService` now joins `OcrResult.Lines` with newlines instead of using the space-collapsed `OcrResult.Text`, so multi-line selections keep their line structure.
+- Replaced the OCR result `TextBox` with a `RichTextBox` editor. Code mode now colors keywords/functions, strings, numbers and comments while keeping text editable.
+- Added `TextAnalysisService.FindCodeTokens` and broadened `LooksLikeCode` to recognize assignments and calls, so Python-style snippets enable code mode automatically.
+- Preserved the caret and selection while re-highlighting after edits; added a `CryoRichTextBox` style and accounted for the horizontal scrollbar when auto-sizing code results.
+- Verified in a WPF harness: the three-line Python sample rendered all three lines, auto-enabled code mode, produced colored runs, and re-colored an edited number without losing the caret.
+- Release build after the OCR change: 0 warnings, 0 errors.
+
+## Previous turn — title-bar close behavior
 
 - Removed the minimize button from the dashboard title bar; only the X remains.
 - The X button now always saves the window position and hides the dashboard to the tray. `Window_Closing` does the same for Alt+F4 and other close requests unless the app is shutting down.
@@ -51,7 +60,7 @@ Last updated: 2026-11-24
 
 - Version baseline is `0.0.100`; the next patch is `0.0.101`.
 - Release build into a separate verification folder passes with 0 warnings and 0 errors. The normal `bin` build was blocked because a debug `CryoUtils.exe` process (PID 34972) was already running and holding the executable; that process was not killed.
-- `build-installer.ps1` completed successfully with the tray icon and X-only close changes: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (54.2 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.87 MB), each with a `.sha256` file.
+- `build-installer.ps1` completed successfully with the tray icon, X-only close and rich OCR editor changes: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (54.2 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.88 MB), each with a `.sha256` file.
 - Installer and published executable version metadata show `0.0.100`; the portable archive contains `VERSION`, `LICENSE`, and `NOTICE` and no `.pdb` files.
 - The installer was not run on this machine, the GitHub workflow was not executed against GitHub, and the new tray icon was not inspected live in the notification area. Its 16/20/24 px renders were previewed on the tray's dark background.
 - The executable icon was extracted from the built `CryoUtils.exe` and inspected at 32 x 32; it matches the new CryoUtils mark.
@@ -66,8 +75,8 @@ Last updated: 2026-11-24
 
 - Release compilation: 0 warnings, 0 errors in `build-check`.
 - Inno Setup compilation succeeded for `CryoUtils-Setup-0.0.100.exe`; Windows version metadata reads `0.0.100`.
-- Setup SHA-256: `43c203d399230601d54f6574a0e8f7222c83007b240bb58bfdbc5f8e2b698e67`.
-- Portable zip SHA-256: `e4519b2cbf80eb16ba9b1bc2cacb820d2e511c5c20b2d69ce7fad7d36a0081cd`.
+- Setup SHA-256: `20a1406738cf39eedff08908508938f6bc234d3ac0f83faaa9bd04f4100b4ac6`.
+- Portable zip SHA-256: `2a0643d4132de783b080676a16d189c8bbc89aa07a2fdd364c77348c33cf8604`.
 - Portable zip: 470 entries; `CryoUtils.exe`, `CryoUtils.dll`, `VERSION`, `LICENSE`, and `NOTICE` present; no `.pdb` entries.
 - OCR workflow, capture, hotkeys, clipboard, compressor, pinner, localization, and themes from the previous verification pass remain unchanged by the packaging work.
 - Startup, dashboard, tray process lifetime. Tray icon visible as `CryoUtils`.
@@ -90,12 +99,14 @@ Last updated: 2026-11-24
 - Disabling the pinner module now unpins any tracked window before its border tracker is stopped.
 - OCR result: one-line text opens at 640 x 250 with a 72 px box and no vertical dead space; code/Markdown/color layouts were rendered in the harness.
 - OCR result: one line metadata reads `One line, 37 characters`; code metadata reads line and character counts.
+- OCR result rich editor: a three-line Python sample rendered all three lines with colored keywords/functions, strings and numbers; editing a line re-colored it and preserved the caret.
 - OCR result loads `.md` as wrapped prose, `.cs` in mono code mode with horizontal scrolling, and Arabic text with RTL flow.
 - Localization dictionaries: 296 keys each after removing the obsolete tray-close and quit-tooltip keys, with no duplicate keys or placeholder mismatches.
 - The computer has two monitors, both 1920 x 1080 at 96 DPI (100% scaling).
 
 ## Pending or unverified
 
+- The full OCR capture path was not rerun against a fresh live selection in this turn; the OCR result editor and line assembly were checked through the WPF harness and source review.
 - The per-user installer was compiled but not executed; only the publish payload and installer metadata were checked.
 - The GitHub release workflow has not run on GitHub, and 0.0.100 has not been published.
 - Authenticode signing is optional and was not exercised because no signing secrets were provided.

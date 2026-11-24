@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -82,9 +83,12 @@ namespace CryoUtils.Services
                 try
                 {
                     var result = await engine.RecognizeAsync(softwareBitmap);
-                    if (result.Text.Length > best.Length)
+                    string candidate = result.Lines.Count > 0
+                        ? string.Join(Environment.NewLine, result.Lines.Select(line => line.Text))
+                        : result.Text;
+                    if (candidate.Length > best.Length)
                     {
-                        best = result.Text;
+                        best = candidate;
                     }
                 }
                 catch

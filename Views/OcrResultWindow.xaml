@@ -63,23 +63,26 @@
                            FlowDirection="LeftToRight"/>
             </Grid>
 
-            <TextBox x:Name="TxtResult"
-                     Grid.Row="2"
-                     Style="{StaticResource CryoTextBox}"
-                     Margin="0,0,0,10"
-                     Padding="12,10"
-                     FontSize="13"
-                     MinHeight="72"
-                     MaxHeight="360"
-                     VerticalContentAlignment="Top"
-                     AcceptsReturn="True"
-                     AcceptsTab="True"
-                     TextWrapping="Wrap"
-                     VerticalScrollBarVisibility="Auto"
-                     HorizontalScrollBarVisibility="Disabled"
-                     SpellCheck.IsEnabled="False"
-                     TextChanged="TxtResult_TextChanged"
-                     AutomationProperties.Name="{DynamicResource Capture_OcrTitle}"/>
+            <RichTextBox x:Name="TxtResult"
+                         Grid.Row="2"
+                         Style="{StaticResource CryoRichTextBox}"
+                         Margin="0,0,0,10"
+                         Padding="12,10"
+                         FontSize="13"
+                         MinHeight="72"
+                         MaxHeight="360"
+                         VerticalContentAlignment="Top"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         SpellCheck.IsEnabled="False"
+                         TextChanged="TxtResult_TextChanged"
+                         AutomationProperties.Name="{DynamicResource Capture_OcrTitle}">
+                <FlowDocument PagePadding="0" TextAlignment="Left">
+                    <Paragraph Margin="0"/>
+                </FlowDocument>
+            </RichTextBox>
 
             <Border x:Name="ColorPanel" Grid.Row="3" Style="{StaticResource InsetBorder}" Margin="0,0,0,10" Visibility="Collapsed">
                 <StackPanel>

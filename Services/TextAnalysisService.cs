@@ -10,6 +10,17 @@ namespace CryoUtils.Services
 {
     public sealed record TextColorCode(string Text, Color Color);
 
+    public enum CodeTokenKind
+    {
+        Keyword,
+        String,
+        Number,
+        Comment,
+        Function
+    }
+
+    public sealed record CodeToken(int Start, int Length, CodeTokenKind Kind);
+
     public static class TextAnalysisService
     {
         private static readonly Regex HexPattern = new(
@@ -27,6 +38,37 @@ namespace CryoUtils.Services
         private static readonly Regex CodeLinePattern = new(
             @"(?m)^\s*(?:public|private|protected|internal|class|namespace|using|import|from|def|function|const|let|var|#include|SELECT|INSERT|UPDATE|DELETE|CREATE)\b",
             RegexOptions.Compiled);
+
+        private static readonly Regex AssignmentPattern = new(
+            @"(?m)^\s*[A-Za-z_]\w*\s*=",
+            RegexOptions.Compiled);
+
+        private static readonly Regex CallPattern = new(
+            @"\b[A-Za-z_]\w*\s*\(",
+            RegexOptions.Compiled);
+
+        private static readonly HashSet<string> CodeKeywords = new(StringComparer.Ordinal)
+        {
+            "abstract", "and", "as", "assert", "async", "await", "base", "bool", "break",
+            "byte", "case", "catch", "char", "class", "const", "continue", "decimal",
+            "default", "def", "delegate", "del", "do", "double", "elif", "else", "enum",
+            "event", "except", "explicit", "extends", "false", "final", "finally", "fixed",
+            "float", "for", "foreach", "from", "function", "global", "goto", "if", "implicit",
+            "implements", "import", "in", "int", "interface", "internal", "is", "lambda", "let",
+            "lock", "long", "match", "namespace", "new", "None", "nonlocal", "not", "null",
+            "object", "operator", "or", "out", "override", "package", "params", "partial",
+            "pass", "private", "protected", "public", "raise", "readonly", "record", "ref",
+            "return", "sealed", "short", "sizeof", "static", "string", "struct", "super",
+            "switch", "this", "throw", "true", "try", "typeof", "unsafe", "using", "var",
+            "virtual", "void", "volatile", "where", "while", "with", "yield"
+        };
+
+        private static readonly HashSet<string> CodeBuiltins = new(StringComparer.Ordinal)
+        {
+            "Array", "Console", "Math", "Object", "String", "dict", "document", "enumerate",
+            "float", "input", "int", "len", "list", "open", "print", "range", "self", "set",
+            "str", "super", "tuple", "window", "zip"
+        };
 
         private static readonly HashSet<string> CodeExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -68,7 +110,147 @@ namespace CryoUtils.Services
             {
                 score++;
             }
+            if (AssignmentPattern.IsMatch(source))
+            {
+                score++;
+            }
+            if (CallPattern.IsMatch(source))
+            {
+                score++;
+            }
             return score >= 2;
+        }
+
+        public static IReadOnlyList<CodeToken> FindCodeTokens(string? text)
+        {
+            string source = text ?? "";
+            var tokens = new List<CodeToken>();
+            int index = 0;
+
+            while (index < source.Length)
+            {
+                char current = source[index];
+                if (current == '#' ||
+                    (current == '/' && index + 1 < source.Length && source[index + 1] == '/'))
+                {
+                    int start = index;
+                    while (index < source.Length && source[index] != '\n')
+                    {
+                        index++;
+                    }
+                    tokens.Add(new CodeToken(start, index - start, CodeTokenKind.Comment));
+                    continue;
+                }
+
+                if (current == '/' && index + 1 < source.Length && source[index + 1] == '*')
+                {
+                    int start = index;
+                    index += 2;
+                    while (index + 1 < source.Length &&
+                           !(source[index] == '*' && source[index + 1] == '/'))
+                    {
+                        index++;
+                    }
+                    index = Math.Min(source.Length, index + 2);
+                    tokens.Add(new CodeToken(start, index - start, CodeTokenKind.Comment));
+                    continue;
+                }
+
+                if (current is '"' or '\'' or '`')
+                {
+                    int start = index;
+                    char quote = current;
+                    index++;
+                    while (index < source.Length)
+                    {
+                        if (source[index] == '\\')
+                        {
+                            index = Math.Min(source.Length, index + 2);
+                            continue;
+                        }
+                        if (source[index] == quote)
+                        {
+                            index++;
+                            break;
+                        }
+                        if (source[index] == '\n' && quote != '`')
+                        {
+                            break;
+                        }
+                        index++;
+                    }
+                    tokens.Add(new CodeToken(start, index - start, CodeTokenKind.String));
+                    continue;
+                }
+
+                if (char.IsDigit(current) ||
+                    (current == '.' && index + 1 < source.Length && char.IsDigit(source[index + 1])))
+                {
+                    int start = index;
+                    if (current == '0' && index + 1 < source.Length &&
+                        (source[index + 1] is 'x' or 'X' or 'b' or 'B'))
+                    {
+                        index += 2;
+                        while (index < source.Length && char.IsLetterOrDigit(source[index]))
+                        {
+                            index++;
+                        }
+                    }
+                    else
+                    {
+                        while (index < source.Length && (char.IsDigit(source[index]) || source[index] == '.'))
+                        {
+                            index++;
+                        }
+                        if (index < source.Length && (source[index] is 'e' or 'E'))
+                        {
+                            index++;
+                            if (index < source.Length && (source[index] is '+' or '-'))
+                            {
+                                index++;
+                            }
+                            while (index < source.Length && char.IsDigit(source[index]))
+                            {
+                                index++;
+                            }
+                        }
+                    }
+                    tokens.Add(new CodeToken(start, index - start, CodeTokenKind.Number));
+                    continue;
+                }
+
+                if (char.IsLetter(current) || current is '_' or '$')
+                {
+                    int start = index;
+                    index++;
+                    while (index < source.Length &&
+                           (char.IsLetterOrDigit(source[index]) || source[index] is '_' or '$'))
+                    {
+                        index++;
+                    }
+
+                    string word = source[start..index];
+                    int next = index;
+                    while (next < source.Length && char.IsWhiteSpace(source[next]))
+                    {
+                        next++;
+                    }
+
+                    if (CodeKeywords.Contains(word) || CodeBuiltins.Contains(word))
+                    {
+                        tokens.Add(new CodeToken(start, index - start, CodeTokenKind.Keyword));
+                    }
+                    else if (next < source.Length && source[next] == '(')
+                    {
+                        tokens.Add(new CodeToken(start, index - start, CodeTokenKind.Function));
+                    }
+                    continue;
+                }
+
+                index++;
+            }
+
+            return tokens;
         }
 
         public static IReadOnlyList<TextColorCode> FindColorCodes(string? text)
