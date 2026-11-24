@@ -76,6 +76,8 @@ Capture opens one overlay per monitor over a frozen desktop snapshot. The curren
 - `Ctrl+A` for the full monitor, `Esc` to close, and the existing capture shortcuts.
 - Pen, line, arrow, rectangle, highlighter, text, step-number, and irreversible blur/pixelate annotations.
 - Color swatches, a custom color picker, and thickness control.
+- An optional pixel magnifier with a color readout, off by default and enabled in the Capture settings.
+- The action rail automatically moves around the tool rail, so small or narrow selections do not stack the controls.
 - Undo and redo.
 - Copy, save, print, pin to screen, and OCR actions.
 - Recording a selected region as GIF or MP4, with FPS and duration controls.

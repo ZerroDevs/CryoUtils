@@ -248,6 +248,7 @@
     <sys:String x:Key="Capture_Color">Colour</sys:String>
         <sys:String x:Key="Capture_SelectionSize">{0} x {1}</sys:String>
     <sys:String x:Key="Capture_Loupe">Pixel magnifier</sys:String>
+    <sys:String x:Key="Capture_LoupeDesc">Shows a pixel zoom and color readout while selecting. Off by default.</sys:String>
 
     <sys:String x:Key="Rec_Title">Recording</sys:String>
     <sys:String x:Key="Rec_Fps">FPS</sys:String>

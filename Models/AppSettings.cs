@@ -43,6 +43,7 @@ namespace CryoUtils.Models
         public string ImageFormat { get; set; } = "PNG"; // PNG, JPG, WEBP
         public bool AutoCopyCapture { get; set; } = true;
         public bool CaptureSound { get; set; } = false;
+        public bool ShowCaptureLoupe { get; set; } = false;
         public string AnnotationColor { get; set; } = DefaultAnnotationColor;
         public string ColorFormat { get; set; } = "HEX";
         public int AnnotationThickness { get; set; } = 3;

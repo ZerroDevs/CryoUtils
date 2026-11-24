@@ -44,6 +44,8 @@ namespace CryoUtils.Views
         private Annotation? _activeAnnotation;
         private Point _textAnchorPhysical;
         private bool _textCommitting;
+        private Rect _toolbarBounds = Rect.Empty;
+        private Rect _actionToolbarBounds = Rect.Empty;
 
         public CaptureController Controller { get; }
         public MonitorInfo Monitor { get; }
@@ -368,6 +370,8 @@ namespace CryoUtils.Views
                 ActionToolbarBorder.Visibility = Visibility.Collapsed;
                 SizeBadge.Visibility = Visibility.Collapsed;
                 HintBanner.Visibility = Visibility.Collapsed;
+                _toolbarBounds = Rect.Empty;
+                _actionToolbarBounds = Rect.Empty;
                 if (!Controller.Selection.HasValue && isActive)
                 {
                     ShowHint();
@@ -385,6 +389,8 @@ namespace CryoUtils.Views
                 ActionToolbarBorder.Visibility = Visibility.Collapsed;
                 SizeBadge.Visibility = Visibility.Collapsed;
                 HintBanner.Visibility = Visibility.Collapsed;
+                _toolbarBounds = Rect.Empty;
+                _actionToolbarBounds = Rect.Empty;
                 return;
             }
 
@@ -406,6 +412,10 @@ namespace CryoUtils.Views
             Canvas.SetLeft(SizeBadge, badgeLeft);
             Canvas.SetTop(SizeBadge, badgeTop);
 
+            double margin = 8;
+            double canvasWidth = Math.Max(1, ActualWidth);
+            double canvasHeight = Math.Max(1, ActualHeight);
+
             AnnotationToolbarBorder.Visibility = Visibility.Visible;
             AnnotationToolbarBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             var toolSize = AnnotationToolbarBorder.DesiredSize;
@@ -414,19 +424,21 @@ namespace CryoUtils.Views
                 toolSize = new Size(42, 460);
             }
 
-            double margin = 8;
-            double toolLeft = visible.Right + margin;
-            if (toolLeft + toolSize.Width > ActualWidth - margin)
+            var rightTool = new Rect(visible.Right + margin, visible.Top, toolSize.Width, toolSize.Height);
+            var leftTool = new Rect(visible.Left - toolSize.Width - margin, visible.Top, toolSize.Width, toolSize.Height);
+            var toolCandidates = new List<Rect>();
+            if (rightTool.Right <= canvasWidth - margin)
             {
-                toolLeft = visible.Left - toolSize.Width - margin;
+                toolCandidates.Add(ClampChromeRect(rightTool, margin));
             }
-            toolLeft = Math.Clamp(toolLeft, margin, Math.Max(margin, ActualWidth - toolSize.Width - margin));
-            double toolTop = Math.Clamp(
-                visible.Top,
-                margin,
-                Math.Max(margin, ActualHeight - toolSize.Height - margin));
-            Canvas.SetLeft(AnnotationToolbarBorder, toolLeft);
-            Canvas.SetTop(AnnotationToolbarBorder, toolTop);
+            if (leftTool.Left >= margin)
+            {
+                toolCandidates.Add(ClampChromeRect(leftTool, margin));
+            }
+            if (toolCandidates.Count == 0)
+            {
+                toolCandidates.Add(ClampChromeRect(rightTool, margin));
+            }
 
             ActionToolbarBorder.Visibility = Visibility.Visible;
             ActionToolbarBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -436,18 +448,116 @@ namespace CryoUtils.Views
                 actionSize = new Size(250, 40);
             }
 
-            double actionLeft = Math.Clamp(
-                visible.Left,
-                margin,
-                Math.Max(margin, ActualWidth - actionSize.Width - margin));
-            double actionTop = visible.Bottom + margin;
-            if (actionTop + actionSize.Height > ActualHeight - margin)
+            var actionBelow = new Rect(visible.Left, visible.Bottom + margin, actionSize.Width, actionSize.Height);
+            var actionAbove = new Rect(visible.Left, visible.Top - actionSize.Height - margin, actionSize.Width, actionSize.Height);
+            var actionBases = new List<Rect>();
+            if (actionBelow.Bottom <= canvasHeight - margin)
             {
-                actionTop = visible.Top - actionSize.Height - margin;
+                actionBases.Add(ClampChromeRect(actionBelow, margin));
             }
-            actionTop = Math.Clamp(actionTop, margin, Math.Max(margin, ActualHeight - actionSize.Height - margin));
-            Canvas.SetLeft(ActionToolbarBorder, actionLeft);
-            Canvas.SetTop(ActionToolbarBorder, actionTop);
+            if (actionAbove.Top >= margin)
+            {
+                actionBases.Add(ClampChromeRect(actionAbove, margin));
+            }
+            if (actionBases.Count == 0)
+            {
+                actionBases.Add(ClampChromeRect(actionBelow, margin));
+            }
+
+            Rect selectedTool = toolCandidates[0];
+            Rect selectedAction = actionBases[0];
+            bool placed = false;
+            foreach (var tool in toolCandidates)
+            {
+                foreach (var actionBase in actionBases)
+                {
+                    var candidates = new List<Rect>
+                    {
+                        actionBase,
+                        ClampChromeRect(new Rect(tool.Right + margin, actionBase.Top, actionSize.Width, actionSize.Height), margin),
+                        ClampChromeRect(new Rect(tool.Left - actionSize.Width - margin, actionBase.Top, actionSize.Width, actionSize.Height), margin),
+                        ClampChromeRect(new Rect(tool.Left, tool.Bottom + margin, actionSize.Width, actionSize.Height), margin),
+                        ClampChromeRect(new Rect(tool.Left, tool.Top - actionSize.Height - margin, actionSize.Width, actionSize.Height), margin)
+                    };
+
+                    foreach (var candidate in candidates)
+                    {
+                        if (!OverlapsWithGap(candidate, tool) && !OverlapsWithGap(candidate, visible))
+                        {
+                            selectedTool = tool;
+                            selectedAction = candidate;
+                            placed = true;
+                            break;
+                        }
+                    }
+
+                    if (placed)
+                    {
+                        break;
+                    }
+                }
+
+                if (placed)
+                {
+                    break;
+                }
+            }
+
+            if (!placed)
+            {
+                foreach (var tool in toolCandidates)
+                {
+                    foreach (var actionBase in actionBases)
+                    {
+                        var candidate = new Rect(tool.Right + margin, actionBase.Top, actionSize.Width, actionSize.Height);
+                        candidate = ClampChromeRect(candidate, margin);
+                        if (!OverlapsWithGap(candidate, tool))
+                        {
+                            selectedTool = tool;
+                            selectedAction = candidate;
+                            placed = true;
+                            break;
+                        }
+                    }
+
+                    if (placed)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            Canvas.SetLeft(AnnotationToolbarBorder, selectedTool.Left);
+            Canvas.SetTop(AnnotationToolbarBorder, selectedTool.Top);
+            Canvas.SetLeft(ActionToolbarBorder, selectedAction.Left);
+            Canvas.SetTop(ActionToolbarBorder, selectedAction.Top);
+            _toolbarBounds = selectedTool;
+            _actionToolbarBounds = selectedAction;
+        }
+
+        private Rect ClampChromeRect(Rect rect, double margin)
+        {
+            double width = Math.Max(1, ActualWidth);
+            double height = Math.Max(1, ActualHeight);
+            return new Rect(
+                Math.Clamp(rect.Left, margin, Math.Max(margin, width - rect.Width - margin)),
+                Math.Clamp(rect.Top, margin, Math.Max(margin, height - rect.Height - margin)),
+                rect.Width,
+                rect.Height);
+        }
+
+        private static bool OverlapsWithGap(Rect first, Rect second)
+        {
+            if (first.IsEmpty || second.IsEmpty)
+            {
+                return false;
+            }
+
+            return first.IntersectsWith(new Rect(
+                second.Left - 2,
+                second.Top - 2,
+                second.Width + 4,
+                second.Height + 4));
         }
 
         private void ShowHint()
@@ -629,7 +739,9 @@ namespace CryoUtils.Views
             UpdateCursor(global);
 
             bool overToolbar = AnnotationToolbarBorder.IsMouseOver || ActionToolbarBorder.IsMouseOver;
-            if (!overToolbar && Controller.Selection.HasValue)
+            if (SettingsService.Instance.Current.ShowCaptureLoupe &&
+                !overToolbar &&
+                Controller.Selection.HasValue)
             {
                 UpdateLoupe(global, local);
             }
@@ -1007,6 +1119,12 @@ namespace CryoUtils.Views
         // ============================ Loupe ============================
         private void UpdateLoupe(Point global, Point local)
         {
+            if (!SettingsService.Instance.Current.ShowCaptureLoupe)
+            {
+                LoupePanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
             var bitmap = Controller.VirtualBitmap;
             if (bitmap == null)
             {
@@ -1045,21 +1163,37 @@ namespace CryoUtils.Views
             }
 
             LoupeCoords.Text = $"{relativeX + Controller.VirtualBounds.Left}, {relativeY + Controller.VirtualBounds.Top}";
-            LoupePanel.Visibility = Visibility.Visible;
             LoupePanel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             var size = LoupePanel.DesiredSize;
-            double left = local.X + 20;
-            double top = local.Y + 20;
-            if (left + size.Width > ActualWidth - 8)
+            var candidates = new[]
             {
-                left = local.X - size.Width - 20;
-            }
-            if (top + size.Height > ActualHeight - 8)
+                new Rect(local.X + 20, local.Y + 20, size.Width, size.Height),
+                new Rect(local.X - size.Width - 20, local.Y + 20, size.Width, size.Height),
+                new Rect(local.X + 20, local.Y - size.Height - 20, size.Width, size.Height),
+                new Rect(local.X - size.Width - 20, local.Y - size.Height - 20, size.Width, size.Height)
+            };
+
+            Rect? placement = null;
+            foreach (var candidate in candidates)
             {
-                top = local.Y - size.Height - 20;
+                var clamped = ClampChromeRect(candidate, 8);
+                if (!OverlapsWithGap(clamped, _toolbarBounds) &&
+                    !OverlapsWithGap(clamped, _actionToolbarBounds))
+                {
+                    placement = clamped;
+                    break;
+                }
             }
-            Canvas.SetLeft(LoupePanel, Math.Clamp(left, 8, Math.Max(8, ActualWidth - size.Width - 8)));
-            Canvas.SetTop(LoupePanel, Math.Clamp(top, 8, Math.Max(8, ActualHeight - size.Height - 8)));
+
+            if (!placement.HasValue)
+            {
+                LoupePanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            Canvas.SetLeft(LoupePanel, placement.Value.Left);
+            Canvas.SetTop(LoupePanel, placement.Value.Top);
+            LoupePanel.Visibility = Visibility.Visible;
         }
 
         // ============================ Colour popup ============================

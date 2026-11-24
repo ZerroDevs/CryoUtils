@@ -248,6 +248,7 @@
     <sys:String x:Key="Capture_Color">اللون</sys:String>
         <sys:String x:Key="Capture_SelectionSize">{0} x {1}</sys:String>
     <sys:String x:Key="Capture_Loupe">مكبر البكسل</sys:String>
+    <sys:String x:Key="Capture_LoupeDesc">يعرض تكبير البكسلات وقراءة اللون أثناء تحديد منطقة. متوقف افتراضياً.</sys:String>
 
     <sys:String x:Key="Rec_Title">تسجيل</sys:String>
     <sys:String x:Key="Rec_Fps">FPS</sys:String>

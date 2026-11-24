@@ -48,7 +48,7 @@ Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently
 
 Writes are atomic: temporary file then `File.Move(..., overwrite: true)`. `Save()` raises `SettingsChanged`; `SaveWithoutNotification()` updates the file without re-applying global settings. Export, import and reset use the same model.
 
-Startup defaults: `StartWithWindows=false`, `LaunchInBackground=true`. `--background` always starts tray-only. The title-bar X and Alt+F4 always hide the dashboard; quitting is only available from the tray's Exit action.
+Startup defaults: `StartWithWindows=false`, `LaunchInBackground=true`. `--background` always starts tray-only. The title-bar X and Alt+F4 always hide the dashboard; quitting is only available from the tray's Exit action. The capture pixel magnifier is opt-in with `ShowCaptureLoupe=false`; enable it on the Capture tab.
 
 ### Theme engine
 
@@ -71,7 +71,7 @@ Rules: flat surfaces, 1 px crisp borders, no gradients, no pink or purple, teal 
 
 ### Localization
 
-`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 296 keys each.
+`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 297 keys each.
 
 ### Global hotkeys
 
@@ -145,6 +145,7 @@ Defaults:
 - Export must be generated from the original frozen frame plus vectors, never from the dimmed overlay.
 - Arabic UI must mirror layout but keep technical units and shortcuts LTR. The OCR result keeps code and color tokens LTR even when prose is RTL.
 - OCR result text is editable and auto-sized in `CryoRichTextBox`; code mode applies syntax colors while preserving the caret and selection. Do not return to a fixed-height or plain-text result box.
+- Capture chrome must not overlap: choose a free action-rail slot around the tool rail, and hide the optional loupe when no free slot exists.
 - Settings JSON is the only persistent app state. No cloud sync, no telemetry.
 - The updater must never replace the running executable directly; it copies a backup and schedules a delayed script after exit.
 

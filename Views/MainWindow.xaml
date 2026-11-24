@@ -389,6 +389,8 @@
 
                                     <CheckBox x:Name="ChkAutoCopy" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_AutoCopy}" Margin="0,12,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                                     <CheckBox x:Name="ChkCaptureSound" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_Sound}" Margin="0,9,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <CheckBox x:Name="ChkShowLoupe" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_Loupe}" Margin="0,9,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <TextBlock Text="{DynamicResource Capture_LoupeDesc}" Style="{StaticResource MutedText}" Margin="22,3,0,0"/>
 
                                     <Grid Margin="0,14,0,0">
                                         <Grid.ColumnDefinitions>

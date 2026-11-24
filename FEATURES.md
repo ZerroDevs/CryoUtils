@@ -29,6 +29,8 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Auto-increment step badges | Y | Circular numbered callouts. |
 | Color swatches and custom color | Y | Custom picker plus recent palette. |
 | Thickness with wheel | Y | Live size preview. |
+| Action/tool rail collision avoidance | Y | Small selections place the action rail in a free slot around the tool rail. |
+| Optional pixel magnifier | Y | Off by default; enable in Capture settings. When on, avoids both rails. |
 | Undo / redo | Y | Vector object stack, Ctrl+Z / Ctrl+Y. |
 | Copy to clipboard | V | Ctrl+C produced exact 240 x 140 image. |
 | Save PNG / JPG / WebP | Y | Save dialog or quick save with timestamp. |
@@ -153,7 +155,7 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Theme Dark / Light / System | V | Live switch tested. |
 | Language English / العربية | V | Live switch tested. |
 | RTL layout | Y | Window flow direction; technical values LTR. |
-| Localization parity | V | 296 keys each, no duplicates, placeholders match. |
+| Localization parity | V | 297 keys each, no duplicates, placeholders match. |
 
 ## 9. Updater
 

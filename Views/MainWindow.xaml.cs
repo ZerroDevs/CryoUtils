@@ -101,6 +101,7 @@ namespace CryoUtils.Views
                 TxtSaveFolder.FlowDirection = FlowDirection.LeftToRight;
                 ChkAutoCopy.IsChecked = settings.AutoCopyCapture;
                 ChkCaptureSound.IsChecked = settings.CaptureSound;
+                ChkShowLoupe.IsChecked = settings.ShowCaptureLoupe;
                 SelectTag(CmbImageFormat, settings.ImageFormat);
                 SelectTag(CmbFps, settings.GifFps.ToString());
                 SelectTag(CmbRecFormat, settings.RecorderFormat);
@@ -347,6 +348,7 @@ namespace CryoUtils.Views
                 : TxtSaveFolder.Text;
             settings.AutoCopyCapture = ChkAutoCopy.IsChecked == true;
             settings.CaptureSound = ChkCaptureSound.IsChecked == true;
+            settings.ShowCaptureLoupe = ChkShowLoupe.IsChecked == true;
             settings.ImageFormat = SelectedTag(CmbImageFormat) ?? "PNG";
             settings.GifFps = int.TryParse(SelectedTag(CmbFps), out int fps) ? fps : 15;
             settings.RecorderFormat = SelectedTag(CmbRecFormat) ?? "GIF";
