@@ -148,12 +148,12 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Reset | Y | Confirmation and defaults. |
 | Run on startup | Y | Off by default; HKCU Run entry, no admin. |
 | Run in background | Y | On by default; manual launch starts in the tray. |
-| Run in tray when closed | Y | On by default; close hides. Turning it off makes close exit. |
+| X button hides to tray | Y | Minimize button removed; X and Alt+F4 hide the dashboard. Quit only from the tray menu. |
 | Window position restore | Y | Bounds checked against virtual screen. |
 | Theme Dark / Light / System | V | Live switch tested. |
 | Language English / العربية | V | Live switch tested. |
 | RTL layout | Y | Window flow direction; technical values LTR. |
-| Localization parity | V | 298 keys each, no duplicates, placeholders match. |
+| Localization parity | V | 296 keys each, no duplicates, placeholders match. |
 
 ## 9. Updater
 

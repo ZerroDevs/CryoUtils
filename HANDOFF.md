@@ -2,7 +2,15 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — installer, release, and version 0.0.100
+## Latest turn — title-bar close behavior
+
+- Removed the minimize button from the dashboard title bar; only the X remains.
+- The X button now always saves the window position and hides the dashboard to the tray. `Window_Closing` does the same for Alt+F4 and other close requests unless the app is shutting down.
+- Removed the obsolete `RunInTray` setting and its General-tab checkbox. Quitting is only possible from the tray's Exit action.
+- Removed the unused minimize/quit localization keys; EN/AR parity is now 296 keys each.
+- Release build after the behavior change: 0 warnings, 0 errors.
+
+## Previous turn — installer, release, and version 0.0.100
 
 - Added `Installer/CryoUtils.iss`, a per-user Inno Setup definition for `%LOCALAPPDATA%\Programs\CryoUtils` with `PrivilegesRequired=lowest`, `ArchitecturesAllowed=x64compatible`, Start Menu/optional desktop shortcuts, silent-update support, and a running-process stop before install/uninstall.
 - Added `build-installer.ps1`: reads `VERSION`, publishes the self-contained win-x64 payload, locates or installs Inno Setup 6.3+, compiles `Installer\Output\CryoUtils-Setup-<version>.exe`, and creates the portable zip plus SHA-256 files.
@@ -43,7 +51,7 @@ Last updated: 2026-11-24
 
 - Version baseline is `0.0.100`; the next patch is `0.0.101`.
 - Release build into a separate verification folder passes with 0 warnings and 0 errors. The normal `bin` build was blocked because a debug `CryoUtils.exe` process (PID 34972) was already running and holding the executable; that process was not killed.
-- `build-installer.ps1` completed successfully with the tray icon fix: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (54.22 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.87 MB), each with a `.sha256` file.
+- `build-installer.ps1` completed successfully with the tray icon and X-only close changes: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (54.2 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.87 MB), each with a `.sha256` file.
 - Installer and published executable version metadata show `0.0.100`; the portable archive contains `VERSION`, `LICENSE`, and `NOTICE` and no `.pdb` files.
 - The installer was not run on this machine, the GitHub workflow was not executed against GitHub, and the new tray icon was not inspected live in the notification area. Its 16/20/24 px renders were previewed on the tray's dark background.
 - The executable icon was extracted from the built `CryoUtils.exe` and inspected at 32 x 32; it matches the new CryoUtils mark.
@@ -58,12 +66,12 @@ Last updated: 2026-11-24
 
 - Release compilation: 0 warnings, 0 errors in `build-check`.
 - Inno Setup compilation succeeded for `CryoUtils-Setup-0.0.100.exe`; Windows version metadata reads `0.0.100`.
-- Setup SHA-256: `cebb946034065aaa0d42599205158da896129b859071266b9a7ab5b6f2cd990a`.
-- Portable zip SHA-256: `cf2300990febc81ad28f4aba28047e4b142780f0532397bb5b327c207d866195`.
+- Setup SHA-256: `43c203d399230601d54f6574a0e8f7222c83007b240bb58bfdbc5f8e2b698e67`.
+- Portable zip SHA-256: `e4519b2cbf80eb16ba9b1bc2cacb820d2e511c5c20b2d69ce7fad7d36a0081cd`.
 - Portable zip: 470 entries; `CryoUtils.exe`, `CryoUtils.dll`, `VERSION`, `LICENSE`, and `NOTICE` present; no `.pdb` entries.
 - OCR workflow, capture, hotkeys, clipboard, compressor, pinner, localization, and themes from the previous verification pass remain unchanged by the packaging work.
 - Startup, dashboard, tray process lifetime. Tray icon visible as `CryoUtils`.
-- Closing with Run in tray on hid the dashboard and kept the process alive; closing with it off exited the process.
+- The X button hid the dashboard and kept the process alive; Alt+F4 followed the same hide path. No title-bar action exits the app.
 - Enabling Run on startup wrote `"CryoUtils.exe" --background` under HKCU Run.
 - Capture: 2 overlays opened for 2 monitors; Esc restored the dashboard.
 - Drag selection (120,120) to (360,260), Ctrl+C produced a 240 x 140 clipboard image.
@@ -83,7 +91,7 @@ Last updated: 2026-11-24
 - OCR result: one-line text opens at 640 x 250 with a 72 px box and no vertical dead space; code/Markdown/color layouts were rendered in the harness.
 - OCR result: one line metadata reads `One line, 37 characters`; code metadata reads line and character counts.
 - OCR result loads `.md` as wrapped prose, `.cs` in mono code mode with horizontal scrolling, and Arabic text with RTL flow.
-- Localization dictionaries: 298 keys each, no duplicate keys, no placeholder mismatches.
+- Localization dictionaries: 296 keys each after removing the obsolete tray-close and quit-tooltip keys, with no duplicate keys or placeholder mismatches.
 - The computer has two monitors, both 1920 x 1080 at 96 DPI (100% scaling).
 
 ## Pending or unverified

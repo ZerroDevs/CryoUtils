@@ -12,7 +12,6 @@ namespace CryoUtils.Models
         public string Theme { get; set; } = "Dark"; // "Dark", "Light" or "System"
         public bool StartWithWindows { get; set; } = false;
         public bool LaunchInBackground { get; set; } = true;
-        public bool RunInTray { get; set; } = true;
         public string TrayLeftClickAction { get; set; } = "Dashboard"; // "Dashboard" or "Capture"
         public bool NotificationsEnabled { get; set; } = true;
         public bool ShowPinnedBorder { get; set; } = true;

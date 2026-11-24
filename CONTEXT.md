@@ -48,7 +48,7 @@ Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently
 
 Writes are atomic: temporary file then `File.Move(..., overwrite: true)`. `Save()` raises `SettingsChanged`; `SaveWithoutNotification()` updates the file without re-applying global settings. Export, import and reset use the same model.
 
-Startup defaults: `StartWithWindows=false`, `LaunchInBackground=true`, `RunInTray=true`. `--background` always starts tray-only. `RunInTray=true` turns the window close button into hide; `false` closes the application.
+Startup defaults: `StartWithWindows=false`, `LaunchInBackground=true`. `--background` always starts tray-only. The title-bar X and Alt+F4 always hide the dashboard; quitting is only available from the tray's Exit action.
 
 ### Theme engine
 
@@ -71,7 +71,7 @@ Rules: flat surfaces, 1 px crisp borders, no gradients, no pink or purple, teal 
 
 ### Localization
 
-`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 298 keys each.
+`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 296 keys each.
 
 ### Global hotkeys
 

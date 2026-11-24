@@ -153,7 +153,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | Component | Key behavior |
 |---|---|
 | `MainWindow.xaml` | Six tab radio buttons, title bar, module cards, capture settings, tools, hotkeys, general, about. |
-| `MainWindow.xaml.cs` | `ReloadUi`, `ShowTab`, `ModuleToggle_Changed`, `Setting_Changed`, `CmbTheme_SelectionChanged`, `CmbLanguage_SelectionChanged`, `RefreshHotkeyRows`, `AddHotkeyRow`, `RefreshRecentStrip`, `LoadCompressionSource`, `BtnCompress_Click`, `RefreshPinnedState`, `RefreshClipboardState`, `BtnExportSettings_Click`, `BtnImportSettings_Click`, `BtnResetSettings_Click`, update handlers, `TitleBar_MouseLeftButtonDown`, `Window_Closing` (hide when `RunInTray` is on, exit when off). |
+| `MainWindow.xaml.cs` | `ReloadUi`, `ShowTab`, `ModuleToggle_Changed`, `Setting_Changed`, `CmbTheme_SelectionChanged`, `CmbLanguage_SelectionChanged`, `RefreshHotkeyRows`, `AddHotkeyRow`, `RefreshRecentStrip`, `LoadCompressionSource`, `BtnCompress_Click`, `RefreshPinnedState`, `RefreshClipboardState`, `BtnExportSettings_Click`, `BtnImportSettings_Click`, `BtnResetSettings_Click`, update handlers, `TitleBar_MouseLeftButtonDown`, `BtnClose_Click`, `Window_Closing` (hide to tray unless shutdown is in progress). |
 | `CaptureOverlayWindow.xaml` | Selection canvas, top-left size badge, magnifier, vertical tool rail, horizontal action rail, tooltips. |
 | `CaptureOverlayWindow.xaml.cs` | Selection drag/move/resize, handles, double-click window, Ctrl+A, annotation tool selection, color/width, undo/redo, text editor, blur commit, OCR/pin/print/save/copy shortcuts, Esc. |
 | `CaptureSurface.cs` | Shared physical selection, annotation list, hit testing, cursor state, redraw. |

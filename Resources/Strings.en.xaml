@@ -150,7 +150,6 @@
     <sys:String x:Key="General_Startup">Run on startup</sys:String>
     <sys:String x:Key="General_StartupDesc">Adds a current-user Run entry. No administrator rights and no elevation prompt.</sys:String>
     <sys:String x:Key="General_Background">Run in background</sys:String>
-    <sys:String x:Key="General_RunInTray">Run in tray when closed</sys:String>
     <sys:String x:Key="General_TrayClick">Tray left click</sys:String>
     <sys:String x:Key="General_TrayDashboard">Open dashboard</sys:String>
     <sys:String x:Key="General_TrayCapture">Take screenshot</sys:String>
@@ -316,7 +315,6 @@
     <sys:String x:Key="Capture_RecordGuide">Select a region, then choose Record on the toolbar.</sys:String>
     <sys:String x:Key="Capture_ToolSelect">Select</sys:String>
     <sys:String x:Key="Main_TooltipMinimize">Minimize to tray</sys:String>
-    <sys:String x:Key="Main_TooltipQuit">Quit CryoUtils</sys:String>
     <sys:String x:Key="Recent_DeleteConfirm">Delete {0}? This removes the file from disk.</sys:String>
     <sys:String x:Key="Recent_DeleteFailed">Could not delete this capture.</sys:String>
     <sys:String x:Key="Recent_FolderMissing">This capture has no file on disk.</sys:String>

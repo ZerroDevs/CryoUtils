@@ -150,7 +150,6 @@
     <sys:String x:Key="General_Startup">التشغيل عند بدء التشغيل</sys:String>
     <sys:String x:Key="General_StartupDesc">يضيف إدخال تشغيل للمستخدم الحالي. بلا حقوق مدير وبلا طلب رفع صلاحيات.</sys:String>
     <sys:String x:Key="General_Background">العمل في الخلفية</sys:String>
-    <sys:String x:Key="General_RunInTray">البقاء في شريط النظام عند الإغلاق</sys:String>
     <sys:String x:Key="General_TrayClick">النقر الأيسر على الأيقونة</sys:String>
     <sys:String x:Key="General_TrayDashboard">فتح اللوحة</sys:String>
     <sys:String x:Key="General_TrayCapture">التقاط الشاشة</sys:String>
@@ -316,7 +315,6 @@
     <sys:String x:Key="Capture_RecordGuide">حدد منطقة ثم اختر تسجيل من شريط الأدوات.</sys:String>
     <sys:String x:Key="Capture_ToolSelect">تحديد</sys:String>
     <sys:String x:Key="Main_TooltipMinimize">تصغير إلى شريط النظام</sys:String>
-    <sys:String x:Key="Main_TooltipQuit">إغلاق CryoUtils</sys:String>
     <sys:String x:Key="Recent_DeleteConfirm">حذف {0}؟ سيُحذف الملف من القرص.</sys:String>
     <sys:String x:Key="Recent_DeleteFailed">تعذر حذف هذا العنصر.</sys:String>
     <sys:String x:Key="Recent_FolderMissing">لا يوجد ملف محفوظ لهذا العنصر.</sys:String>

@@ -124,7 +124,6 @@ namespace CryoUtils.Views
                 SelectTag(CmbLanguage, settings.Language);
                 ChkStartWithWindows.IsChecked = settings.StartWithWindows;
                 ChkLaunchBackground.IsChecked = settings.LaunchInBackground;
-                ChkRunInTray.IsChecked = settings.RunInTray;
                 ChkNotifications.IsChecked = settings.NotificationsEnabled;
                 SelectTag(
                     CmbTrayClick,
@@ -207,33 +206,22 @@ namespace CryoUtils.Views
             }
         }
 
-        private void BtnHide_Click(object sender, RoutedEventArgs e)
+        private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
             SaveWindowPosition();
             Hide();
         }
 
-        private void BtnQuit_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.ExitApplication();
-        }
-
         private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
-            SaveWindowPosition();
             if (_allowClose)
             {
                 return;
             }
 
             e.Cancel = true;
-            if (SettingsService.Instance.Current.RunInTray)
-            {
-                Hide();
-                return;
-            }
-
-            Dispatcher.BeginInvoke(new Action(() => App.CurrentApp?.ExitApplication()));
+            SaveWindowPosition();
+            Hide();
         }
 
         public void PrepareForShutdown()
@@ -366,7 +354,6 @@ namespace CryoUtils.Views
             settings.RecorderCopyOnStop = ChkCopyOnStop.IsChecked == true;
             settings.StartWithWindows = ChkStartWithWindows.IsChecked == true;
             settings.LaunchInBackground = ChkLaunchBackground.IsChecked == true;
-            settings.RunInTray = ChkRunInTray.IsChecked == true;
             settings.NotificationsEnabled = ChkNotifications.IsChecked == true;
             settings.TrayLeftClickAction = SelectedTag(CmbTrayClick) ?? "Dashboard";
             settings.ShowPinnedBorder = ChkPinnedFrame.IsChecked == true;

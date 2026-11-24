@@ -129,7 +129,7 @@ The tray icon is the normal entry point:
 - Left-click opens the dashboard by default; it can also be configured to start capture.
 - The tray menu provides capture, recording, color picker, dashboard, and exit actions.
 - **Run in background** is on by default, so a normal launch starts in the tray.
-- **Run in tray when closed** keeps the process and tray icon alive when the dashboard is closed.
+- The title-bar **X** always hides the dashboard and keeps the tray process alive. Quit only from the tray's **Exit** action.
 - **Run on startup** writes a per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry and passes `--background`. It is off by default.
 
 Dark is the default appearance. Light and System modes use the same resource tokens and apply live. Arabic switches layouts to RTL while technical values and shortcuts stay LTR.
