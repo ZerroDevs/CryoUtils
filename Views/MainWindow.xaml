@@ -1,0 +1,783 @@
+<Window x:Class="CryoUtils.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:CryoUtils.Views"
+        Title="{DynamicResource App_Title}"
+        Width="1040" Height="760"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        FontFamily="{StaticResource SegoeUIVariableText}"
+        Icon="pack://application:,,,/Images/CryoUtils.ico"
+        Closing="Window_Closing"
+        PreviewKeyDown="Window_PreviewKeyDown">
+
+    <Border Background="{DynamicResource WindowBackgroundBrush}"
+            BorderBrush="{DynamicResource WindowBorderBrush}"
+            BorderThickness="1"
+            ClipToBounds="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="36"/>
+                <RowDefinition Height="82"/>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="30"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Grid Grid.Row="0" Margin="14,0,10,0" Background="{DynamicResource TitleBarBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{DynamicResource App_Title}"
+                               Foreground="{DynamicResource TextTitleBrush}"
+                               FontSize="12.5"
+                               FontWeight="SemiBold"/>
+                    <TextBlock x:Name="TxtTitleVersion"
+                               Text=""
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="10.5"
+                               Margin="8,1,0,0"
+                               VerticalAlignment="Center"
+                               FlowDirection="LeftToRight"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="BtnHide"
+                            Style="{StaticResource TitleActionBtn}"
+                            Click="BtnHide_Click"
+                            ToolTip="{DynamicResource Main_TooltipMinimize}"
+                            AutomationProperties.Name="{DynamicResource Main_TooltipMinimize}">
+                        <Path Data="M3,10 L15,10" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="16" Height="16" Stretch="Uniform"/>
+                    </Button>
+                    <Button x:Name="BtnQuit"
+                            Style="{StaticResource TitleActionBtn}"
+                            Click="BtnQuit_Click"
+                            ToolTip="{DynamicResource Main_TooltipQuit}"
+                            AutomationProperties.Name="{DynamicResource Main_TooltipQuit}">
+                        <Path Data="M4,4 L16,16 M16,4 L4,16" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- Header -->
+            <Grid Grid.Row="1" Margin="22,0,22,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Grid Width="42" Height="42" VerticalAlignment="Center">
+                    <Border Background="{DynamicResource HeroInsetBrush}"
+                            BorderBrush="{DynamicResource BorderStrongBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"/>
+                    <Path Data="M8,17 L8,8 L17,8" Stroke="{DynamicResource ScanFrameBrush}" StrokeThickness="1.6" Width="32" Height="32" Stretch="Uniform" StrokeStartLineCap="Square" StrokeEndLineCap="Square"/>
+                    <Path Data="M24,15 L24,24 L15,24" Stroke="{DynamicResource ScanFrameBrush}" StrokeThickness="1.6" Width="32" Height="32" Stretch="Uniform" StrokeStartLineCap="Square" StrokeEndLineCap="Square"/>
+                    <Ellipse Width="5" Height="5" Fill="{DynamicResource AccentBrush}"/>
+                </Grid>
+
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{DynamicResource App_Tagline}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               FontSize="12.5"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{DynamicResource About_Privacy}"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               FontSize="10.5"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Style="{StaticResource HotkeyPill}" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{DynamicResource Module_Hotkey}"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                       FontSize="10"
+                                       Margin="0,0,6,0"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtHeaderHotkey"
+                                       Foreground="{DynamicResource AccentTextBrush}"
+                                       FontFamily="{StaticResource CryoMono}"
+                                       FontSize="10.5"
+                                       FlowDirection="LeftToRight"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Button Content="{DynamicResource Main_CaptureNow}"
+                            Style="{StaticResource PrimaryButton}"
+                            Click="BtnHeroCapture_Click"
+                            Margin="0,0,8,0"/>
+                    <Button Content="{DynamicResource Main_RecordNow}"
+                            Style="{StaticResource SecondaryButton}"
+                            Click="BtnRecordNow_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Tabs -->
+            <Grid Grid.Row="2" Margin="18,0,18,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <RadioButton x:Name="TabOverview" Style="{StaticResource TabButtonStyle}" IsChecked="True" Checked="Tab_Checked" Tag="Overview" Content="{DynamicResource Nav_Overview}"/>
+                    <RadioButton x:Name="TabCapture" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="Capture" Content="{DynamicResource Nav_Capture}"/>
+                    <RadioButton x:Name="TabTools" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="Tools" Content="{DynamicResource Nav_Tools}"/>
+                    <RadioButton x:Name="TabHotkeys" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="Hotkeys" Content="{DynamicResource Nav_Hotkeys}"/>
+                    <RadioButton x:Name="TabGeneral" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="General" Content="{DynamicResource Nav_General}"/>
+                    <RadioButton x:Name="TabAbout" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="About" Content="{DynamicResource Nav_About}"/>
+                </StackPanel>
+                <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" VerticalAlignment="Bottom"/>
+            </Grid>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="3" Style="{StaticResource CryoScrollViewer}" Padding="22,18,22,20">
+                <Grid>
+                    <!-- ==================== OVERVIEW ==================== -->
+                    <StackPanel x:Name="PanelOverview">
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource Main_OverviewTitle}" Style="{StaticResource PageTitle}"/>
+                                <TextBlock Text="{DynamicResource Main_OverviewSubtitle}" Style="{StaticResource BodyText}" Margin="0,6,0,0" MaxWidth="640" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                            <Border Style="{StaticResource HotkeyPill}" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                <TextBlock x:Name="TxtModuleCount" Foreground="{DynamicResource AccentTextBrush}" FontSize="11"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Hero -->
+                        <Border Background="{DynamicResource HeroBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="20" Margin="0,18,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="340"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                    <TextBlock Text="{DynamicResource Main_HeroKicker}" Foreground="{DynamicResource AccentTextBrush}" FontSize="10.5" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{DynamicResource Main_HeroTitle}" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="{StaticResource SegoeUIVariable}" FontSize="24" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{DynamicResource Main_HeroDesc}" Style="{StaticResource BodyText}" Margin="0,8,0,0" MaxWidth="500" HorizontalAlignment="Left"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                        <Button Content="{DynamicResource Main_CaptureNow}" Style="{StaticResource PrimaryButton}" Click="BtnHeroCapture_Click" Margin="0,0,8,0"/>
+                                        <Button Content="{DynamicResource Main_RecordNow}" Style="{StaticResource SecondaryButton}" Click="BtnRecordNow_Click"/>
+                                        <Border Style="{StaticResource HotkeyPill}" Margin="12,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TxtHeroHotkey" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10.5" FlowDirection="LeftToRight"/>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Vector capture mock -->
+                                <Canvas Grid.Column="1" Width="320" Height="150" ClipToBounds="True">
+                                    <Border Canvas.Left="0" Canvas.Top="10" Width="320" Height="140" Background="{DynamicResource HeroInsetBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="3"/>
+                                    <Rectangle Canvas.Left="38" Canvas.Top="38" Width="170" Height="86" Fill="Transparent" Stroke="{DynamicResource ScanFrameBrush}" StrokeThickness="1.4"/>
+                                    <Path Data="M38,52 L38,38 L52,38 M194,38 L208,38 L208,52 M38,110 L38,124 L52,124 M194,124 L208,124 L208,110" Stroke="{DynamicResource ScanFrameBrush}" StrokeThickness="1.8" StrokeStartLineCap="Square" StrokeEndLineCap="Square"/>
+                                    <Ellipse Canvas.Left="52" Canvas.Top="52" Width="18" Height="18" Fill="#E5534B"/>
+                                    <TextBlock Canvas.Left="57" Canvas.Top="54" Text="1" Foreground="White" FontSize="9.5" FontWeight="SemiBold"/>
+                                    <Path Data="M120,96 L168,70" Stroke="#F2C94C" StrokeThickness="2.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Path Data="M160,68 L170,69 L166,78" Fill="#F2C94C"/>
+                                    <Border Canvas.Left="226" Canvas.Top="34" Width="78" Height="104" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="3"/>
+                                    <Rectangle Canvas.Left="238" Canvas.Top="48" Width="54" Height="54" Fill="{DynamicResource InsetBackgroundBrush}" Stroke="{DynamicResource BorderBrush}" StrokeThickness="1"/>
+                                    <Rectangle Canvas.Left="238" Canvas.Top="110" Width="24" Height="16" Fill="{DynamicResource AccentSoftBrush}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1"/>
+                                </Canvas>
+                            </Grid>
+                        </Border>
+
+                        <!-- Module cards -->
+                        <Grid Margin="0,16,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="14"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="14"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{x:Static views:IconData.Capture}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform"/>
+                                            <TextBlock Text="{DynamicResource Module_CaptureName}" Style="{StaticResource CardTitle}" Margin="9,0,0,0"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="ChkModuleCapture" Style="{StaticResource ToggleSwitch}" Tag="Capture" HorizontalAlignment="Right" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_CaptureName}"/>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource Module_CaptureDesc}" Style="{StaticResource MutedText}" Margin="0,7,0,10"/>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Style="{StaticResource HotkeyPill}">
+                                                <TextBlock x:Name="TxtHotkeyCapture" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                            </Border>
+                                            <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickCapture_Click" Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                        <Button Content="{DynamicResource Recent_Compress}" Style="{StaticResource LinkButton}" Click="BtnGoCompress_Click" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{x:Static views:IconData.Droplet}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform"/>
+                                            <TextBlock Text="{DynamicResource Module_ColorName}" Style="{StaticResource CardTitle}" Margin="9,0,0,0"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="ChkModuleColor" Style="{StaticResource ToggleSwitch}" Tag="Color" HorizontalAlignment="Right" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_ColorName}"/>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource Module_ColorDesc}" Style="{StaticResource MutedText}" Margin="0,7,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Style="{StaticResource HotkeyPill}">
+                                            <TextBlock x:Name="TxtHotkeyColor" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                        </Border>
+                                        <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickColor_Click" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{x:Static views:IconData.Pin}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform"/>
+                                            <TextBlock Text="{DynamicResource Module_PinnerName}" Style="{StaticResource CardTitle}" Margin="9,0,0,0"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="ChkModulePinner" Style="{StaticResource ToggleSwitch}" Tag="Pinner" HorizontalAlignment="Right" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_PinnerName}"/>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource Module_PinnerDesc}" Style="{StaticResource MutedText}" Margin="0,7,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Style="{StaticResource HotkeyPill}">
+                                            <TextBlock x:Name="TxtHotkeyPinner" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                        </Border>
+                                        <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickPinner_Click" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{x:Static views:IconData.Compress}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform"/>
+                                            <TextBlock Text="{DynamicResource Module_CompressorName}" Style="{StaticResource CardTitle}" Margin="9,0,0,0"/>
+                                        </StackPanel>
+                                        <ToggleButton x:Name="ChkModuleCompressor" Style="{StaticResource ToggleSwitch}" Tag="Compressor" HorizontalAlignment="Right" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_CompressorName}"/>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource Module_CompressorDesc}" Style="{StaticResource MutedText}" Margin="0,7,0,10"/>
+                                    <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnGoCompress_Click" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" Style="{StaticResource CardBorder}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{x:Static views:IconData.Clipboard}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="18" Height="18" Stretch="Uniform"/>
+                                            <TextBlock Text="{DynamicResource Module_ClipboardName}" Style="{StaticResource CardTitle}" Margin="9,0,0,0"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{DynamicResource Module_ClipboardDesc}" Style="{StaticResource MutedText}" Margin="0,7,0,0" MaxWidth="560" HorizontalAlignment="Left"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Style="{StaticResource HotkeyPill}" Margin="0,0,10,0" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TxtHotkeyClipboard" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                        </Border>
+                                        <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickClipboard_Click" Margin="0,0,12,0"/>
+                                        <ToggleButton x:Name="ChkModuleClipboard" Style="{StaticResource ToggleSwitch}" Tag="Clipboard" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_ClipboardName}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <!-- Recent captures -->
+                        <Grid Margin="0,20,0,0">
+                            <TextBlock Text="{DynamicResource Recent_Title}" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="{DynamicResource Recent_OpenFolder}" Foreground="{DynamicResource TextMutedBrush}" FontSize="10.5" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Grid>
+                        <Border x:Name="RecentEmpty" Style="{StaticResource InsetBorder}" Margin="0,8,0,0" Padding="16,14">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{x:Static views:IconData.Capture}" Stroke="{DynamicResource ModuleMutedBrush}" StrokeThickness="1.4" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"/>
+                                <TextBlock Text="{DynamicResource Recent_Empty}" Style="{StaticResource MutedText}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ItemsControl x:Name="RecentItems" Margin="0,8,0,0" Visibility="Collapsed">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource CardBorder}" Width="180" Margin="0,0,10,0" Padding="8">
+                                            <StackPanel>
+                                                <Border Height="82" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="2">
+                                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Border>
+                                                <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="10.5" TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                                                <TextBlock Text="{Binding SizeText}" Foreground="{DynamicResource TextMutedBrush}" FontSize="9.5" Margin="0,2,0,5"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="6"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="4"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <Button Grid.Row="0" Grid.Column="0" Content="{DynamicResource Recent_Copy}" Tag="{Binding}" Click="RecentCopy_Click" Style="{StaticResource SecondaryButton}" FontSize="9.5" Padding="4,2"/>
+                                                    <Button Grid.Row="0" Grid.Column="2" Content="{DynamicResource Recent_Compress}" Tag="{Binding}" Click="RecentCompress_Click" Style="{StaticResource SecondaryButton}" FontSize="9.5" Padding="4,2"/>
+                                                    <Button Grid.Row="2" Grid.Column="0" Content="{DynamicResource Recent_OpenFolder}" Tag="{Binding}" Click="RecentOpenFolder_Click" Style="{StaticResource SecondaryButton}" FontSize="9.5" Padding="4,2"/>
+                                                    <Button Grid.Row="2" Grid.Column="2" Content="{DynamicResource Recent_Delete}" Tag="{Binding}" Click="RecentDelete_Click" Style="{StaticResource SecondaryButton}" FontSize="9.5" Padding="4,2"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- ==================== CAPTURE ==================== -->
+                    <StackPanel x:Name="PanelCapture" Visibility="Collapsed">
+                        <TextBlock Text="{DynamicResource Nav_Capture}" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="{DynamicResource Capture_RecordHint}" Style="{StaticResource BodyText}" Margin="0,5,0,16"/>
+
+                        <Border x:Name="PrintScreenBanner" Style="{StaticResource InsetBorder}" BorderBrush="{DynamicResource WarningTextBrush}" Visibility="Collapsed" Margin="0,0,0,14">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{DynamicResource Capture_Contested}" Foreground="{DynamicResource WarningTextBrush}" FontSize="11.5" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="{DynamicResource Capture_UseFallback}" Style="{StaticResource SecondaryButton}" Click="BtnUseFallback_Click" Margin="12,0,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Capture_SettingsTitle}" Style="{StaticResource SectionTitle}"/>
+                                    <CheckBox x:Name="ChkQuickSave" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_QuickSave}" Margin="0,12,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <TextBlock Text="{DynamicResource Capture_QuickSaveDesc}" Style="{StaticResource MutedText}" Margin="22,3,0,0"/>
+
+                                    <TextBlock Text="{DynamicResource Capture_Folder}" Style="{StaticResource FieldLabel}" Margin="0,14,0,5"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="TxtSaveFolder" Style="{StaticResource CryoTextBox}" IsReadOnly="True"/>
+                                        <Button Grid.Column="1" Content="{DynamicResource Common_Browse}" Style="{StaticResource SecondaryButton}" Click="BtnBrowseFolder_Click" Margin="6,0,0,0"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{DynamicResource Capture_ImageFormat}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                        <ComboBox x:Name="CmbImageFormat" Grid.Column="1" Width="110" Style="{StaticResource CryoComboBox}" SelectionChanged="Setting_Changed" AutomationProperties.Name="{DynamicResource Capture_ImageFormat}">
+                                            <ComboBoxItem Content="PNG" Tag="PNG"/>
+                                            <ComboBoxItem Content="JPG" Tag="JPG"/>
+                                            <ComboBoxItem Content="WEBP" Tag="WEBP"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <CheckBox x:Name="ChkAutoCopy" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_AutoCopy}" Margin="0,12,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <CheckBox x:Name="ChkCaptureSound" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_Sound}" Margin="0,9,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+
+                                    <Grid Margin="0,14,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{DynamicResource Capture_DefaultColor}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                        <Button x:Name="BtnDefaultColor" Grid.Column="1" Width="78" Height="28" Style="{StaticResource SecondaryButton}" Padding="4,2" Click="BtnDefaultColor_Click" AutomationProperties.Name="{DynamicResource Capture_DefaultColor}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border x:Name="DefaultColorSwatch" Width="14" Height="14" CornerRadius="2" Background="#E5534B" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1"/>
+                                                <TextBlock x:Name="TxtDefaultColor" Margin="6,0,0,0" FontFamily="{StaticResource CryoMono}" FontSize="9.5" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{DynamicResource Capture_Thickness}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                            <Slider x:Name="SldThickness" Style="{StaticResource CryoSlider}" Width="120" Minimum="1" Maximum="20" Value="3" ValueChanged="Thickness_ValueChanged" IsSnapToTickEnabled="True" TickFrequency="1"/>
+                                            <TextBlock x:Name="TxtThickness" Width="34" Text="3" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10.5" FlowDirection="LeftToRight" VerticalAlignment="Center" TextAlignment="Right"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{DynamicResource Capture_StepStart}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                        <TextBox x:Name="TxtStepStart" Grid.Column="1" Width="70" Style="{StaticResource CryoTextBox}" Text="1" FlowDirection="LeftToRight" LostFocus="TxtStepStart_LostFocus" AutomationProperties.Name="{DynamicResource Capture_StepStart}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel Grid.Column="2">
+                                <Border Style="{StaticResource CardBorder}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Capture_GifTitle}" Style="{StaticResource SectionTitle}"/>
+                                        <Grid Margin="0,12,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{DynamicResource Capture_Fps}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                            <ComboBox x:Name="CmbFps" Grid.Column="1" Width="98" Style="{StaticResource CryoComboBox}" SelectionChanged="Setting_Changed" AutomationProperties.Name="{DynamicResource Capture_Fps}">
+                                                <ComboBoxItem Content="15" Tag="15"/>
+                                                <ComboBoxItem Content="24" Tag="24"/>
+                                                <ComboBoxItem Content="30" Tag="30"/>
+                                            </ComboBox>
+                                        </Grid>
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{DynamicResource Capture_Format}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                            <ComboBox x:Name="CmbRecFormat" Grid.Column="1" Width="98" Style="{StaticResource CryoComboBox}" SelectionChanged="Setting_Changed" AutomationProperties.Name="{DynamicResource Capture_Format}">
+                                                <ComboBoxItem Content="GIF" Tag="GIF"/>
+                                                <ComboBoxItem Content="MP4" Tag="MP4"/>
+                                            </ComboBox>
+                                        </Grid>
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{DynamicResource Capture_MaxSeconds}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                            <ComboBox x:Name="CmbMaxSeconds" Grid.Column="1" Width="98" Style="{StaticResource CryoComboBox}" SelectionChanged="Setting_Changed" AutomationProperties.Name="{DynamicResource Capture_MaxSeconds}">
+                                                <ComboBoxItem Content="10" Tag="10"/>
+                                                <ComboBoxItem Content="20" Tag="20"/>
+                                                <ComboBoxItem Content="30" Tag="30"/>
+                                                <ComboBoxItem Content="60" Tag="60"/>
+                                            </ComboBox>
+                                        </Grid>
+                                        <CheckBox x:Name="ChkCopyOnStop" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_CopyOnStop}" Margin="0,12,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                        <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,12,0,10"/>
+                                        <TextBlock Text="{DynamicResource Capture_OcrNote}" Style="{StaticResource MutedText}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardBorder}" Margin="0,14,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Main_HeroKicker}" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock Text="{DynamicResource Capture_RecordHint}" Style="{StaticResource MutedText}" Margin="0,6,0,10"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="{DynamicResource Main_CaptureNow}" Style="{StaticResource PrimaryButton}" Click="BtnHeroCapture_Click" Margin="0,0,8,0"/>
+                                            <Button Content="{DynamicResource Main_RecordNow}" Style="{StaticResource SecondaryButton}" Click="BtnRecordNow_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- ==================== TOOLS ==================== -->
+                    <StackPanel x:Name="PanelTools" Visibility="Collapsed">
+                        <TextBlock Text="{DynamicResource Nav_Tools}" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="{DynamicResource Tools_CompressorDesc}" Style="{StaticResource BodyText}" Margin="0,5,0,16"/>
+
+                        <Border Style="{StaticResource CardBorder}">
+                            <StackPanel>
+                                <Grid>
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource Tools_CompressorTitle}" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock Text="{DynamicResource Tools_NoResult}" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="{DynamicResource Common_Browse}" Style="{StaticResource SecondaryButton}" Click="BtnBrowseCompress_Click"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="16"/>
+                                        <ColumnDefinition Width="300"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border x:Name="DropZone" Grid.Column="0" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Padding="18" AllowDrop="True" DragOver="DropZone_DragOver" Drop="DropZone_Drop" MouseLeftButtonDown="DropZone_MouseLeftButtonDown" Cursor="Hand">
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Path Data="{x:Static views:IconData.Compress}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.4" Width="28" Height="28" Stretch="Uniform" HorizontalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtCompressFileName" Text="{DynamicResource Tools_Dropzone}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold" Margin="0,8,0,0" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="400"/>
+                                            <TextBlock Text="{DynamicResource Tools_DropzoneHint}" Style="{StaticResource MutedText}" Margin="0,4,0,0" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="{DynamicResource Tools_Preset}" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox x:Name="CmbPreset" Style="{StaticResource CryoComboBox}" SelectionChanged="CmbPreset_SelectionChanged" AutomationProperties.Name="{DynamicResource Tools_Preset}">
+                                            <ComboBoxItem Content="{DynamicResource Tools_PresetDiscord}" Tag="Discord"/>
+                                            <ComboBoxItem Content="{DynamicResource Tools_PresetWhatsApp}" Tag="WhatsApp"/>
+                                            <ComboBoxItem Content="{DynamicResource Tools_PresetCustom}" Tag="Custom"/>
+                                        </ComboBox>
+
+                                        <Grid Margin="0,10,0,0">
+                                            <TextBlock Text="{DynamicResource Tools_Quality}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtQualityValue" Text="82%" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10" FlowDirection="LeftToRight"/>
+                                        </Grid>
+                                        <Slider x:Name="SldQuality" Style="{StaticResource CryoSlider}" Minimum="20" Maximum="100" Value="82" ValueChanged="Compression_ValueChanged" IsSnapToTickEnabled="True" TickFrequency="1"/>
+
+                                        <Grid Margin="0,8,0,0">
+                                            <TextBlock Text="{DynamicResource Tools_Scale}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtScaleValue" Text="100%" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10" FlowDirection="LeftToRight"/>
+                                        </Grid>
+                                        <Slider x:Name="SldScale" Style="{StaticResource CryoSlider}" Minimum="20" Maximum="100" Value="100" ValueChanged="Compression_ValueChanged" IsSnapToTickEnabled="True" TickFrequency="5"/>
+
+                                        <Button x:Name="BtnCompress" Content="{DynamicResource Tools_CompressButton}" Style="{StaticResource PrimaryButton}" Margin="0,12,0,0" Click="BtnCompress_Click" HorizontalAlignment="Left"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource InsetBorder}" Padding="10,8" Margin="0,0,12,0">
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtCompressStatus" Text="{DynamicResource Tools_NoResult}" Style="{StaticResource MutedText}"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                <TextBlock Text="{DynamicResource Tools_Before}" Style="{StaticResource FieldLabel}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtBeforeSize" Text="--" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10.5" FlowDirection="LeftToRight"/>
+                                                <TextBlock Text="{DynamicResource Tools_After}" Style="{StaticResource FieldLabel}" Margin="16,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtAfterSize" Text="--" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10.5" FlowDirection="LeftToRight"/>
+                                                <TextBlock Text="{DynamicResource Tools_Saved}" Style="{StaticResource FieldLabel}" Margin="16,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtSaved" Text="--" Foreground="{DynamicResource AccentTextBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10.5" FlowDirection="LeftToRight"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Width="96" Height="62" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="2" Margin="0,0,10,0">
+                                            <Image x:Name="ImgCompressedPreview" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        </Border>
+                                        <Button x:Name="BtnSaveCompressed" Content="{DynamicResource Tools_SaveAs}" Style="{StaticResource SecondaryButton}" Click="BtnSaveCompressed_Click" IsEnabled="False" Margin="0,0,7,0"/>
+                                        <Button x:Name="BtnCopyCompressed" Content="{DynamicResource Tools_CopyFile}" Style="{StaticResource SecondaryButton}" Click="BtnCopyCompressed_Click" IsEnabled="False"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="14"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="14"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Tools_RecentColors}" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock x:Name="TxtRecentColorsEmpty" Text="{DynamicResource Tools_RecentColorsEmpty}" Style="{StaticResource MutedText}" Margin="0,6,0,0"/>
+                                    <WrapPanel x:Name="RecentColorsPanel" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Tools_PinnedTitle}" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock x:Name="TxtPinnedWindow" Text="{DynamicResource Tools_PinnedNone}" Style="{StaticResource MutedText}" Margin="0,6,0,10" TextTrimming="CharacterEllipsis"/>
+                                    <Button x:Name="BtnUnpin" Content="{DynamicResource Tools_Unpin}" Style="{StaticResource SecondaryButton}" Click="BtnUnpin_Click" HorizontalAlignment="Left" IsEnabled="False"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="4" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Tools_ClipboardTitle}" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock x:Name="TxtClipboardCount" Text="{DynamicResource Tools_ClipboardEmpty}" Style="{StaticResource MutedText}" Margin="0,6,0,4"/>
+                                    <TextBlock x:Name="TxtClipboardNote" Text="{DynamicResource Tools_ClipboardDesc}" Style="{StaticResource MutedText}" Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="{DynamicResource Tools_ClipboardOpen}" Style="{StaticResource SecondaryButton}" Click="BtnClipboardOpen_Click" Margin="0,0,7,0"/>
+                                        <Button Content="{DynamicResource Tools_ClipboardClear}" Style="{StaticResource SecondaryButton}" Click="BtnClipboardClear_Click"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- ==================== HOTKEYS ==================== -->
+                    <StackPanel x:Name="PanelHotkeys" Visibility="Collapsed">
+                        <TextBlock Text="{DynamicResource Hotkeys_Title}" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="{DynamicResource Hotkeys_Desc}" Style="{StaticResource BodyText}" Margin="0,5,0,16" MaxWidth="720" HorizontalAlignment="Left"/>
+                        <Border Style="{StaticResource CardBorder}" Padding="4">
+                            <StackPanel x:Name="HotkeyRowsPanel"/>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="{DynamicResource Hotkeys_ResetDefaults}" Style="{StaticResource SecondaryButton}" Click="BtnResetHotkeys_Click"/>
+                            <TextBlock Text="{DynamicResource Hotkeys_RequireModifier}" Style="{StaticResource MutedText}" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- ==================== GENERAL ==================== -->
+                    <StackPanel x:Name="PanelGeneral" Visibility="Collapsed">
+                        <TextBlock Text="{DynamicResource Nav_General}" Style="{StaticResource PageTitle}"/>
+                        <TextBlock Text="{DynamicResource General_StartupDesc}" Style="{StaticResource BodyText}" Margin="0,5,0,16" MaxWidth="720" HorizontalAlignment="Left"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource General_Appearance}" Style="{StaticResource SectionTitle}"/>
+                                    <Grid Margin="0,12,0,0">
+                                        <TextBlock Text="{DynamicResource General_Theme}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="CmbTheme" Width="140" HorizontalAlignment="Right" Style="{StaticResource CryoComboBox}" SelectionChanged="CmbTheme_SelectionChanged" AutomationProperties.Name="{DynamicResource General_Theme}">
+                                            <ComboBoxItem Content="{DynamicResource General_ThemeDark}" Tag="Dark"/>
+                                            <ComboBoxItem Content="{DynamicResource General_ThemeLight}" Tag="Light"/>
+                                            <ComboBoxItem Content="{DynamicResource General_ThemeSystem}" Tag="System"/>
+                                        </ComboBox>
+                                    </Grid>
+                                    <Grid Margin="0,10,0,0">
+                                        <TextBlock Text="{DynamicResource General_Language}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="CmbLanguage" Width="140" HorizontalAlignment="Right" Style="{StaticResource CryoComboBox}" SelectionChanged="CmbLanguage_SelectionChanged" AutomationProperties.Name="{DynamicResource General_Language}">
+                                            <ComboBoxItem Content="English" Tag="English"/>
+                                            <ComboBoxItem Content="العربية" Tag="العربية" FlowDirection="RightToLeft"/>
+                                        </ComboBox>
+                                    </Grid>
+                                    <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,14,0,12"/>
+                                    <CheckBox x:Name="ChkStartWithWindows" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_Startup}" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <CheckBox x:Name="ChkLaunchBackground" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_Background}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <CheckBox x:Name="ChkRunInTray" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_RunInTray}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <CheckBox x:Name="ChkNotifications" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_Notifications}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource CardBorder}">
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource General_TrayClick}" Style="{StaticResource SectionTitle}"/>
+                                    <ComboBox x:Name="CmbTrayClick" Style="{StaticResource CryoComboBox}" Margin="0,10,0,0" SelectionChanged="Setting_Changed" AutomationProperties.Name="{DynamicResource General_TrayClick}">
+                                        <ComboBoxItem Content="{DynamicResource General_TrayDashboard}" Tag="Dashboard"/>
+                                        <ComboBoxItem Content="{DynamicResource General_TrayCapture}" Tag="Capture"/>
+                                    </ComboBox>
+                                    <CheckBox x:Name="ChkPinnedFrame" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_PinnedFrame}" Margin="0,14,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <CheckBox x:Name="ChkPinnedSound" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_PinnedSound}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                    <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,14,0,12"/>
+                                    <TextBlock Text="{DynamicResource General_DataTitle}" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock Text="{DynamicResource General_DataDesc}" Style="{StaticResource MutedText}" Margin="0,5,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="{DynamicResource General_Export}" Style="{StaticResource SecondaryButton}" Click="BtnExportSettings_Click" Margin="0,0,7,0"/>
+                                        <Button Content="{DynamicResource General_Import}" Style="{StaticResource SecondaryButton}" Click="BtnImportSettings_Click" Margin="0,0,7,0"/>
+                                        <Button Content="{DynamicResource General_Reset}" Style="{StaticResource DangerButton}" Click="BtnResetSettings_Click"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- ==================== ABOUT ==================== -->
+                    <StackPanel x:Name="PanelAbout" Visibility="Collapsed">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <Grid Width="64" Height="64" HorizontalAlignment="Left">
+                                    <Border Background="{DynamicResource HeroInsetBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="6"/>
+                                    <Path Data="M12,26 L12,12 L26,12" Stroke="{DynamicResource ScanFrameBrush}" StrokeThickness="2" Width="48" Height="48" Stretch="Uniform"/>
+                                    <Path Data="M36,22 L36,36 L22,36" Stroke="{DynamicResource ScanFrameBrush}" StrokeThickness="2" Width="48" Height="48" Stretch="Uniform"/>
+                                    <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}"/>
+                                </Grid>
+                                <TextBlock Text="{DynamicResource App_Title}" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="{StaticResource SegoeUIVariable}" FontSize="24" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                                <TextBlock Text="{DynamicResource App_Tagline}" Style="{StaticResource BodyText}" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="TxtAboutVersion" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11.5" Margin="0,10,0,0" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
+                                <TextBlock Text="{DynamicResource App_Creator}" Foreground="{DynamicResource AccentTextBrush}" FontSize="11.5" Margin="0,4,0,0"/>
+                                <TextBlock Text="{DynamicResource App_Copyright}" Style="{StaticResource MutedText}" Margin="0,3,0,0"/>
+                                <TextBlock Text="{DynamicResource About_Privacy}" Style="{StaticResource MutedText}" Margin="0,14,0,0" MaxWidth="400" HorizontalAlignment="Left"/>
+                                <Border Style="{StaticResource InsetBorder}" Margin="0,14,0,0" Padding="10,8">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource About_Repo}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11.5" FontWeight="SemiBold"/>
+                                        <Button Content="ZerroDevs/CryoUtils" Style="{StaticResource LinkButton}" Click="BtnRepo_Click" HorizontalAlignment="Left" Margin="0,3,0,0" FontFamily="{StaticResource CryoMono}"/>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="{DynamicResource About_License}" Style="{StaticResource MutedText}" Margin="0,10,0,0" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <Border Style="{StaticResource CardBorder}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource About_Updates}" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock Text="{DynamicResource About_UpdatesDesc}" Style="{StaticResource MutedText}" Margin="0,5,0,8"/>
+                                        <CheckBox x:Name="ChkAutoUpdates" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource About_Automatic}" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                        <CheckBox x:Name="ChkSaveRollback" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource About_Rollback}" Margin="0,9,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                                        <TextBlock Text="{DynamicResource About_RollbackDesc}" Style="{StaticResource MutedText}" Margin="22,3,0,0"/>
+
+                                        <TextBlock x:Name="TxtUpdateStatus" Text="{DynamicResource About_Never}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11.5" TextWrapping="Wrap" Margin="0,12,0,2" AutomationProperties.LiveSetting="Polite"/>
+                                        <TextBlock x:Name="TxtLastChecked" Text="{DynamicResource About_Never}" Style="{StaticResource MutedText}" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
+                                        <ProgressBar x:Name="UpdateProgress" Height="4" Margin="0,8,0,0" Minimum="0" Maximum="100" Visibility="Collapsed" Foreground="{DynamicResource AccentBrush}" Background="{DynamicResource BorderStrongBrush}" BorderThickness="0"/>
+                                        <Border x:Name="UpdateNotesPanel" Style="{StaticResource InsetBorder}" Margin="0,8,0,0" Visibility="Collapsed" MaxHeight="120">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <TextBlock x:Name="TxtUpdateNotes" Style="{StaticResource MutedText}"/>
+                                            </ScrollViewer>
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Button x:Name="BtnCheckUpdates" Content="{DynamicResource About_Check}" Style="{StaticResource SecondaryButton}" Click="BtnCheckUpdates_Click" Margin="0,0,7,0"/>
+                                            <Button x:Name="BtnDownloadUpdate" Content="{DynamicResource About_Download}" Style="{StaticResource PrimaryButton}" Click="BtnDownloadUpdate_Click" Visibility="Collapsed"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardBorder}" Margin="0,14,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource About_Restore}" Style="{StaticResource SectionTitle}"/>
+                                        <TextBlock x:Name="TxtRollbackStatus" Text="{DynamicResource About_NoBackup}" Style="{StaticResource MutedText}" Margin="0,6,0,10"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button x:Name="BtnRestore" Content="{DynamicResource About_Restore}" Style="{StaticResource SecondaryButton}" Click="BtnRestore_Click" IsEnabled="False" Margin="0,0,7,0"/>
+                                            <Button x:Name="BtnDeleteBackup" Content="{DynamicResource About_DeleteBackup}" Style="{StaticResource DangerButton}" Click="BtnDeleteBackup_Click" IsEnabled="False"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+
+            <!-- Status bar -->
+            <Grid Grid.Row="4" Margin="22,0,22,0">
+                <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" VerticalAlignment="Top"/>
+                <TextBlock x:Name="TxtStatusBar"
+                           Text="{DynamicResource About_Privacy}"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           FontSize="10"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="TxtStatusVersion"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           FontSize="10"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           FlowDirection="LeftToRight"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
