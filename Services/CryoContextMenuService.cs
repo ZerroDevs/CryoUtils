@@ -122,12 +122,12 @@ namespace CryoUtils.Services
                 if (menuKey == null) return;
 
                 menuKey.SetValue("MUIVerb", "CryoUtils");
-                menuKey.SetValue("", "CryoUtils");
                 menuKey.SetValue("Icon", $"\"{exePath}\",0");
-                menuKey.SetValue("subcommands", "");
                 menuKey.SetValue("SubCommands", "");
 
-                try { menuKey.DeleteValue("ExtendedSubCommandsKey"); } catch { }
+                // Setting (Default) on the parent cascade key causes Explorer to treat it as a leaf/empty menu.
+                try { menuKey.DeleteValue("", throwOnMissingValue: false); } catch { }
+                try { menuKey.DeleteValue("ExtendedSubCommandsKey", throwOnMissingValue: false); } catch { }
 
                 using var shellKey = menuKey.CreateSubKey("shell");
                 if (shellKey == null) return;
@@ -137,7 +137,6 @@ namespace CryoUtils.Services
                     using var actionKey = shellKey.CreateSubKey(action.id);
                     if (actionKey == null) continue;
 
-                    actionKey.SetValue("", action.label);
                     actionKey.SetValue("MUIVerb", action.label);
                     actionKey.SetValue("Icon", $"\"{exePath}\",0");
 
@@ -148,16 +147,6 @@ namespace CryoUtils.Services
             catch
             {
             }
-        }
-
-        private static void RegisterAnchor(string target, string exePath, string subCommandsKeyName)
-        {
-            // Legacy stub kept for backward compatibility
-        }
-
-        private static void RegisterSubCommands(string keyName, string exePath, (string id, string action, string label)[] actions)
-        {
-            // Legacy stub kept for backward compatibility
         }
 
         private static void UnregisterAnchor(string target)

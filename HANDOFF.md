@@ -5,15 +5,13 @@ Last updated: 2026-11-24
 ## Latest turn — Fix Windows Explorer cascading context submenu expansion
 
 - **Root Cause of Empty Submenu**:
-  - `ExtendedSubCommandsKey` pointed to arbitrary root ProgID keys under HKCU, which Windows Explorer fails to resolve for static cascading submenus in file associations.
-  - Explorer failed to expand the `CryoUtils ▶` flyout menu because it couldn't locate subcommands.
+  - Setting a non-empty `(Default)` string value on the parent `CryoUtils` cascade key (`"" = "CryoUtils"`) causes Windows Shell's `CRegistryVerb` handler to populate `0` submenu items during `WM_INITMENUPOPUP`, leaving the `CryoUtils >` flyout completely blank.
+  - Earlier `ExtendedSubCommandsKey` also had missing HKCU subkey resolution.
 - **Direct Cascading Submenu Architecture**:
-  - Migrated `CryoContextMenuService` to the native self-contained Windows `subcommands = ""` + `shell\<id>\command` hierarchy directly under `HKCU\Software\Classes\SystemFileAssociations\<ext>\shell\CryoUtils`.
-  - Added both `MUIVerb` and default `""` string values for every action verb to ensure Explorer parses menu labels reliably.
-  - Automatically deleted legacy `ExtendedSubCommandsKey` and `CryoUtils.Menu.*` keys.
-  - Fired `SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, 0, 0)` so Explorer instantly updates its cache.
+  - Updated `CryoContextMenuService` to use self-contained `SubCommands = ""` + `shell\<id>\command` directly under `HKCU\Software\Classes\SystemFileAssociations\<ext>\shell\CryoUtils`, using only `MUIVerb` (never setting `(Default)` on the parent cascade key) and deleting any stale `(Default)` or `ExtendedSubCommandsKey` values.
+  - Fired `SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, 0, 0)` so Explorer invalidates cached associations.
 - **Verification**:
-  - Registry verification confirmed 8 subkeys directly populated under `.png\shell\CryoUtils\shell`, 3 under `.pdf`, and 2 under `.mp4`.
+  - Verified directly via Windows Shell COM `IShellFolder::GetUIObjectOf` + `IContextMenu3::QueryContextMenu` + `HandleMenuMsg2(WM_INITMENUPOPUP)` probe on `.png` (8 submenu items), `.pdf` (3 submenu items), and `.mp4` (2 submenu items).
   - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
 
 ## Previous turn — Windows Context Menu file tools & Screenshot Cloud Upload
