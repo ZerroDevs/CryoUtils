@@ -2,7 +2,48 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — Two-click confirm Quit button in title bar near X
+## Latest turn — Fix Windows Explorer cascading context submenu expansion
+
+- **Root Cause of Empty Submenu**:
+  - `ExtendedSubCommandsKey` pointed to arbitrary root ProgID keys under HKCU, which Windows Explorer fails to resolve for static cascading submenus in file associations.
+  - Explorer failed to expand the `CryoUtils ▶` flyout menu because it couldn't locate subcommands.
+- **Direct Cascading Submenu Architecture**:
+  - Migrated `CryoContextMenuService` to the native self-contained Windows `subcommands = ""` + `shell\<id>\command` hierarchy directly under `HKCU\Software\Classes\SystemFileAssociations\<ext>\shell\CryoUtils`.
+  - Added both `MUIVerb` and default `""` string values for every action verb to ensure Explorer parses menu labels reliably.
+  - Automatically deleted legacy `ExtendedSubCommandsKey` and `CryoUtils.Menu.*` keys.
+  - Fired `SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, 0, 0)` so Explorer instantly updates its cache.
+- **Verification**:
+  - Registry verification confirmed 8 subkeys directly populated under `.png\shell\CryoUtils\shell`, 3 under `.pdf`, and 2 under `.mp4`.
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+
+## Previous turn — Windows Context Menu file tools & Screenshot Cloud Upload
+
+- **Screenshot Cloud Upload ("Upload & Get Link")**:
+  - Added `CloudUpload` icon (`IconData.CloudUpload`) to `CaptureOverlayWindow` action toolbar.
+  - Shortcut: `Ctrl+U` or `Ctrl+D` (Lightshot muscle memory).
+  - Implemented `CloudUploadService.UploadImageAsync(bitmap)` uploading to Catbox with zero API key required.
+  - Automatically copies direct image link to clipboard (`https://files.catbox.moe/xxx.png`).
+  - Shows desktop toast with direct link and logs upload in Recent Captures.
+  - Graceful fallback: copies image to clipboard if network is offline.
+- **Windows Context Menu Integration (`CryoContextMenuService`)**:
+  - Registered under `HKCU\Software\Classes\SystemFileAssociations` (100% per-user, zero UAC elevation required).
+  - Cascading submenu `CryoUtils ▶` for:
+    - **PDF (`.pdf`)**: Export to PNG Images, Export to JPG Images, Compress PDF.
+    - **Images (`image`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.jfif`)**: Convert to PDF, Quick Compress, Remove Background (Transparent PNG), Strip Metadata / EXIF, Convert to PNG, Convert to JPG, Convert to WebP, Convert to ICO Icon.
+    - **Videos (`video`, `.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`)**: Extract MP3 Audio, Convert to Animated GIF.
+  - 1-click toggle switch `ChkContextMenu` in Settings tab (`PanelGeneral`).
+- **Media & Document Processing Engines**:
+  - `PdfToolsService`: Native `Windows.Data.Pdf.PdfDocument` page rendering and `SkiaSharp.SKDocument.CreatePdf` generator.
+  - `ImageProcessingService`: Format converter (PNG/JPG/WEBP/ICO/BMP/JFIF), EXIF stripper, and smart corner-sampled color-distance alpha background remover.
+  - `MediaConversionService`: Native Windows `MediaTranscoder` video-to-MP3 and `MediaComposition` video-to-GIF converter.
+- **CLI Action Dispatcher (`App.xaml.cs`)**:
+  - Handles `CryoUtils.exe --action <action_id> "<file_path>"` in background without opening dashboard, shows localized toast on completion, and exits cleanly.
+- **Localization Parity**:
+  - Added 21 new localized keys to both `Strings.en.xaml` and `Strings.ar.xaml` (394 keys each, 100% parity).
+- **Parity & Build**:
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+
+## Previous turn — Two-click confirm Quit button in title bar near X
 
 - **Two-Click Confirm Quit Button (`BtnQuit`)**:
   - Added dedicated Quit button in title bar directly next to `BtnClose` (X).

@@ -429,6 +429,54 @@ namespace CryoUtils.Views
             return target;
         }
 
+        public async void UploadSelectionAsync()
+        {
+            var bitmap = RenderSelection();
+            if (bitmap == null)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            var app = Application.Current as App;
+            app?.ShowToast(LocalizationService.Get("Capture_Uploading"));
+            CloseAll();
+
+            try
+            {
+                string url = await CloudUploadService.UploadImageAsync(bitmap);
+                try
+                {
+                    Clipboard.SetText(url);
+                }
+                catch
+                {
+                    var data = new DataObject();
+                    data.SetText(url);
+                    Clipboard.SetDataObject(data, true);
+                }
+
+                RecentCaptureService.Instance.Add(bitmap, null, url);
+                if (SettingsService.Instance.Current.CaptureSound)
+                {
+                    NativeMethods.MessageBeep(0x40);
+                }
+                app?.ShowToast(LocalizationService.Format("Capture_UploadSuccess", url));
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    Clipboard.SetImage(bitmap);
+                }
+                catch
+                {
+                }
+                RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Nav_Capture"));
+                app?.ShowToast(LocalizationService.Format("Capture_UploadFailed", ex.Message));
+            }
+        }
+
         public void CopySelection()
         {
             var bitmap = RenderSelection();

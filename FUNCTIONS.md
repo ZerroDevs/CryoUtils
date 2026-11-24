@@ -34,6 +34,19 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `SettingsService.WriteAtomicJson` | same | Shared atomic JSON writer. |
 | `StartupService.IsEnabled` | `Services/StartupService.cs` | Reads the HKCU Run value. |
 | `StartupService.SetEnabled` | same | Writes or deletes the HKCU Run value. |
+| `CryoContextMenuService.IsEnabled` | `Services/CryoContextMenuService.cs` | Checks whether Windows Explorer cascading context menu integration is enabled in HKCU. |
+| `CryoContextMenuService.SetEnabled` | same | Toggles full registration / unregistration across PDF, Image, and Video file associations. |
+| `CryoContextMenuService.RegisterAll` | same | Registers direct cascading submenus with `subcommands=""` and child `shell/<id>` command keys under `SystemFileAssociations`. |
+| `CryoContextMenuService.UnregisterAll` | same | Cleans up context menu keys from HKCU and notifies Explorer via `SHChangeNotify`. |
+| `CloudUploadService.UploadImageAsync` | `Services/CloudUploadService.cs` | Asynchronously uploads image byte buffer or bitmap to Catbox with zero API key, returns direct URL. |
+| `PdfToolsService.ConvertPdfToImagesAsync` | `Services/PdfToolsService.cs` | Uses `Windows.Data.Pdf.PdfDocument` to render PDF pages to high-res PNG/JPG without external DLLs. |
+| `PdfToolsService.CreatePdfFromImagesAsync` | same | Uses `SkiaSharp.SKDocument.CreatePdf` to bundle multiple images into a single vector/raster PDF. |
+| `PdfToolsService.CompressPdfAsync` | same | Compresses PDF pages and embedded raster streams. |
+| `ImageProcessingService.ConvertImage` | `Services/ImageProcessingService.cs` | Converts between PNG, JPG, WebP, ICO, BMP, and JFIF with optimal compression presets. |
+| `ImageProcessingService.RemoveBackground` | same | Smart corner-sampled Euclidean color distance background eraser generating transparent PNG. |
+| `ImageProcessingService.StripMetadata` | same | Re-encodes image to scrub EXIF, camera, GPS, and creation metadata. |
+| `MediaConversionService.ConvertVideoToMp3Async` | `Services/MediaConversionService.cs` | Extracts MP3 audio using Windows native `MediaTranscoder` without requiring FFmpeg. |
+| `MediaConversionService.ConvertVideoToGifAsync` | same | Decodes video frames via `MediaComposition` and renders animated GIF via `GifWriter`. |
 
 ## Theme and localization
 
@@ -56,6 +69,17 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | Symbol | Location | Purpose |
 |---|---|---|
 | `CaptureController.Instance` | `Views/CaptureController.cs` | Capture session singleton. |
+| `CaptureController.UploadSelectionAsync` | same | Uploads selection to Catbox and copies direct link to clipboard. |
+| `CloudUploadService.UploadImageAsync` | `Services/CloudUploadService.cs` | Anonymous multipart/form-data upload returning direct link. |
+| `CryoContextMenuService.SetEnabled` | `Services/CryoContextMenuService.cs` | Registers/unregisters HKCU cascading context menu entries for PDF, image, and video files. |
+| `PdfToolsService.PdfToImagesAsync` | `Services/PdfToolsService.cs` | Native Windows.Data.Pdf page renderer to high-res PNG/JPG images. |
+| `PdfToolsService.ImagesToPdf` | same | SkiaSharp multi-image PDF generator. |
+| `PdfToolsService.CompressPdfAsync` | same | Re-encodes PDF pages at optimized DPI and compression. |
+| `ImageProcessingService.ConvertFormat` | `Services/ImageProcessingService.cs` | Formats: PNG, JPG, WebP, ICO, BMP, JFIF. |
+| `ImageProcessingService.RemoveBackground` | same | Color-distance alpha matting for transparent PNG cutout. |
+| `ImageProcessingService.StripExif` | same | Strips GPS and camera metadata without touching pixels. |
+| `MediaConversionService.VideoToAudioAsync` | `Services/MediaConversionService.cs` | Windows MediaTranscoder MP3 audio track extractor. |
+| `MediaConversionService.VideoToGifAsync` | same | Windows MediaComposition frame extraction to GifWriter. |
 | `CaptureController.StartAsync` | same | Freezes the virtual desktop and opens overlays. |
 | `CaptureController.StartForImage` | same | Opens an existing capture in screenshot mode with full annotation and action rails. |
 | `CaptureController.StartRecordingMode` | same | Capture with auto-record after selection. |

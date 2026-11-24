@@ -18,6 +18,7 @@ namespace CryoUtils.Models
         public bool PinnedBorderSound { get; set; } = false;
         public int PinnedOpacity { get; set; } = 100;
         public bool PinnedClickThrough { get; set; } = false;
+        public bool ContextMenuEnabled { get; set; } = false;
 
         // Module switches
         public bool CaptureEnabled { get; set; } = true;

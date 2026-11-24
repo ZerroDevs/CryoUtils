@@ -38,6 +38,21 @@ namespace CryoUtils
             LocalizationService.Instance.Apply(settings.Language);
             StartupService.SetEnabled(settings.StartWithWindows);
 
+            // Handle CLI file action commands: CryoUtils.exe --action <action_id> "<file_path>"
+            int actionIdx = Array.FindIndex(e.Args, a => string.Equals(a, "--action", StringComparison.OrdinalIgnoreCase));
+            if (actionIdx >= 0 && actionIdx + 2 < e.Args.Length)
+            {
+                string action = e.Args[actionIdx + 1];
+                string targetFile = e.Args[actionIdx + 2];
+                _ = HandleCliActionAsync(action, targetFile);
+                return;
+            }
+
+            if (settings.ContextMenuEnabled)
+            {
+                CryoContextMenuService.SetEnabled(true);
+            }
+
             GlobalHotkeyService.Instance.HotkeyPressed += OnHotkeyPressed;
             SettingsService.Instance.SettingsChanged += ApplyAllSettings;
 
@@ -371,6 +386,118 @@ namespace CryoUtils
             TopmostService.Instance.RestoreForExit();
             ThemeService.Shutdown();
             Shutdown();
+        }
+
+        private async Task HandleCliActionAsync(string action, string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+                {
+                    Shutdown();
+                    return;
+                }
+
+                string dir = System.IO.Path.GetDirectoryName(filePath) ?? ".";
+                string baseName = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                string ext = System.IO.Path.GetExtension(filePath);
+
+                switch (action.ToLowerInvariant())
+                {
+                    case "pdf-to-png":
+                        string pngDir = System.IO.Path.Combine(dir, $"{baseName}_pages");
+                        int pages = await PdfToolsService.PdfToImagesAsync(filePath, pngDir, "PNG");
+                        ShowToast(LocalizationService.Format("Action_Success", $"{pages} pages -> {baseName}_pages"));
+                        break;
+
+                    case "pdf-to-jpg":
+                        string jpgDir = System.IO.Path.Combine(dir, $"{baseName}_pages");
+                        int jpgPages = await PdfToolsService.PdfToImagesAsync(filePath, jpgDir, "JPG");
+                        ShowToast(LocalizationService.Format("Action_Success", $"{jpgPages} pages -> {baseName}_pages"));
+                        break;
+
+                    case "compress-pdf":
+                        string outCompPdf = System.IO.Path.Combine(dir, $"{baseName}_compressed.pdf");
+                        long saved = await PdfToolsService.CompressPdfAsync(filePath, outCompPdf);
+                        ShowToast(LocalizationService.Format("Action_Success", $"{baseName}_compressed.pdf ({saved / 1024} KB saved)"));
+                        break;
+
+                    case "img-to-pdf":
+                        string outPdf = System.IO.Path.Combine(dir, $"{baseName}.pdf");
+                        PdfToolsService.ImagesToPdf(new[] { filePath }, outPdf);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outPdf)));
+                        break;
+
+                    case "quick-compress":
+                        string outCompImg = System.IO.Path.Combine(dir, $"{baseName}_min{ext}");
+                        var res = await CompressionService.CompressAsync(filePath, "Balanced", 75, 100);
+                        await System.IO.File.WriteAllBytesAsync(outCompImg, res.Data);
+                        long imgSaved = res.OriginalBytes - res.CompressedBytes;
+                        ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(outCompImg)} ({imgSaved / 1024} KB saved)"));
+                        break;
+
+                    case "remove-bg":
+                        string outNoBg = System.IO.Path.Combine(dir, $"{baseName}_nobg.png");
+                        ImageProcessingService.RemoveBackground(filePath, outNoBg);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outNoBg)));
+                        break;
+
+                    case "strip-exif":
+                        string outClean = System.IO.Path.Combine(dir, $"{baseName}_clean{ext}");
+                        ImageProcessingService.StripExif(filePath, outClean);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outClean)));
+                        break;
+
+                    case "convert-to-png":
+                        string outPng = System.IO.Path.Combine(dir, $"{baseName}.png");
+                        ImageProcessingService.ConvertFormat(filePath, outPng, "PNG");
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outPng)));
+                        break;
+
+                    case "convert-to-jpg":
+                        string outJpg = System.IO.Path.Combine(dir, $"{baseName}.jpg");
+                        ImageProcessingService.ConvertFormat(filePath, outJpg, "JPG");
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outJpg)));
+                        break;
+
+                    case "convert-to-webp":
+                        string outWebp = System.IO.Path.Combine(dir, $"{baseName}.webp");
+                        ImageProcessingService.ConvertFormat(filePath, outWebp, "WEBP");
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outWebp)));
+                        break;
+
+                    case "convert-to-ico":
+                        string outIco = System.IO.Path.Combine(dir, $"{baseName}.ico");
+                        ImageProcessingService.ConvertFormat(filePath, outIco, "ICO");
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outIco)));
+                        break;
+
+                    case "video-to-mp3":
+                        string outMp3 = System.IO.Path.Combine(dir, $"{baseName}.mp3");
+                        await MediaConversionService.VideoToAudioAsync(filePath, outMp3);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outMp3)));
+                        break;
+
+                    case "video-to-gif":
+                        string outGif = System.IO.Path.Combine(dir, $"{baseName}.gif");
+                        int frames = await MediaConversionService.VideoToGifAsync(filePath, outGif);
+                        ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(outGif)} ({frames} frames)"));
+                        break;
+                }
+
+                await Task.Delay(2600);
+            }
+            catch (Exception ex)
+            {
+                string logFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cli.log");
+                System.IO.File.AppendAllText(logFile, $"ERROR: {ex}\n");
+                ShowToast(LocalizationService.Format("Action_Failed", ex.Message));
+                await Task.Delay(2600);
+            }
+            finally
+            {
+                Shutdown();
+            }
         }
 
         protected override void OnExit(ExitEventArgs e)

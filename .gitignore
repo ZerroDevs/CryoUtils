@@ -48,6 +48,7 @@ coverage/
 # IDE, editor, and agent state
 .vs/
 .vscode/
+scratch/
 .idea/
 .freebuff/
 .cloud-attachments/

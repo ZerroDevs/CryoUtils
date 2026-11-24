@@ -269,5 +269,19 @@ namespace CryoUtils.Services
             };
             SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
         }
+
+        [DllImport("shell32.dll")]
+        public static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+        public static void NotifyShellAssociationChanged()
+        {
+            try
+            {
+                SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero); // SHCNE_ASSOCCHANGED
+            }
+            catch
+            {
+            }
+        }
     }
 }

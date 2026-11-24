@@ -191,6 +191,7 @@ namespace CryoUtils.Views
 
             AddActionButton(CryoIcons.Copy, "Capture_ToolCopy", () => Controller.CopySelection());
             AddActionButton(CryoIcons.Save, "Capture_ToolSave", () => Controller.SaveSelection(quick: false));
+            AddActionButton(CryoIcons.CloudUpload, "Capture_ToolUpload", () => Controller.UploadSelectionAsync());
             AddActionButton(CryoIcons.Record, "Capture_ToolRecord", () => Controller.BeginRecording());
             AddActionSeparator();
             AddActionButton(CryoIcons.Ocr, "Capture_ToolOcr", () => Controller.OcrSelection());
@@ -1434,6 +1435,12 @@ namespace CryoUtils.Views
                 return;
             }
 
+            if (control && (e.Key == Key.U || e.Key == Key.D))
+            {
+                Controller.UploadSelectionAsync();
+                e.Handled = true;
+                return;
+            }
             if (control && e.Key == Key.C)
             {
                 Controller.CopySelection();

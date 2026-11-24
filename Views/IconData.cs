@@ -27,6 +27,7 @@ namespace CryoUtils.Views
         public static Geometry Keyboard { get; } = Frozen(CryoIcons.Keyboard);
         public static Geometry Info { get; } = Frozen(CryoIcons.Info);
         public static Geometry Power { get; } = Frozen(CryoIcons.Power);
+        public static Geometry CloudUpload { get; } = Frozen(CryoIcons.CloudUpload);
 
         private static Geometry Frozen(string data)
         {

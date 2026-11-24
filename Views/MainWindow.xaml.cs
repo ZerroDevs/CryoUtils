@@ -135,6 +135,7 @@ namespace CryoUtils.Views
                         : "Dashboard");
                 ChkPinnedFrame.IsChecked = settings.ShowPinnedBorder;
                 ChkPinnedSound.IsChecked = settings.PinnedBorderSound;
+                ChkContextMenu.IsChecked = settings.ContextMenuEnabled;
                 ChkAutoUpdates.IsChecked = settings.AutomaticUpdateChecks;
                 ChkSaveRollback.IsChecked = settings.SaveRollbackOnUpdate;
 
@@ -460,10 +461,12 @@ namespace CryoUtils.Views
             settings.TrayLeftClickAction = SelectedTag(CmbTrayClick) ?? "Dashboard";
             settings.ShowPinnedBorder = ChkPinnedFrame.IsChecked == true;
             settings.PinnedBorderSound = ChkPinnedSound.IsChecked == true;
+            settings.ContextMenuEnabled = ChkContextMenu.IsChecked == true;
             settings.AutomaticUpdateChecks = ChkAutoUpdates.IsChecked == true;
             settings.SaveRollbackOnUpdate = ChkSaveRollback.IsChecked == true;
             settings.CompressorPreset = SelectedTag(CmbPreset) ?? settings.CompressorPreset;
 
+            CryoContextMenuService.SetEnabled(settings.ContextMenuEnabled);
             StartupService.SetEnabled(settings.StartWithWindows);
             SettingsService.Instance.Save();
             UpdateCompressionAvailability();
