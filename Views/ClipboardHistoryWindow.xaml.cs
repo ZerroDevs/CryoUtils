@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using CryoUtils.Services;
 
@@ -37,6 +38,7 @@ namespace CryoUtils.Views
                     item.Text.Contains(query, StringComparison.CurrentCultureIgnoreCase));
             }
 
+            items = items.OrderByDescending(item => item.IsPinned).ThenByDescending(item => item.CreatedAt);
             var list = items.ToList();
             ClipList.ItemsSource = list;
             bool empty = list.Count == 0;
@@ -66,6 +68,55 @@ namespace CryoUtils.Views
             {
                 _service.Remove(item);
             }
+        }
+
+        private void BtnPinClip_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is ClipItem item)
+            {
+                _service.TogglePin(item);
+                RefreshList();
+            }
+        }
+
+        private void BtnTransformClip_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not ClipItem item || string.IsNullOrEmpty(item.Text))
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformUpper"), TextTransformType.Uppercase);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformLower"), TextTransformType.Lowercase);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformTitle"), TextTransformType.TitleCase);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformCamel"), TextTransformType.CamelCase);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformSnake"), TextTransformType.SnakeCase);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformKebab"), TextTransformType.KebabCase);
+            menu.Items.Add(new Separator());
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformTrim"), TextTransformType.Trim);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformUrlEncode"), TextTransformType.UrlEncode);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformUrlDecode"), TextTransformType.UrlDecode);
+
+            menu.PlacementTarget = button;
+            menu.Placement = PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+
+        private void AddTransformMenuItem(ContextMenu menu, ClipItem item, string header, TextTransformType type)
+        {
+            var mi = new MenuItem { Header = header };
+            mi.Click += (_, _) =>
+            {
+                if (item.Text != null)
+                {
+                    string transformed = ClipboardService.TransformText(item.Text, type);
+                    Clipboard.SetText(transformed);
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
+                    Close();
+                }
+            };
+            menu.Items.Add(mi);
         }
 
         private void ClipList_MouseDoubleClick(object sender, MouseButtonEventArgs e)

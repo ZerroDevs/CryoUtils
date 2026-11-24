@@ -194,6 +194,7 @@ namespace CryoUtils.Views
             AddActionButton(CryoIcons.Record, "Capture_ToolRecord", () => Controller.BeginRecording());
             AddActionSeparator();
             AddActionButton(CryoIcons.Ocr, "Capture_ToolOcr", () => Controller.OcrSelection());
+            AddActionButton(CryoIcons.QrCode, "Capture_ToolQr", () => Controller.QrSelection());
             AddActionButton(CryoIcons.Pin, "Capture_ToolPin", () => Controller.PinSelection());
             AddActionButton(CryoIcons.Print, "Capture_ToolPrint", () => Controller.PrintSelection());
             AddActionSeparator();
@@ -382,7 +383,9 @@ namespace CryoUtils.Views
 
             var selection = Controller.Selection.Value;
             var local = ToLocalRect(selection);
-            var visible = Rect.Intersect(local, new Rect(0, 0, ActualWidth, ActualHeight));
+            double canvasWidth = Math.Max(1, ActualWidth > 0 ? ActualWidth : Width);
+            double canvasHeight = Math.Max(1, ActualHeight > 0 ? ActualHeight : Height);
+            var visible = Rect.Intersect(local, new Rect(0, 0, canvasWidth, canvasHeight));
             if (visible.IsEmpty || visible.Width < 1 || visible.Height < 1)
             {
                 AnnotationToolbarBorder.Visibility = Visibility.Collapsed;
@@ -403,18 +406,16 @@ namespace CryoUtils.Views
                 (int)Math.Round(selection.Width),
                 (int)Math.Round(selection.Height));
             SizeBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            double badgeLeft = Math.Clamp(visible.Left, 8, Math.Max(8, ActualWidth - SizeBadge.DesiredSize.Width - 8));
+            double badgeLeft = Math.Clamp(visible.Left, 8, Math.Max(8, canvasWidth - SizeBadge.DesiredSize.Width - 8));
             double badgeTop = visible.Top - SizeBadge.DesiredSize.Height - 6;
             if (badgeTop < 8)
             {
-                badgeTop = Math.Min(ActualHeight - SizeBadge.DesiredSize.Height - 8, visible.Top + 8);
+                badgeTop = Math.Min(canvasHeight - SizeBadge.DesiredSize.Height - 8, visible.Top + 8);
             }
             Canvas.SetLeft(SizeBadge, badgeLeft);
             Canvas.SetTop(SizeBadge, badgeTop);
 
             double margin = 8;
-            double canvasWidth = Math.Max(1, ActualWidth);
-            double canvasHeight = Math.Max(1, ActualHeight);
 
             AnnotationToolbarBorder.Visibility = Visibility.Visible;
             AnnotationToolbarBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));

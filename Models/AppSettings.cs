@@ -16,6 +16,8 @@ namespace CryoUtils.Models
         public bool NotificationsEnabled { get; set; } = true;
         public bool ShowPinnedBorder { get; set; } = true;
         public bool PinnedBorderSound { get; set; } = false;
+        public int PinnedOpacity { get; set; } = 100;
+        public bool PinnedClickThrough { get; set; } = false;
 
         // Module switches
         public bool CaptureEnabled { get; set; } = true;
@@ -44,6 +46,7 @@ namespace CryoUtils.Models
         public bool AutoCopyCapture { get; set; } = true;
         public bool CaptureSound { get; set; } = false;
         public bool ShowCaptureLoupe { get; set; } = false;
+        public int CaptureDelaySeconds { get; set; } = 0;
         public string AnnotationColor { get; set; } = DefaultAnnotationColor;
         public string ColorFormat { get; set; } = "HEX";
         public int AnnotationThickness { get; set; } = 3;

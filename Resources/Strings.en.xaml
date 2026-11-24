@@ -71,6 +71,9 @@
     <sys:String x:Key="Recent_Compress">Compress</sys:String>
     <sys:String x:Key="Recent_OpenFolder">Open folder</sys:String>
     <sys:String x:Key="Recent_Delete">Delete</sys:String>
+    <sys:String x:Key="Recent_ConfirmDelete">Click again to confirm delete</sys:String>
+    <sys:String x:Key="Recent_Deleted">Capture deleted.</sys:String>
+    <sys:String x:Key="Recent_EditTip">Click to edit in screenshot editor</sys:String>
     <sys:String x:Key="Recent_ItemAutomation">{0}, {1} by {2}</sys:String>
 
     <sys:String x:Key="Capture_SettingsTitle">Capture behaviour</sys:String>
@@ -120,6 +123,7 @@
     <sys:String x:Key="Tools_PinnedNone">No window is pinned right now.</sys:String>
     <sys:String x:Key="Tools_PinnedActive">Pinned: {0}</sys:String>
     <sys:String x:Key="Tools_Unpin">Unpin</sys:String>
+    <sys:String x:Key="Tools_ResetPinner">Reset overlays</sys:String>
     <sys:String x:Key="Tools_ClipboardTitle">Clipboard history</sys:String>
     <sys:String x:Key="Tools_ClipboardDesc">Kept in memory for this session. Nothing is uploaded.</sys:String>
     <sys:String x:Key="Tools_ClipboardOpen">Open history</sys:String>
@@ -199,6 +203,9 @@
     <sys:String x:Key="Tray_TakeScreenshot">Take screenshot</sys:String>
     <sys:String x:Key="Tray_RecordGif">Record GIF</sys:String>
     <sys:String x:Key="Tray_ColorPicker">Colour picker</sys:String>
+    <sys:String x:Key="Tray_PinWindow">Pin active window</sys:String>
+    <sys:String x:Key="Tray_UnpinWindow">Unpin: {0}</sys:String>
+    <sys:String x:Key="Tray_ResetPinner">Reset pinned overlays</sys:String>
     <sys:String x:Key="Tray_Settings">Settings</sys:String>
     <sys:String x:Key="Tray_Exit">Exit</sys:String>
     <sys:String x:Key="Tray_Tooltip">CryoUtils</sys:String>
@@ -276,6 +283,7 @@
 
     <sys:String x:Key="Pinner_Pinned">Pinned {0}</sys:String>
     <sys:String x:Key="Pinner_Unpinned">Unpinned</sys:String>
+    <sys:String x:Key="Pinner_ForceCleared">All pinned windows and overlays cleared.</sys:String>
     <sys:String x:Key="Pinner_NoWindow">No focused window to pin.</sys:String>
     <sys:String x:Key="Pinner_Failed">This window cannot be pinned.</sys:String>
 
@@ -321,4 +329,66 @@
     <sys:String x:Key="Recent_FolderMissing">This capture has no file on disk.</sys:String>
     <sys:String x:Key="Tools_ClipboardCount">{0} clips in memory</sys:String>
     <sys:String x:Key="Tools_ClipboardDisabled">Clipboard history is off.</sys:String>
+
+    <sys:String x:Key="Capture_Delay">Timer / delay</sys:String>
+    <sys:String x:Key="Capture_DelayInstant">Instant</sys:String>
+    <sys:String x:Key="Capture_Delay3s">3 seconds</sys:String>
+    <sys:String x:Key="Capture_Delay5s">5 seconds</sys:String>
+    <sys:String x:Key="Capture_Delay10s">10 seconds</sys:String>
+    <sys:String x:Key="Capture_TimerCountdown">Capturing in {0}...</sys:String>
+    <sys:String x:Key="Capture_TimerHint">Press Esc to cancel</sys:String>
+    <sys:String x:Key="Tray_TakeDelayed">Take screenshot (delayed)</sys:String>
+    <sys:String x:Key="Tray_Delay3s">3 seconds</sys:String>
+    <sys:String x:Key="Tray_Delay5s">5 seconds</sys:String>
+    <sys:String x:Key="Tray_Delay10s">10 seconds</sys:String>
+
+    <sys:String x:Key="Tools_PinnedOpacity">Window opacity</sys:String>
+    <sys:String x:Key="Tools_PinnedClickThrough">Click-through (transparent)</sys:String>
+    <sys:String x:Key="Tools_PinnedClickThroughDesc">Passes mouse clicks directly through to underlying windows.</sys:String>
+
+    <sys:String x:Key="Tools_ContrastTitle">Contrast checker</sys:String>
+    <sys:String x:Key="Tools_ContrastDesc">Evaluates color contrast against WCAG 2.1 accessibility guidelines.</sys:String>
+    <sys:String x:Key="Tools_ColorA">Color A (Foreground)</sys:String>
+    <sys:String x:Key="Tools_ColorB">Color B (Background)</sys:String>
+    <sys:String x:Key="Tools_ContrastRatio">Contrast ratio</sys:String>
+    <sys:String x:Key="Tools_WcagAa">WCAG AA</sys:String>
+    <sys:String x:Key="Tools_WcagAaa">WCAG AAA</sys:String>
+    <sys:String x:Key="Tools_WcagPass">Pass</sys:String>
+    <sys:String x:Key="Tools_WcagFail">Fail</sys:String>
+    <sys:String x:Key="Tools_WcagNormalText">Normal</sys:String>
+    <sys:String x:Key="Tools_WcagLargeText">Large</sys:String>
+    <sys:String x:Key="Color_Contrast">Contrast</sys:String>
+    <sys:String x:Key="Color_LockBase">Lock base color</sys:String>
+    <sys:String x:Key="Color_UnlockBase">Unlock base color</sys:String>
+    <sys:String x:Key="Color_ContrastHint">Move cursor to sample. Press Space to lock base color for contrast check.</sys:String>
+
+    <sys:String x:Key="Clip_Pin">Pin clip</sys:String>
+    <sys:String x:Key="Clip_Pinned">PINNED</sys:String>
+    <sys:String x:Key="Clip_Unpin">Unpin clip</sys:String>
+    <sys:String x:Key="Clip_Transform">Transform case</sys:String>
+    <sys:String x:Key="Clip_TransformUpper">UPPERCASE</sys:String>
+    <sys:String x:Key="Clip_TransformLower">lowercase</sys:String>
+    <sys:String x:Key="Clip_TransformTitle">Title Case</sys:String>
+    <sys:String x:Key="Clip_TransformCamel">camelCase</sys:String>
+    <sys:String x:Key="Clip_TransformSnake">snake_case</sys:String>
+    <sys:String x:Key="Clip_TransformKebab">kebab-case</sys:String>
+    <sys:String x:Key="Clip_TransformTrim">Trim whitespace</sys:String>
+    <sys:String x:Key="Clip_TransformUrlEncode">URL encode</sys:String>
+    <sys:String x:Key="Clip_TransformUrlDecode">URL decode</sys:String>
+
+    <sys:String x:Key="Tools_QrTitle">QR code</sys:String>
+    <sys:String x:Key="Tools_QrDesc">Generate QR codes instantly or scan from your screen and files.</sys:String>
+    <sys:String x:Key="Tools_QrInput">Content (Text, URL, Wi-Fi)</sys:String>
+    <sys:String x:Key="Tools_QrCopy">Copy image</sys:String>
+    <sys:String x:Key="Tools_QrSave">Save image</sys:String>
+    <sys:String x:Key="Tools_QrScanScreen">Scan screen</sys:String>
+    <sys:String x:Key="Tools_QrScanFile">Scan file</sys:String>
+    <sys:String x:Key="Tools_QrCorrection">ECC</sys:String>
+    <sys:String x:Key="Tools_QrGenerated">QR code generated</sys:String>
+    <sys:String x:Key="Tools_QrPlaceholder">Enter text or URL to generate QR code...</sys:String>
+    <sys:String x:Key="Qr_ResultTitle">Scanned QR code</sys:String>
+    <sys:String x:Key="Qr_OpenUrl">Open link</sys:String>
+    <sys:String x:Key="Qr_NotFound">No QR code found in selection.</sys:String>
+    <sys:String x:Key="Qr_Found">QR code decoded.</sys:String>
+    <sys:String x:Key="Capture_ToolQr">Scan QR code</sys:String>
 </ResourceDictionary>

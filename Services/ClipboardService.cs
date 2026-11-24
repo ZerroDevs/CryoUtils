@@ -9,12 +9,26 @@ using System.Windows.Threading;
 
 namespace CryoUtils.Services
 {
+    public enum TextTransformType
+    {
+        Uppercase,
+        Lowercase,
+        TitleCase,
+        CamelCase,
+        SnakeCase,
+        KebabCase,
+        Trim,
+        UrlEncode,
+        UrlDecode
+    }
+
     public sealed class ClipItem
     {
         public string? Text { get; init; }
         public BitmapSource? Image { get; init; }
         public DateTime CreatedAt { get; init; } = DateTime.Now;
         public bool Sensitive { get; init; }
+        public bool IsPinned { get; set; }
         public int CharacterCount => Text?.Length ?? 0;
 
         public string DisplayText => string.IsNullOrEmpty(Text)
@@ -181,8 +195,96 @@ namespace CryoUtils.Services
             int limit = Math.Clamp(SettingsService.Instance.Current.ClipboardHistoryLimit, 10, 100);
             while (_items.Count > limit)
             {
-                _items.RemoveAt(_items.Count - 1);
+                int removeIndex = -1;
+                for (int i = _items.Count - 1; i >= 0; i--)
+                {
+                    if (!_items[i].IsPinned)
+                    {
+                        removeIndex = i;
+                        break;
+                    }
+                }
+
+                if (removeIndex >= 0)
+                {
+                    _items.RemoveAt(removeIndex);
+                }
+                else
+                {
+                    break;
+                }
             }
+        }
+
+        public void TogglePin(ClipItem item)
+        {
+            item.IsPinned = !item.IsPinned;
+            Changed?.Invoke();
+        }
+
+        public static string TransformText(string text, TextTransformType transform)
+        {
+            return transform switch
+            {
+                TextTransformType.Uppercase => TransformText(text, "UPPER"),
+                TextTransformType.Lowercase => TransformText(text, "lower"),
+                TextTransformType.TitleCase => TransformText(text, "Title"),
+                TextTransformType.CamelCase => TransformText(text, "camel"),
+                TextTransformType.SnakeCase => TransformText(text, "snake"),
+                TextTransformType.KebabCase => TransformText(text, "kebab"),
+                TextTransformType.Trim => TransformText(text, "trim"),
+                TextTransformType.UrlEncode => TransformText(text, "urlencode"),
+                TextTransformType.UrlDecode => TransformText(text, "urldecode"),
+                _ => text
+            };
+        }
+
+        public static string TransformText(string text, string transform)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return "";
+            }
+
+            return transform switch
+            {
+                "UPPER" => text.ToUpperInvariant(),
+                "lower" => text.ToLowerInvariant(),
+                "Title" => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(text.ToLower(System.Globalization.CultureInfo.CurrentCulture)),
+                "camel" => ToCamelCase(text),
+                "snake" => ToDelimitedCase(text, '_'),
+                "kebab" => ToDelimitedCase(text, '-'),
+                "trim" => text.Trim(),
+                "urlencode" => Uri.EscapeDataString(text),
+                "urldecode" => Uri.UnescapeDataString(text),
+                _ => text
+            };
+        }
+
+        private static string ToCamelCase(string text)
+        {
+            var words = Regex.Split(text, @"[\s_\-]+").Where(w => !string.IsNullOrEmpty(w)).ToArray();
+            if (words.Length == 0) return text;
+            var sb = new System.Text.StringBuilder();
+            sb.Append(words[0].ToLowerInvariant());
+            for (int i = 1; i < words.Length; i++)
+            {
+                if (words[i].Length > 0)
+                {
+                    sb.Append(char.ToUpperInvariant(words[i][0]));
+                    if (words[i].Length > 1)
+                    {
+                        sb.Append(words[i][1..].ToLowerInvariant());
+                    }
+                }
+            }
+            return sb.ToString();
+        }
+
+        private static string ToDelimitedCase(string text, char delimiter)
+        {
+            var words = Regex.Split(text, @"[\s_\-]+").Where(w => !string.IsNullOrEmpty(w));
+            return string.Join(delimiter, words.Select(w => w.ToLowerInvariant()));
         }
 
         private void ScheduleSensitiveRemoval(ClipItem item, int seconds)

@@ -12,6 +12,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CryoUtils.Models;
 using CryoUtils.Services;
 using Microsoft.Win32;
@@ -103,6 +104,7 @@ namespace CryoUtils.Views
                 ChkCaptureSound.IsChecked = settings.CaptureSound;
                 ChkShowLoupe.IsChecked = settings.ShowCaptureLoupe;
                 SelectTag(CmbImageFormat, settings.ImageFormat);
+                SelectTag(CmbCaptureDelay, settings.CaptureDelaySeconds.ToString());
                 SelectTag(CmbFps, settings.GifFps.ToString());
                 SelectTag(CmbRecFormat, settings.RecorderFormat);
                 SelectTag(CmbMaxSeconds, settings.MaxRecordingSeconds.ToString());
@@ -141,7 +143,11 @@ namespace CryoUtils.Views
                 SldScale.Value = Math.Clamp(settings.CompressorScale, 20, 100);
                 TxtQualityValue.Text = $"{(int)SldQuality.Value}%";
                 TxtScaleValue.Text = $"{(int)SldScale.Value}%";
+                SldPinnedOpacity.Value = Math.Clamp(settings.PinnedOpacity, 20, 100);
+                TxtPinnedOpacity.Text = $"{(int)SldPinnedOpacity.Value}%";
+                ChkPinnedClickThrough.IsChecked = settings.PinnedClickThrough;
                 UpdatePresetSliderState();
+                UpdateDashboardContrast();
             }
             finally
             {
@@ -294,6 +300,10 @@ namespace CryoUtils.Views
                     break;
                 case "Pinner":
                     settings.WindowPinnerEnabled = ChkModulePinner.IsChecked == true;
+                    if (!settings.WindowPinnerEnabled && TopmostService.Instance.IsPinned)
+                    {
+                        TopmostService.Instance.Unpin();
+                    }
                     break;
                 case "Compressor":
                     settings.CompressorEnabled = ChkModuleCompressor.IsChecked == true;
@@ -350,6 +360,7 @@ namespace CryoUtils.Views
             settings.CaptureSound = ChkCaptureSound.IsChecked == true;
             settings.ShowCaptureLoupe = ChkShowLoupe.IsChecked == true;
             settings.ImageFormat = SelectedTag(CmbImageFormat) ?? "PNG";
+            settings.CaptureDelaySeconds = int.TryParse(SelectedTag(CmbCaptureDelay), out int delay) ? delay : 0;
             settings.GifFps = int.TryParse(SelectedTag(CmbFps), out int fps) ? fps : 15;
             settings.RecorderFormat = SelectedTag(CmbRecFormat) ?? "GIF";
             settings.MaxRecordingSeconds = int.TryParse(SelectedTag(CmbMaxSeconds), out int seconds) ? seconds : 30;
@@ -671,8 +682,7 @@ namespace CryoUtils.Views
             string display = GlobalHotkeyService.FormatShortcutDisplay(
                 settings.CaptureHotkeyModifiers,
                 settings.CaptureHotkeyKey);
-            TxtHeaderHotkey.Text = display;
-            TxtHeroHotkey.Text = display;
+            if (TxtHeaderHotkey != null) TxtHeaderHotkey.Text = display;
             TxtHotkeyCapture.Text = display;
             TxtHotkeyColor.Text = GlobalHotkeyService.FormatShortcutDisplay(
                 settings.ColorPickerHotkeyModifiers, settings.ColorPickerHotkeyKey);
@@ -701,6 +711,33 @@ namespace CryoUtils.Views
             bool hasItems = RecentCaptureService.Instance.Items.Count > 0;
             RecentEmpty.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
             RecentItems.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void RecentThumbnail_Click(object sender, MouseButtonEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not RecentCapture capture)
+            {
+                return;
+            }
+
+            var bitmap = capture.Image;
+            if (bitmap == null && !string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path))
+            {
+                try
+                {
+                    bitmap = ImageIO.DecodeBytes(File.ReadAllBytes(capture.Path));
+                }
+                catch
+                {
+                }
+            }
+
+            if (bitmap == null)
+            {
+                return;
+            }
+
+            CaptureController.Instance.StartForImage(bitmap, capture.Path);
         }
 
         private void RecentCopy_Click(object sender, RoutedEventArgs e)
@@ -774,6 +811,8 @@ namespace CryoUtils.Views
             }
         }
 
+        private DispatcherTimer? _deleteResetTimer;
+
         private void RecentDelete_Click(object sender, RoutedEventArgs e)
         {
             if ((sender as FrameworkElement)?.Tag is not RecentCapture capture)
@@ -781,18 +820,32 @@ namespace CryoUtils.Views
                 return;
             }
 
-            var result = MessageBox.Show(
-                this,
-                LocalizationService.Format("Recent_DeleteConfirm", capture.DisplayName),
-                LocalizationService.Get("Recent_Delete"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question,
-                MessageBoxResult.No);
-            if (result != MessageBoxResult.Yes)
+            if (!capture.IsConfirmingDelete)
             {
+                // First click: activate confirmation mode on this card
+                foreach (var item in RecentCaptureService.Instance.Items)
+                {
+                    if (item != capture && item.IsConfirmingDelete)
+                    {
+                        item.IsConfirmingDelete = false;
+                    }
+                }
+
+                capture.IsConfirmingDelete = true;
+
+                _deleteResetTimer?.Stop();
+                _deleteResetTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3.5) };
+                _deleteResetTimer.Tick += (_, _) =>
+                {
+                    capture.IsConfirmingDelete = false;
+                    _deleteResetTimer?.Stop();
+                };
+                _deleteResetTimer.Start();
                 return;
             }
 
+            // Second click: user confirmed!
+            _deleteResetTimer?.Stop();
             try
             {
                 if (!string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path))
@@ -800,6 +853,7 @@ namespace CryoUtils.Views
                     File.Delete(capture.Path);
                 }
                 RecentCaptureService.Instance.Remove(capture);
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_Deleted"));
             }
             catch
             {
@@ -1116,21 +1170,245 @@ namespace CryoUtils.Views
 
         private void RefreshPinnedState()
         {
-            if (TxtPinnedWindow == null)
+            var topmost = TopmostService.Instance;
+            if (TxtPinnedWindow != null)
             {
-                return;
+                TxtPinnedWindow.Text = topmost.IsPinned
+                    ? LocalizationService.Format("Tools_PinnedActive", topmost.PinnedTitle)
+                    : LocalizationService.Get("Tools_PinnedNone");
+            }
+            if (BtnUnpin != null)
+            {
+                BtnUnpin.IsEnabled = topmost.IsPinned;
             }
 
-            var topmost = TopmostService.Instance;
-            TxtPinnedWindow.Text = topmost.IsPinned
-                ? LocalizationService.Format("Tools_PinnedActive", topmost.PinnedTitle)
-                : LocalizationService.Get("Tools_PinnedNone");
-            BtnUnpin.IsEnabled = topmost.IsPinned;
+            if (BtnOverviewUnpin != null)
+            {
+                BtnOverviewUnpin.Visibility = topmost.IsPinned ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (TxtOverviewPinnedStatus != null)
+            {
+                TxtOverviewPinnedStatus.Text = topmost.IsPinned
+                    ? LocalizationService.Format("Tools_PinnedActive", topmost.PinnedTitle)
+                    : LocalizationService.Get("Module_PinnerDesc");
+                TxtOverviewPinnedStatus.Foreground = topmost.IsPinned
+                    ? ThemeService.GetBrush("AccentTextBrush")
+                    : ThemeService.GetBrush("TextMutedBrush");
+            }
         }
 
         private void BtnUnpin_Click(object sender, RoutedEventArgs e)
         {
             TopmostService.Instance.Unpin();
+        }
+
+        private void BtnResetPinner_Click(object sender, RoutedEventArgs e)
+        {
+            TopmostService.Instance.ForceClearAll();
+        }
+
+        private void PinnedOpacity_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (TxtPinnedOpacity == null) return;
+            TxtPinnedOpacity.Text = $"{(int)Math.Round(SldPinnedOpacity.Value)}%";
+            if (_loading || _initializing) return;
+            SettingsService.Instance.Current.PinnedOpacity = (int)Math.Round(SldPinnedOpacity.Value);
+            SettingsService.Instance.SaveWithoutNotification();
+            TopmostService.Instance.ApplySettings();
+        }
+
+        private void PinnedClickThrough_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading || _initializing) return;
+            SettingsService.Instance.Current.PinnedClickThrough = ChkPinnedClickThrough.IsChecked == true;
+            SettingsService.Instance.SaveWithoutNotification();
+            TopmostService.Instance.ApplySettings();
+        }
+
+        private void ContrastColor_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_loading || _initializing) return;
+            UpdateDashboardContrast();
+        }
+
+        private void BtnSwapContrastColors_Click(object sender, RoutedEventArgs e)
+        {
+            string temp = TxtContrastA.Text;
+            TxtContrastA.Text = TxtContrastB.Text;
+            TxtContrastB.Text = temp;
+        }
+
+        private void UpdateDashboardContrast()
+        {
+            if (TxtContrastA == null || TxtContrastB == null || SwatchContrastA == null || SwatchContrastB == null || TxtDashboardContrastRatio == null)
+            {
+                return;
+            }
+
+            var colorA = AnnotationRenderer.ParseColor(TxtContrastA.Text.Trim());
+            var colorB = AnnotationRenderer.ParseColor(TxtContrastB.Text.Trim());
+            SwatchContrastA.Background = new SolidColorBrush(colorA);
+            SwatchContrastB.Background = new SolidColorBrush(colorB);
+
+            double ratio = ColorContrastService.CalculateRatio(colorA, colorB);
+            TxtDashboardContrastRatio.Text = ColorContrastService.FormatRatio(ratio);
+            var eval = ColorContrastService.Evaluate(ratio);
+
+            string passText = LocalizationService.Get("Tools_WcagPass");
+            string failText = LocalizationService.Get("Tools_WcagFail");
+            string normalLabel = LocalizationService.Get("Tools_WcagNormalText");
+            string largeLabel = LocalizationService.Get("Tools_WcagLargeText");
+
+            TxtWcagAaNormal.Text = $"{normalLabel}: {(eval.AaNormal ? passText : failText)}";
+            BadgeWcagAaNormal.Background = eval.AaNormal ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
+            TxtWcagAaNormal.Foreground = eval.AaNormal ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
+
+            TxtWcagAaLarge.Text = $"{largeLabel}: {(eval.AaLarge ? passText : failText)}";
+            BadgeWcagAaLarge.Background = eval.AaLarge ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
+            TxtWcagAaLarge.Foreground = eval.AaLarge ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
+
+            TxtWcagAaaNormal.Text = $"{normalLabel}: {(eval.AaaNormal ? passText : failText)}";
+            BadgeWcagAaaNormal.Background = eval.AaaNormal ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
+            TxtWcagAaaNormal.Foreground = eval.AaaNormal ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
+
+            TxtWcagAaaLarge.Text = $"{largeLabel}: {(eval.AaaLarge ? passText : failText)}";
+            BadgeWcagAaaLarge.Background = eval.AaaLarge ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
+            TxtWcagAaaLarge.Foreground = eval.AaaLarge ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
+        }
+
+        private void TxtQrInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            RegenerateDashboardQr();
+        }
+
+        private void CmbQrCorrection_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RegenerateDashboardQr();
+        }
+
+        private void RegenerateDashboardQr()
+        {
+            if (TxtQrInput == null || ImgQrPreview == null || BtnCopyQr == null || BtnSaveQr == null)
+            {
+                return;
+            }
+
+            string text = TxtQrInput.Text;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                ImgQrPreview.Source = null;
+                BtnCopyQr.IsEnabled = false;
+                BtnSaveQr.IsEnabled = false;
+                return;
+            }
+
+            string levelStr = (CmbQrCorrection.SelectedItem as ComboBoxItem)?.Tag as string ?? "M";
+            var level = levelStr switch
+            {
+                "L" => ZXing.QrCode.Internal.ErrorCorrectionLevel.L,
+                "Q" => ZXing.QrCode.Internal.ErrorCorrectionLevel.Q,
+                "H" => ZXing.QrCode.Internal.ErrorCorrectionLevel.H,
+                _ => ZXing.QrCode.Internal.ErrorCorrectionLevel.M
+            };
+
+            try
+            {
+                var bitmap = QrCodeService.Encode(text, 256, level);
+                ImgQrPreview.Source = bitmap;
+                BtnCopyQr.IsEnabled = true;
+                BtnSaveQr.IsEnabled = true;
+            }
+            catch
+            {
+                ImgQrPreview.Source = null;
+                BtnCopyQr.IsEnabled = false;
+                BtnSaveQr.IsEnabled = false;
+            }
+        }
+
+        private void BtnCopyQr_Click(object sender, RoutedEventArgs e)
+        {
+            if (ImgQrPreview.Source is BitmapSource bitmap)
+            {
+                try
+                {
+                    Clipboard.SetImage(bitmap);
+                    RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Tools_QrTitle"));
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private void BtnSaveQr_Click(object sender, RoutedEventArgs e)
+        {
+            if (ImgQrPreview.Source is not BitmapSource bitmap)
+            {
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Title = LocalizationService.Get("Tools_QrSave"),
+                Filter = "PNG Image (*.png)|*.png",
+                DefaultExt = ".png",
+                FileName = $"QRCode_{DateTime.Now:yyyyMMdd_HHmmss}.png"
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                try
+                {
+                    byte[] bytes = ImageIO.EncodePng(bitmap);
+                    File.WriteAllBytes(dialog.FileName, bytes);
+                    RecentCaptureService.Instance.Add(bitmap, dialog.FileName, LocalizationService.Get("Tools_QrTitle"));
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("General_ExportDone"));
+                }
+                catch (Exception ex)
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+                }
+            }
+        }
+
+        private void BtnQrScanScreen_Click(object sender, RoutedEventArgs e)
+        {
+            App.CurrentApp?.StartCapture();
+        }
+
+        private void BtnQrScanFile_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = LocalizationService.Get("Tools_QrScanFile"),
+                Filter = LocalizationService.Get("Common_ImageFilter")
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                try
+                {
+                    var uri = new Uri(dialog.FileName, UriKind.Absolute);
+                    var bitmap = new BitmapImage(uri);
+                    var decoded = QrCodeService.Decode(bitmap);
+                    if (decoded == null || string.IsNullOrWhiteSpace(decoded.Text))
+                    {
+                        (Application.Current as App)?.ShowToast(LocalizationService.Get("Qr_NotFound"));
+                        return;
+                    }
+
+                    // Add scanned image to Recent Captures strip
+                    RecentCaptureService.Instance.Add(bitmap, dialog.FileName, LocalizationService.Get("Tools_QrTitle"));
+
+                    var window = new QrResultWindow(decoded.Text, decoded.FormatName, bitmap);
+                    window.Show();
+                    window.Activate();
+                }
+                catch (Exception ex)
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+                }
+            }
         }
 
         private void RefreshClipboardState()
@@ -1200,6 +1478,11 @@ namespace CryoUtils.Views
         }
 
         private void BtnGoCompress_Click(object sender, RoutedEventArgs e)
+        {
+            ShowTab("Tools");
+        }
+
+        private void BtnGoQr_Click(object sender, RoutedEventArgs e)
         {
             ShowTab("Tools");
         }

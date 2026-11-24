@@ -2,7 +2,139 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — capture rail layout and optional magnifier
+## Latest turn — Unclipped Copy button, thumbnail pencil hover & edit in Screenshot mode
+
+- **Copy Button Vertical Truncation Fixed**:
+  - `PrimaryButton` defined `Padding="14,7"` which left only 10px vertical height when constrained to a compact button, causing the 10.5pt font to be vertically sliced ("Conv").
+  - Explicitly set `Padding="0"`, `VerticalContentAlignment="Center"`, and `Height="27"`, allowing the text to center naturally with zero clipping.
+  - Changed default source name from "Copy" to "Capture" (`Nav_Capture`) in `CaptureController.CopySelection` so card headers no longer repeat the button label.
+- **Thumbnail Pencil Hover Overlay**:
+  - Hovering on any thumbnail in Recent captures smoothly displays a subtle dark scrim (`#75080C10`) with a centered 28x28 round badge hosting `IconData.Edit` (crisp pencil vector icon from `CryoIcons.Pen`) and `AccentBrush` border highlight.
+  - Accessible tooltip `Recent_EditTip` ("Click to edit in screenshot editor" / "انقر للتعديل في محرر لقطات الشاشة").
+- **Edit in Screenshot Mode**:
+  - Clicking the thumbnail triggers `CaptureController.Instance.StartForImage(BitmapSource image, string? originalPath)`.
+  - Centers the capture on the active monitor (or scales with breathing room if larger than display), composites it onto the desktop canvas, sets `Selection`, and opens `CaptureOverlayWindow`.
+  - The full screenshot annotation suite (freehand Pen, Arrow, Line, Rectangle, Blur, Text, Step numbering, Undo/Redo, Color swatch) and action rail (Copy, Save, Pin, QR, OCR, Print) are instantly active around the image.
+- **Parity & Build**:
+  - Added `Recent_EditTip` across both dictionaries (362 keys each, 100% key parity).
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+
+## Previous turn — Recent captures card redesign: prominent Copy button & inline delete confirmation
+
+- **Action Layout Redesign**:
+  - `Copy` is now the prominent, full-width primary action button (`PrimaryButton`, height 26, font 10.5pt).
+  - Secondary action row below `Copy`:
+    - `Compress` button (small, 9.5pt, compact secondary button).
+    - `Folder` icon button (26x24 button with crisp `IconData.Folder` vector icon, opens containing directory with file selected).
+    - `Trash` icon button (26x24 button with crisp `IconData.Trash` vector icon).
+- **Inline Delete Confirmation (Zero Modal Dialogs)**:
+  - Eliminated the Win32 `MessageBox.Show` confirmation popup.
+  - On first click of the trash icon, the button transitions to confirmation state:
+    - Trash can transforms into `IconData.Check` checkmark.
+    - Border and background highlight in `DangerTextBrush` and `DangerSoftBackgroundBrush`.
+    - Tooltip changes to "Click again to confirm delete".
+    - Auto-reverts after 3.5 seconds if unconfirmed.
+  - On second click, file is deleted from disk, removed from `RecentCaptureService`, and a subtle toast notification confirms deletion.
+- **Improved Metadata Display**:
+  - `RecentCapture.SizeText` falls back to actual image resolution (e.g. `1920 × 1080`) when no file size exists, preventing duplicate "Copy\nCopy" labels.
+- **Icons & Vector Resources**:
+  - Added `Folder`, `Trash`, and `Check` geometries to `CryoIcons.cs` and `IconData.cs`.
+- **Build Verified**: Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors; full 361-key localization parity maintained in EN and AR.
+
+## Previous turn — QR reader image display, disk save & Recent Captures persistence
+
+- **QR Image Thumbnail in Result Window**:
+  - Replaced empty placeholder in [QrResultWindow.xaml](file:///c:/Users/Gaming/Desktop/Folders-Z/userscript/WebAPPS/APPS/Cryo-Family/CryoUtils/Views/QrResultWindow.xaml) with a crisp 38x38 thumbnail preview (`ImgQrThumbnail`).
+  - Uses `NearestNeighbor` scaling for pixel-sharp QR code rendering.
+  - Displays the scanned QR crop or generates an instant preview if only text was supplied.
+  - Clickable thumbnail and dedicated `Save image` button (`BtnSaveQrImage`) in the result dialog.
+- **Recent Captures Persistence**:
+  - Screen QR scans (`CaptureController.QrSelection`) automatically persist via `ScreenCaptureService.QuickSave` and register in `RecentCaptureService.Instance.Items`.
+  - File QR scans (`BtnQrScanFile_Click`) register the scanned image file in Recent Captures.
+  - QR Code generator (`BtnSaveQr_Click` and `BtnCopyQr_Click`) registers generated QR images in Recent Captures.
+- **Build Verified**: Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+
+## Previous turn — Removed stuck white box & terminated rogue helper window
+
+- **Direct Screen Clean Up**:
+  - Located the stuck white box HWND `66838` at `(78, 78 300x300)`.
+  - Identified owner as `NGenuity2Helper.exe` (`PID 22552`), an internal HyperX helper process whose hidden WinForms handle was made visible by the old unvalidated build.
+  - Terminated `PID 22552` and forced whole-screen `RedrawWindow`. Verified with `EnumDesktopWindows` that no window exists at the box location (`CLEAN: NO WINDOWS FOUND AT BOX LOCATION`).
+  - The white box is completely gone from the user's desktop.
+- **Permanent Prevention**:
+  - `TopmostService.IsValidTargetWindow` now strictly validates `!string.IsNullOrWhiteSpace(title)` and window classes, preventing any background helper from ever being targeted or unhidden.
+  - Added "Reset overlays" button to `Tools > Window Pinner` and tray menu for instant screen clearing.
+
+- **Root Cause of White Box Identified & Cleaned**:
+  - Investigated user screen window tree via `EnumDesktopWindows` / `OpenInputDesktop`.
+  - Found an orphan 300x300 background helper window (`H=66838`, process `NGenuity2Helper`) at rect (78, 78) which had no window title (`T=''`).
+  - The previous unvalidated build had set `WS_EX_LAYERED` on this background utility and made it visible as topmost, rendering it as the persistent white square.
+  - Programmatically reset `H=66838`, stripped `WS_EX_LAYERED` and `WS_EX_TOPMOST`, and called `ShowWindow(h, SW_HIDE)`. The white box is completely removed from the user's screen.
+  - Terminated the old running instance (PID 67468) and rebuilt both Debug and Release.
+- **Strict Title Requirement in Window Pinner**:
+  - Added `!string.IsNullOrWhiteSpace(title)` check to `TopmostService.IsValidTargetWindow`.
+  - Background helper windows without titles (HyperX NGenuity, Steam helpers, IPC proxies, CEF widgets) are now strictly rejected. "Pinned: Unknown" can never occur.
+- **Added Emergency Recovery Tool (`ForceClearAll`)**:
+  - Added `BtnResetPinner` ("Reset overlays" / `Tools_ResetPinner`) to `Tools > Window Pinner` card in `MainWindow.xaml`.
+  - Added tray menu item: `Reset pinned overlays` (`Tray_ResetPinner`).
+  - `ForceClearAll` unpins the active window, closes/disposes `_border`, resets internal state, and calls `RedrawWindow(IntPtr.Zero, ...)` across the entire virtual screen to clear any visual artifacts.
+- **Localization & Build Parity**:
+  - Added `Tools_ResetPinner`, `Pinner_ForceCleared`, and `Tray_ResetPinner` to both `Strings.en.xaml` and `Strings.ar.xaml` (359 keys each, 100% parity).
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` passed with 0 warnings and 0 errors.
+
+## Previous turn — Fixed Pinner desktop/white-box bug & exit unpin behavior
+
+- **Prevented Desktop & Shell Pinning**: Added `TopmostService.IsValidTargetWindow`. Rejects Desktop (`Progman`, `WorkerW`), Taskbar (`Shell_TrayWnd`, `Shell_SecondaryTrayWnd`), Windows Shell core windows, CryoUtils own windows, and tiny/invisible utility windows (<120x80). Shows localized toast `Pinner_NoWindow` instead of drawing lines on desktop.
+- **Fixed White Box Render Glitch**:
+  - Removed manual `WS_EX_LAYERED` in `PinnedBorderWindow.cs` `OnSourceInitialized`. WPF's `AllowsTransparency=true` manages layered composition; manually setting `WS_EX_LAYERED` via `SetWindowLongPtr` corrupted the alpha channel and produced an opaque white box.
+  - Added DPI-aware dimension synchronization in `SetBounds` so WPF's `Left`, `Top`, `Width`, `Height` match Win32 window bounds.
+  - Changed unpin/hide to properly close and null `_border`.
+- **Exit Auto-Unpin Guarantee**:
+  - `RestoreForExit()` now delegates directly to `Unpin(silent: true)`.
+  - Applies `NativeMethods.HWND_NOTOPMOST` with `SWP_FRAMECHANGED`.
+  - Clears `WS_EX_TOPMOST`, `WS_EX_TRANSPARENT`, and resets `WS_EX_LAYERED` if CryoUtils added it.
+  - Invokes `RedrawWindow` on unpin to clear any lingering repaint artifacts.
+- **Fast Dashboard Unpin**: Clicking pin when already pinned unpins immediately without hiding the dashboard.
+- **Build Verified**: `dotnet build -c Release` succeeded with 0 warnings and 0 errors.
+
+## Previous turn — Always on Top unpin support: in-app card, module toggle & tray menu
+
+- **Tray Menu Dynamic Pin/Unpin**: Subscribed `TrayIconManager` to `TopmostService.Instance.StateChanged`. When a window is pinned, the tray menu displays `Unpin: {title}` (calls `TopmostService.Instance.Unpin()`). When no window is pinned, it displays `Pin active window` (calls `TogglePinnerFromDashboard()`). Unsubscribes on dispose.
+- **In-App Overview Card Unpin**: Added `BtnOverviewUnpin` (styled as `DangerButton`) and `TxtOverviewPinnedStatus` to the Always on Top card in `PanelOverview`. Displays dynamic active window title with accent styling and provides a direct 1-click `Unpin` action.
+- **Module Toggle Auto-Unpin**: Turning off the "Always on top" switch (`ChkModulePinner`) automatically unpins any currently pinned window and removes top-most/accent borders.
+- **Tools Tab Parity**: Ensured `RefreshPinnedState()` updates both `PanelTools` (`BtnUnpin`) and `PanelOverview` (`BtnOverviewUnpin`, `TxtOverviewPinnedStatus`).
+- **Localization Parity**: Added `Tray_PinWindow` and `Tray_UnpinWindow` to `Resources/Strings.en.xaml` and `Resources/Strings.ar.xaml`. Both dictionaries now contain 356 keys with 100% key parity.
+- **Build Verified**: `dotnet build -c Release` succeeded with 0 warnings and 0 errors.
+
+## Previous turn — UI overhaul: eliminated top clutter & hero banner, added 6-module grid
+
+- Removed the bulky 82px top header banner from the dashboard (`MainWindow.xaml`).
+- Integrated quick actions into a unified 44px title bar: draggable surface, app mark icon, version pill (`v0.0.100`), hotkey badge, `Take screenshot` button, `Record` button, and `X` close button. Quick actions are now universally accessible from any tab.
+- Removed the redundant 180px Hero card banner from the Overview tab.
+- Re-architected the Overview module grid into a clean, symmetric 6-card grid (2 columns x 3 rows):
+  1. Screen Capture & Annotation (Vector icon, toggle switch, hotkey pill, capture launch, compress link).
+  2. Precision Color Picker (Vector droplet, toggle switch, hotkey pill, pick color).
+  3. Window Pinner (Vector pin, toggle switch, hotkey pill, pin window).
+  4. Image & GIF Compressor (Vector compress, toggle switch, open compressor).
+  5. Clipboard History (Vector clipboard, toggle switch, hotkey pill, open history).
+  6. QR Code Suite (Vector QR code, "NEW" accent badge, open QR tool).
+- Preserved Recent Captures strip and minimal 28px privacy status bar footer.
+- Build verified: `dotnet build -c Release` succeeded with 0 warnings and 0 errors.
+
+## Previous turn — implemented 4 high-value enhancements & QR Code Suite
+
+- Successfully implemented all 4 requested enhancements plus the QR Code Scanner & Generator suite:
+  1. **Delayed Capture / Timer**: Added countdown HUD (`Views/CountdownWindow.xaml`), tray submenus (3s/5s/10s), dashboard delay selector (`CmbCaptureDelay`), and Esc/Cancel support without stealing focus.
+  2. **Window Pinner Opacity & Click-Through**: Added `SetLayeredWindowAttributes` with `LWA_ALPHA` and `WS_EX_TRANSPARENT`. Slider (20%–100%) and click-through toggle in dashboard; tracks and restores original extended window styles on unpin and exit.
+  3. **Color Contrast Checker (WCAG 2.1)**: Created `Services/ColorContrastService.cs` calculating relative luminance and contrast ratio. Interactive Space-key lock in `ColorPickerWindow` showing live AA/AAA badges and ratio; interactive card in dashboard Tools tab with color swatches and swap button.
+  4. **Clipboard History Pinned Clips & Case Transforms**: Added `IsPinned` property with trim-exemption and top-of-list sorting; added pin button and visual badge; added transform popup menu for UPPER, lower, Title Case, camelCase, snake_case, kebab-case, trim, and URL encode/decode.
+  5. **QR Code Scanner & Generator**: Integrated pure managed `ZXing.Net` 0.16.11 (zero native DLLs). Added `QrCodeService.Decode` & `Encode`, toolbar action button in capture overlay, scanner dialog (`Views/QrResultWindow.xaml`), and generator/scanner card in dashboard Tools tab (copy, save, scan screen, scan file).
+- Verified build: `dotnet build -c Release` passes with 0 warnings and 0 errors.
+- 100% localization parity maintained: 322 keys in both `Strings.en.xaml` and `Strings.ar.xaml`.
+
+## Previous turn — implementation plan drafted for 4 enhancements & QR suite
+
+## Previous turn — capture rail layout and optional magnifier
 
 - Reworked capture chrome placement so the action rail chooses a free slot around the tool rail; small and narrow selections no longer put the two bars on top of each other.
 - Added `ShowCaptureLoupe` (default `false`) with a Capture-tab checkbox and localized description. The pixel/color magnifier is now opt-in; when on, it avoids both rails and hides if no free slot exists.

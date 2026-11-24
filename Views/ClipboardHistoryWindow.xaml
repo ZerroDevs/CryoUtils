@@ -43,6 +43,24 @@
                 <ListBox x:Name="ClipList" Style="{StaticResource CryoListView}" MouseDoubleClick="ClipList_MouseDoubleClick">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
+                            <DataTemplate.Resources>
+                                <Style TargetType="Path" x:Key="PinPathStyle">
+                                    <Setter Property="Stroke" Value="{DynamicResource IconBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                            <Setter Property="Stroke" Value="{DynamicResource AccentBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                                <Style TargetType="Border" x:Key="PinBadgeStyle">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataTemplate.Resources>
                             <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="8,8">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -50,11 +68,26 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="{Binding DisplayText}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11.5" TextWrapping="Wrap" MaxHeight="52" TextTrimming="CharacterEllipsis"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Style="{StaticResource PinBadgeStyle}" Margin="0,2,6,0" Padding="4,1" CornerRadius="2" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Top">
+                                                <TextBlock Text="{DynamicResource Clip_Pinned}" Foreground="{DynamicResource AccentTextBrush}" FontSize="9" FontWeight="SemiBold"/>
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Text="{Binding DisplayText}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11.5" TextWrapping="Wrap" MaxHeight="52" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
                                         <TextBlock Text="{Binding Meta}" Foreground="{DynamicResource TextMutedBrush}" FontSize="10" Margin="0,4,0,0" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                                        <Button Tag="{Binding}" Click="BtnCopyClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Copy}" AutomationProperties.Name="{DynamicResource Clip_Copy}">
+                                        <Button Tag="{Binding}" Click="BtnPinClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Pin}" AutomationProperties.Name="{DynamicResource Clip_Pin}" Margin="0,0,2,0">
+                                            <Path Data="{x:Static views:IconData.Pin}" Style="{StaticResource PinPathStyle}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform"/>
+                                        </Button>
+                                        <Button Tag="{Binding}" Click="BtnTransformClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Transform}" AutomationProperties.Name="{DynamicResource Clip_Transform}" Margin="0,0,2,0">
+                                            <Path Data="M3,6 L11,6 M7,6 L7,16 M13,10 L19,10 M16,10 L16,16" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform"/>
+                                        </Button>
+                                        <Button Tag="{Binding}" Click="BtnCopyClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Copy}" AutomationProperties.Name="{DynamicResource Clip_Copy}" Margin="0,0,2,0">
                                             <Path Data="{x:Static views:IconData.Copy}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform"/>
                                         </Button>
                                         <Button Tag="{Binding}" Click="BtnDeleteClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Delete}" AutomationProperties.Name="{DynamicResource Clip_Delete}">

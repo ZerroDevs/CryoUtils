@@ -71,6 +71,9 @@
     <sys:String x:Key="Recent_Compress">ضغط</sys:String>
     <sys:String x:Key="Recent_OpenFolder">فتح المجلد</sys:String>
     <sys:String x:Key="Recent_Delete">حذف</sys:String>
+    <sys:String x:Key="Recent_ConfirmDelete">انقر مرة أخرى لتأكيد الحذف</sys:String>
+    <sys:String x:Key="Recent_Deleted">تم حذف الالتقاط.</sys:String>
+    <sys:String x:Key="Recent_EditTip">انقر للتعديل في محرر لقطات الشاشة</sys:String>
     <sys:String x:Key="Recent_ItemAutomation">{0}، {1} في {2}</sys:String>
 
     <sys:String x:Key="Capture_SettingsTitle">سلوك الالتقاط</sys:String>
@@ -120,6 +123,7 @@
     <sys:String x:Key="Tools_PinnedNone">لا توجد نافذة مثبتة الآن.</sys:String>
     <sys:String x:Key="Tools_PinnedActive">مثبتة: {0}</sys:String>
     <sys:String x:Key="Tools_Unpin">إلغاء التثبيت</sys:String>
+    <sys:String x:Key="Tools_ResetPinner">إعادة ضبط التثبيت</sys:String>
     <sys:String x:Key="Tools_ClipboardTitle">سجل الحافظة</sys:String>
     <sys:String x:Key="Tools_ClipboardDesc">يبقى في الذاكرة لهذه الجلسة. لا يُرفع أي شيء.</sys:String>
     <sys:String x:Key="Tools_ClipboardOpen">فتح السجل</sys:String>
@@ -199,6 +203,9 @@
     <sys:String x:Key="Tray_TakeScreenshot">التقاط الشاشة</sys:String>
     <sys:String x:Key="Tray_RecordGif">تسجيل GIF</sys:String>
     <sys:String x:Key="Tray_ColorPicker">منتقي الألوان</sys:String>
+    <sys:String x:Key="Tray_PinWindow">تثبيت النافذة النشطة</sys:String>
+    <sys:String x:Key="Tray_UnpinWindow">إلغاء تثبيت: {0}</sys:String>
+    <sys:String x:Key="Tray_ResetPinner">إعادة ضبط الإطارات والتثبيت</sys:String>
     <sys:String x:Key="Tray_Settings">الإعدادات</sys:String>
     <sys:String x:Key="Tray_Exit">خروج</sys:String>
     <sys:String x:Key="Tray_Tooltip">CryoUtils</sys:String>
@@ -276,6 +283,7 @@
 
     <sys:String x:Key="Pinner_Pinned">تم تثبيت {0}</sys:String>
     <sys:String x:Key="Pinner_Unpinned">تم إلغاء التثبيت</sys:String>
+    <sys:String x:Key="Pinner_ForceCleared">تم إلغاء تثبيت النوافذ ومسح الإطارات بالكامل.</sys:String>
     <sys:String x:Key="Pinner_NoWindow">لا توجد نافذة نشطة للتثبيت.</sys:String>
     <sys:String x:Key="Pinner_Failed">لا يمكن تثبيت هذه النافذة.</sys:String>
 
@@ -321,4 +329,66 @@
     <sys:String x:Key="Recent_FolderMissing">لا يوجد ملف محفوظ لهذا العنصر.</sys:String>
     <sys:String x:Key="Tools_ClipboardCount">{0} عنصر في الذاكرة</sys:String>
     <sys:String x:Key="Tools_ClipboardDisabled">سجل الحافظة متوقف.</sys:String>
+
+    <sys:String x:Key="Capture_Delay">المؤقت / التأخير</sys:String>
+    <sys:String x:Key="Capture_DelayInstant">فوري</sys:String>
+    <sys:String x:Key="Capture_Delay3s">3 ثوانٍ</sys:String>
+    <sys:String x:Key="Capture_Delay5s">5 ثوانٍ</sys:String>
+    <sys:String x:Key="Capture_Delay10s">10 ثوانٍ</sys:String>
+    <sys:String x:Key="Capture_TimerCountdown">التقاط بعد {0}...</sys:String>
+    <sys:String x:Key="Capture_TimerHint">اضغط Esc للإلغاء</sys:String>
+    <sys:String x:Key="Tray_TakeDelayed">لقطة شاشة (مع تأخير)</sys:String>
+    <sys:String x:Key="Tray_Delay3s">3 ثوانٍ</sys:String>
+    <sys:String x:Key="Tray_Delay5s">5 ثوانٍ</sys:String>
+    <sys:String x:Key="Tray_Delay10s">10 ثوانٍ</sys:String>
+
+    <sys:String x:Key="Tools_PinnedOpacity">شفافية النافذة</sys:String>
+    <sys:String x:Key="Tools_PinnedClickThrough">تمرير النقرات (شفافة)</sys:String>
+    <sys:String x:Key="Tools_PinnedClickThroughDesc">يمرر نقرات الفأرة مباشرة إلى النوافذ التي تحتها.</sys:String>
+
+    <sys:String x:Key="Tools_ContrastTitle">فاحص تباين الألوان</sys:String>
+    <sys:String x:Key="Tools_ContrastDesc">يقيم تباين الألوان وفق إرشادات سهولة الوصول WCAG 2.1.</sys:String>
+    <sys:String x:Key="Tools_ColorA">اللون أ (المقدمة)</sys:String>
+    <sys:String x:Key="Tools_ColorB">اللون ب (الخلفية)</sys:String>
+    <sys:String x:Key="Tools_ContrastRatio">نسبة التباين</sys:String>
+    <sys:String x:Key="Tools_WcagAa">معيار AA</sys:String>
+    <sys:String x:Key="Tools_WcagAaa">معيار AAA</sys:String>
+    <sys:String x:Key="Tools_WcagPass">ناجح</sys:String>
+    <sys:String x:Key="Tools_WcagFail">راسب</sys:String>
+    <sys:String x:Key="Tools_WcagNormalText">عادي</sys:String>
+    <sys:String x:Key="Tools_WcagLargeText">كبير</sys:String>
+    <sys:String x:Key="Color_Contrast">التباين</sys:String>
+    <sys:String x:Key="Color_LockBase">قفل اللون الأساسي</sys:String>
+    <sys:String x:Key="Color_UnlockBase">إلغاء قفل اللون الأساسي</sys:String>
+    <sys:String x:Key="Color_ContrastHint">حرّك المؤشر لأخذ العينة. اضغط مسافة لقفل اللون الأساسي وفحص التباين.</sys:String>
+
+    <sys:String x:Key="Clip_Pin">تثبيت المقطع</sys:String>
+    <sys:String x:Key="Clip_Pinned">مثبت</sys:String>
+    <sys:String x:Key="Clip_Unpin">إلغاء التثبيت</sys:String>
+    <sys:String x:Key="Clip_Transform">تحويل حالة النص</sys:String>
+    <sys:String x:Key="Clip_TransformUpper">أحرف كبيرة (UPPERCASE)</sys:String>
+    <sys:String x:Key="Clip_TransformLower">أحرف صغيرة (lowercase)</sys:String>
+    <sys:String x:Key="Clip_TransformTitle">أحرف العناوين (Title Case)</sys:String>
+    <sys:String x:Key="Clip_TransformCamel">حالة الجمل (camelCase)</sys:String>
+    <sys:String x:Key="Clip_TransformSnake">حالة الثعبان (snake_case)</sys:String>
+    <sys:String x:Key="Clip_TransformKebab">حالة الكباب (kebab-case)</sys:String>
+    <sys:String x:Key="Clip_TransformTrim">حذف المسافات الزائدة</sys:String>
+    <sys:String x:Key="Clip_TransformUrlEncode">ترميز URL</sys:String>
+    <sys:String x:Key="Clip_TransformUrlDecode">فك ترميز URL</sys:String>
+
+    <sys:String x:Key="Tools_QrTitle">رمز الاستجابة السريعة (QR)</sys:String>
+    <sys:String x:Key="Tools_QrDesc">أنشئ رموز QR فورياً أو امسحها من الشاشة والملفات.</sys:String>
+    <sys:String x:Key="Tools_QrInput">المحتوى (نص، رابط، شبكة Wi-Fi)</sys:String>
+    <sys:String x:Key="Tools_QrCopy">نسخ الصورة</sys:String>
+    <sys:String x:Key="Tools_QrSave">حفظ الصورة</sys:String>
+    <sys:String x:Key="Tools_QrScanScreen">مسح من الشاشة</sys:String>
+    <sys:String x:Key="Tools_QrScanFile">مسح من ملف</sys:String>
+    <sys:String x:Key="Tools_QrCorrection">تصحيح الأخطاء</sys:String>
+    <sys:String x:Key="Tools_QrGenerated">تم إنشاء رمز QR</sys:String>
+    <sys:String x:Key="Tools_QrPlaceholder">أدخل نصاً أو رابطاً لإنشاء رمز QR...</sys:String>
+    <sys:String x:Key="Qr_ResultTitle">رمز QR الممسوح</sys:String>
+    <sys:String x:Key="Qr_OpenUrl">فتح الرابط</sys:String>
+    <sys:String x:Key="Qr_NotFound">لم يُعثر على رمز QR في التحديد.</sys:String>
+    <sys:String x:Key="Qr_Found">تم فك رمز QR.</sys:String>
+    <sys:String x:Key="Capture_ToolQr">مسح رمز QR</sys:String>
 </ResourceDictionary>

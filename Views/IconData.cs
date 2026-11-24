@@ -14,6 +14,12 @@ namespace CryoUtils.Views
         public static Geometry Copy { get; } = Frozen(CryoIcons.Copy);
         public static Geometry Save { get; } = Frozen(CryoIcons.Save);
         public static Geometry Close { get; } = Frozen(CryoIcons.Close);
+        public static Geometry QrCode { get; } = Frozen(CryoIcons.QrCode);
+        public static Geometry Contrast { get; } = Frozen(CryoIcons.Contrast);
+        public static Geometry Folder { get; } = Frozen(CryoIcons.Folder);
+        public static Geometry Trash { get; } = Frozen(CryoIcons.Trash);
+        public static Geometry Check { get; } = Frozen(CryoIcons.Check);
+        public static Geometry Edit { get; } = Frozen(CryoIcons.Pen);
 
         private static Geometry Frozen(string data)
         {

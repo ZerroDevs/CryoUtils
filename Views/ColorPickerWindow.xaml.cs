@@ -15,6 +15,7 @@ namespace CryoUtils.Views
     {
         private readonly DispatcherTimer _timer;
         private System.Windows.Media.Color _currentColor = Colors.Black;
+        private System.Windows.Media.Color? _lockedColor;
         private string _hex = "#000000";
         private IntPtr _handle;
         private int _scale = 100;
@@ -139,6 +140,50 @@ namespace CryoUtils.Views
             var (h, s, l) = ToHsl(_currentColor);
             TxtHsl.Text = $"hsl({Math.Round(h)}, {Math.Round(s)}%, {Math.Round(l)}%)";
             ColorPreview.Background = new SolidColorBrush(_currentColor);
+            UpdateContrastDisplay();
+        }
+
+        private void ToggleContrastLock()
+        {
+            if (_lockedColor == null)
+            {
+                _lockedColor = _currentColor;
+                ContrastPanel.Visibility = Visibility.Visible;
+                BaseColorSwatch.Background = new SolidColorBrush(_lockedColor.Value);
+            }
+            else
+            {
+                _lockedColor = null;
+                ContrastPanel.Visibility = Visibility.Collapsed;
+            }
+            UpdateContrastDisplay();
+        }
+
+        private void UpdateContrastDisplay()
+        {
+            if (_lockedColor == null || ContrastPanel.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            CurrentColorSwatch.Background = new SolidColorBrush(_currentColor);
+            double ratio = ColorContrastService.CalculateRatio(_lockedColor.Value, _currentColor);
+            TxtContrastRatio.Text = ColorContrastService.FormatRatio(ratio);
+            var eval = ColorContrastService.Evaluate(ratio);
+
+            BadgeAa.Background = eval.AaNormal
+                ? ThemeService.GetBrush("SuccessMutedBrush")
+                : ThemeService.GetBrush("InsetBackgroundBrush");
+            TxtBadgeAa.Foreground = eval.AaNormal
+                ? ThemeService.GetBrush("SuccessBrush")
+                : ThemeService.GetBrush("TextMutedBrush");
+
+            BadgeAaa.Background = eval.AaaNormal
+                ? ThemeService.GetBrush("SuccessMutedBrush")
+                : ThemeService.GetBrush("InsetBackgroundBrush");
+            TxtBadgeAaa.Foreground = eval.AaaNormal
+                ? ThemeService.GetBrush("SuccessBrush")
+                : ThemeService.GetBrush("TextMutedBrush");
         }
 
         private static (double H, double S, double L) ToHsl(System.Windows.Media.Color color)
@@ -185,10 +230,24 @@ namespace CryoUtils.Views
 
             try
             {
-                Clipboard.SetText(text);
-                SettingsService.Instance.RegisterRecentColor(_hex);
-                (Application.Current as App)?.ShowToast(
-                    LocalizationService.Format("Color_Copied", text));
+                if (_lockedColor != null)
+                {
+                    string baseHex = $"#{_lockedColor.Value.R:X2}{_lockedColor.Value.G:X2}{_lockedColor.Value.B:X2}";
+                    double ratio = ColorContrastService.CalculateRatio(_lockedColor.Value, _currentColor);
+                    string summary = $"{baseHex} vs {_hex} ({ColorContrastService.FormatRatio(ratio)})";
+                    Clipboard.SetText(summary);
+                    SettingsService.Instance.RegisterRecentColor(baseHex);
+                    SettingsService.Instance.RegisterRecentColor(_hex);
+                    (Application.Current as App)?.ShowToast(
+                        LocalizationService.Format("Color_Copied", summary));
+                }
+                else
+                {
+                    Clipboard.SetText(text);
+                    SettingsService.Instance.RegisterRecentColor(_hex);
+                    (Application.Current as App)?.ShowToast(
+                        LocalizationService.Format("Color_Copied", text));
+                }
             }
             catch
             {
@@ -225,6 +284,11 @@ namespace CryoUtils.Views
             if (e.Key == Key.Escape)
             {
                 Close();
+            }
+            else if (e.Key == Key.Space)
+            {
+                ToggleContrastLock();
+                e.Handled = true;
             }
             else if (e.Key == Key.Enter || e.Key == Key.C)
             {

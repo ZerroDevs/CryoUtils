@@ -57,7 +57,9 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 |---|---|---|
 | `CaptureController.Instance` | `Views/CaptureController.cs` | Capture session singleton. |
 | `CaptureController.StartAsync` | same | Freezes the virtual desktop and opens overlays. |
+| `CaptureController.StartForImage` | same | Opens an existing capture in screenshot mode with full annotation and action rails. |
 | `CaptureController.StartRecordingMode` | same | Capture with auto-record after selection. |
+| `CaptureController.QrSelection` | same | Scans QR code from selected region and displays result window. |
 | `CaptureController.CloseAll` | same | Closes every overlay and restores focus. |
 | `CaptureController.ExportSelection` | same | Crops, renders annotations, copies or saves. |
 | `CaptureController.OpenOcrForSelection` | same | Runs OCR on the current selection and opens the result window. |
@@ -98,6 +100,17 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `RecorderService.PngFrames` | same | Access to captured frame bytes. |
 | `RecorderService.IsRecording`, `IsPaused`, `IsEncoding` | same | Live state. |
 | `RecorderService.Dispose` | same | Stops timers and releases the capture thread. |
+
+## QR Code and Color Contrast
+
+| Symbol | Location | Purpose |
+|---|---|---|
+| `QrCodeService.Decode` | `Services/QrCodeService.cs` | Decodes QR/barcode from `BitmapSource` using pure managed ZXing.Net. |
+| `QrCodeService.Encode` | same | Generates QR code `BitmapSource` with configurable ECC level and size. |
+| `ColorContrastService.CalculateLuminance` | `Services/ColorContrastService.cs` | Calculates WCAG 2.1 relative luminance for a color. |
+| `ColorContrastService.CalculateRatio` | same | Calculates contrast ratio between two colors (1:1 to 21:1). |
+| `ColorContrastService.Evaluate` | same | Returns `ContrastEvaluation` with AA/AAA pass/fail for normal and large text. |
+| `ColorContrastService.FormatRatio` | same | Formats ratio to string (e.g. `4.50:1`). |
 | `RecordingBarWindow` | `Views/RecordingBarWindow.xaml.cs` | Timer, FPS, format, pause, stop/save, stop/copy, cancel. |
 | `RecordingFrameWindow` | `Views/RecordingFrameWindow.cs` | Click-through red border around the recording region. |
 
@@ -106,8 +119,9 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | Symbol | Location | Purpose |
 |---|---|---|
 | `ColorPickerWindow` | `Views/ColorPickerWindow.xaml.cs` | Magnifier, HEX/RGB/HSL, copy format, close. |
-| `TopmostService.ToggleFocusedWindow` | `Services/TopmostService.cs` | Toggles `WS_EX_TOPMOST` on the foreground window. |
-| `TopmostService.Unpin` | same | Removes topmost and hides the border. |
+| `TopmostService.ToggleFocusedWindow` | `Services/TopmostService.cs` | Toggles `WS_EX_TOPMOST` on the foreground window with title/class validation. |
+| `TopmostService.Unpin` | same | Removes topmost, restores styles, hides border, forces screen redraw. |
+| `TopmostService.ForceClearAll` | same | Emergency recovery tool: unpins, destroys border, and clears whole-screen artifacts. |
 | `TopmostService.ApplySettings` | same | Reconciles border and sound preferences. |
 | `TopmostService.RestoreForExit` | same | Restores topmost state on app exit. |
 | `PinnedBorderWindow` | `Views/PinnedBorderWindow.cs` | Click-through 2 px topmost tracking border. |
@@ -144,6 +158,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `GlobalHotkeyService.FormatShortcutDisplay` | same | Human-readable shortcut, LTR. |
 | `NativeMethods.GetWindowLongPtr`, `SetWindowLongPtr` | `Services/NativeMethods.cs` | Extended window style access. |
 | `NativeMethods.SetWindowPos` | same | Topmost and physical placement. |
+| `NativeMethods.RedrawWindow` | same | Window repainting and frame invalidation. |
 | `NativeMethods.SendPlainPasteShortcut` | same | `SendInput` Ctrl+V. |
 | `NativeMethods.PrintWindow` | same | Window capture. |
 | `NativeMethods.RegisterHotKey`, `UnregisterHotKey` | same | Hotkey registration. |
@@ -153,17 +168,19 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 
 | Component | Key behavior |
 |---|---|
-| `MainWindow.xaml` | Six tab radio buttons, title bar, module cards, capture settings, tools, hotkeys, general, about. |
-| `MainWindow.xaml.cs` | `ReloadUi`, `ShowTab`, `ModuleToggle_Changed`, `Setting_Changed`, `CmbTheme_SelectionChanged`, `CmbLanguage_SelectionChanged`, `RefreshHotkeyRows`, `AddHotkeyRow`, `RefreshRecentStrip`, `LoadCompressionSource`, `BtnCompress_Click`, `RefreshPinnedState`, `RefreshClipboardState`, `BtnExportSettings_Click`, `BtnImportSettings_Click`, `BtnResetSettings_Click`, update handlers, `TitleBar_MouseLeftButtonDown`, `BtnClose_Click`, `Window_Closing` (hide to tray unless shutdown is in progress). |
+| `MainWindow.xaml` | Title bar with integrated quick actions, six navigation tabs, symmetric 6-module overview grid, capture settings, tools, hotkeys, general, about, status footer. |
+| `MainWindow.xaml.cs` | `ReloadUi`, `ShowTab`, `ModuleToggle_Changed`, `Setting_Changed`, `CmbTheme_SelectionChanged`, `CmbLanguage_SelectionChanged`, `RefreshHotkeyRows`, `AddHotkeyRow`, `RefreshRecentStrip`, `LoadCompressionSource`, `BtnCompress_Click`, `RefreshPinnedState`, `RefreshClipboardState`, `BtnExportSettings_Click`, `BtnImportSettings_Click`, `BtnResetSettings_Click`, `BtnHeroCapture_Click`, `BtnRecordNow_Click`, `BtnGoCompress_Click`, `BtnGoQr_Click`, update handlers, `TitleBar_MouseLeftButtonDown`, `BtnClose_Click`, `Window_Closing` (hide to tray unless shutdown is in progress). |
 | `CaptureOverlayWindow.xaml` | Selection canvas, top-left size badge, optional magnifier, vertical tool rail, horizontal action rail, tooltips. |
 | `CaptureOverlayWindow.xaml.cs` | Selection drag/move/resize, handles, double-click window, Ctrl+A, annotation tool selection, color/width, undo/redo, text editor, blur commit, OCR/pin/print/save/copy shortcuts, Esc; places both rails without overlap and gates the magnifier on `ShowCaptureLoupe`. |
 | `CaptureSurface.cs` | Shared physical selection, annotation list, hit testing, cursor state, redraw. |
 | `HotkeyCaptureWindow.xaml` | Modal key capture with modifier display and validation. |
 | `OcrResultWindow.xaml` | Auto-height, top-aligned rich OCR editor; code/wrap toggles, syntax colors, line/character metadata, color swatches, Open/Save as, drag/drop for Markdown and all text types. |
 | `ClipboardHistoryWindow.xaml` | Searchable list, copy, remove, clear, sensitive note. |
+| `QrResultWindow` | `Views/QrResultWindow.xaml.cs` | Shows decoded QR payload, format, clickable QR image thumbnail, copy text, save text, and save QR image. |
 | `PinWindow.xaml` | Frameless always-on-top image, drag, wheel zoom, Ctrl+wheel opacity, right-click menu. |
 | `ToastWindow.xaml` | Non-intrusive toast, bottom-right, click-through. |
-| `TrayIconManager.cs` | Packaged CryoUtils icon (with generated fallback), dark menu, capture, record, color picker, dashboard, settings, exit, left-click action; `BuildMenu` and `RebuildMenu` keep labels and RTL in sync with language changes. |
+| `TrayIconManager.cs` | Packaged CryoUtils icon (with generated fallback), dark menu, capture, delayed capture submenu, record, color picker, dynamic pin/unpin window item, dashboard, settings, exit, left-click action; `BuildMenu` and `RebuildMenu` keep labels and RTL in sync with language and topmost pin states. |
+| `RecentCaptureService.cs` | In-memory recent capture manager with `INotifyPropertyChanged` item model, inline delete confirmation, and dimension/filesize formatting. |
 | `CryoIcon` / `IconData` | Vector geometry resources used by XAML. |
 
 ## Reuse rules

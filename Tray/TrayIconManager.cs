@@ -29,6 +29,7 @@ namespace CryoUtils.Tray
             _menu = BuildMenu();
             _notifyIcon.ContextMenuStrip = _menu;
             LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
+            TopmostService.Instance.StateChanged += OnTopmostStateChanged;
             _notifyIcon.DoubleClick += (_, _) => Invoke(() => App.CurrentApp?.ShowDashboard());
             _notifyIcon.MouseClick += (_, e) =>
             {
@@ -71,9 +72,35 @@ namespace CryoUtils.Tray
                 RightToLeft = rtl ? Forms.RightToLeft.Yes : Forms.RightToLeft.No
             };
             menu.Renderer = new CryoMenuRenderer(menu.BackColor, Drawing.Color.FromArgb(15, 122, 108));
-            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_TakeScreenshot"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture())));
+            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_TakeScreenshot"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(0))));
+            var delayedSubmenu = new Forms.ToolStripMenuItem(LocalizationService.Get("Tray_TakeDelayed"))
+            {
+                ForeColor = Drawing.Color.FromArgb(236, 239, 242),
+                Padding = new Forms.Padding(6, 3, 6, 3)
+            };
+            delayedSubmenu.DropDownItems.Add(CreateItem(LocalizationService.Get("Tray_Delay3s"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(3))));
+            delayedSubmenu.DropDownItems.Add(CreateItem(LocalizationService.Get("Tray_Delay5s"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(5))));
+            delayedSubmenu.DropDownItems.Add(CreateItem(LocalizationService.Get("Tray_Delay10s"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(10))));
+            menu.Items.Add(delayedSubmenu);
             menu.Items.Add(CreateItem(LocalizationService.Get("Tray_RecordGif"), (_, _) => Invoke(() => App.CurrentApp?.StartRecording())));
             menu.Items.Add(CreateItem(LocalizationService.Get("Tray_ColorPicker"), (_, _) => Invoke(() => App.CurrentApp?.OpenColorPicker())));
+
+            if (TopmostService.Instance.IsPinned)
+            {
+                string title = TopmostService.Instance.PinnedTitle;
+                if (title.Length > 24)
+                {
+                    title = title.Substring(0, 21) + "...";
+                }
+                string itemText = LocalizationService.Format("Tray_UnpinWindow", title);
+                menu.Items.Add(CreateItem(itemText, (_, _) => Invoke(() => TopmostService.Instance.Unpin())));
+                menu.Items.Add(CreateItem(LocalizationService.Get("Tray_ResetPinner"), (_, _) => Invoke(() => TopmostService.Instance.ForceClearAll())));
+            }
+            else
+            {
+                menu.Items.Add(CreateItem(LocalizationService.Get("Tray_PinWindow"), (_, _) => Invoke(() => App.CurrentApp?.TogglePinnerFromDashboard())));
+            }
+
             menu.Items.Add(new Forms.ToolStripSeparator());
             menu.Items.Add(CreateItem(LocalizationService.Get("Tray_OpenDashboard"), (_, _) => Invoke(() => App.CurrentApp?.ShowDashboard())));
             menu.Items.Add(CreateItem(LocalizationService.Get("Tray_Settings"), (_, _) => Invoke(() => App.CurrentApp?.ShowDashboard("General"))));
@@ -83,6 +110,11 @@ namespace CryoUtils.Tray
         }
 
         private void OnLanguageChanged()
+        {
+            Invoke(RebuildMenu);
+        }
+
+        private void OnTopmostStateChanged()
         {
             Invoke(RebuildMenu);
         }
@@ -182,6 +214,7 @@ namespace CryoUtils.Tray
         public void Dispose()
         {
             LocalizationService.Instance.LanguageChanged -= OnLanguageChanged;
+            TopmostService.Instance.StateChanged -= OnTopmostStateChanged;
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _icon.Dispose();

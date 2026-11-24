@@ -71,7 +71,18 @@ Rules: flat surfaces, 1 px crisp borders, no gradients, no pink or purple, teal 
 
 ### Localization
 
-`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 297 keys each.
+`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 362 keys each.
+
+### QR Code & Utilities Suite
+
+`Services/QrCodeService.cs` provides managed QR encoding and decoding via `ZXing.Net` 0.16.11 without external cloud or native dependencies. Scanned or generated QR images persist to `RecentCaptureService` and disk automatically. `Views/QrResultWindow.xaml` displays the decoded payload, format, and the crisp QR code image thumbnail with quick image saving. `Services/ColorContrastService.cs` calculates WCAG 2.1 relative luminance, contrast ratio, and AA/AAA conformance evaluations. `Views/CountdownWindow.xaml` provides non-activating floating countdown pills for delayed capture.
+
+### Window Pinner
+
+`Services/TopmostService.cs` manages pinning foreground windows with optional opacity (`SetLayeredWindowAttributes`), click-through (`WS_EX_TRANSPARENT`), and accent borders (`Views/PinnedBorderWindow.cs`).
+Validation (`IsValidTargetWindow`) requires a valid non-empty window title and prevents pinning Desktop (`Progman`, `WorkerW`), Taskbars (`Shell_TrayWnd`), Shell windows, or CryoUtils itself.
+`ForceClearAll()` provides emergency recovery by unpinning, closing borders, and invoking `RedrawWindow` across the entire screen.
+Exiting the app automatically invokes `Unpin(silent: true)`, clearing `HWND_NOTOPMOST`, restoring window styles, and closing border windows.
 
 ### Global hotkeys
 

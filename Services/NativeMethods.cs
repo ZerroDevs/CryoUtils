@@ -32,8 +32,24 @@ namespace CryoUtils.Services
         public const uint SWP_NOMOVE = 0x0002;
         public const uint SWP_NOZORDER = 0x0004;
         public const uint SWP_NOACTIVATE = 0x0010;
+        public const uint SWP_FRAMECHANGED = 0x0020;
         public const uint SWP_SHOWWINDOW = 0x0040;
         public const uint SWP_HIDEWINDOW = 0x0080;
+
+        // RedrawWindow flags
+        public const uint RDW_INVALIDATE = 0x0001;
+        public const uint RDW_INTERNALPAINT = 0x0002;
+        public const uint RDW_ERASE = 0x0004;
+        public const uint RDW_ALLCHILDREN = 0x0080;
+        public const uint RDW_UPDATENOW = 0x0100;
+        public const uint RDW_FRAME = 0x0400;
+
+        // Layered window attributes
+        public const uint LWA_COLORKEY = 0x00000001;
+        public const uint LWA_ALPHA = 0x00000002;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
         // Monitors
         public const int SM_XVIRTUALSCREEN = 76;
@@ -142,6 +158,9 @@ namespace CryoUtils.Services
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool SetWindowPos(
             IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll")]
+        public static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
 
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT point);

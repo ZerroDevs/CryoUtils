@@ -31,6 +31,11 @@ namespace CryoUtils.Views
         public const string Settings = "M7,2 L9,2 L9.3,3.8 A5,5 0 0 1 10.8,4.7 L12.5,3.8 L13.9,5.2 L13,6.9 A5,5 0 0 1 13.9,8.4 L15.7,8.7 L15.7,10.7 L13.9,11 A5,5 0 0 1 13,12.5 L13.9,14.2 L12.5,15.6 L10.8,14.7 A5,5 0 0 1 9.3,15.6 L9,17.4 L7,17.4 L6.7,15.6 A5,5 0 0 1 5.2,14.7 L3.5,15.6 L2.1,14.2 L3,12.5 A5,5 0 0 1 2.1,11 L0.3,10.7 L0.3,8.7 L2.1,8.4 A5,5 0 0 1 3,6.9 L2.1,5.2 L3.5,3.8 L5.2,4.7 A5,5 0 0 1 6.7,3.8 Z M8,6 A3.5,3.5 0 1 0 8,13 A3.5,3.5 0 1 0 8,6 Z";
         public const string Repo = "M4,4 L9,4 L9,16 L4,16 Z M11,4 L16,4 L16,16 L11,16 Z M6,9 L7,9 M13,9 L14,9";
         public const string Step = "M10,3 A7,7 0 1 0 10,17 A7,7 0 1 0 10,3 Z";
+        public const string QrCode = "M3,3 L8,3 L8,8 L3,8 Z M5,5 L6,5 L6,6 L5,6 Z M12,3 L17,3 L17,8 L12,8 Z M14,5 L15,5 L15,6 L14,6 Z M3,12 L8,12 L8,17 L3,17 Z M5,14 L6,14 L6,15 L5,15 Z M12,12 L14,12 L14,14 L12,14 Z M15,12 L17,12 L17,15 L15,15 Z M12,15 L15,15 L15,17 L12,17 Z M16,16 L17,16 L17,17 L16,17 Z";
+        public const string Contrast = "M10,2 A8,8 0 1 0 10,18 A8,8 0 0 0 10,2 Z M10,4 L10,16 A6,6 0 0 1 10,4 Z";
+        public const string Folder = "M2,4 L7,4 L9,6 L18,6 L18,16 L2,16 Z";
+        public const string Trash = "M4,6 L16,6 M8,6 L8,4 L12,4 L12,6 M6,6 L6,16 L14,16 L14,6 M8,9 L8,13 M12,9 L12,13";
+        public const string Check = "M3.5,10 L7.5,14 L16.5,5";
 
         public static Geometry GeometryFor(string data, bool filled = false)
         {

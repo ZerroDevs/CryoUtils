@@ -52,6 +52,17 @@ namespace CryoUtils.Views
             Start(recordMode: false);
         }
 
+        public void StartForImage(BitmapSource image, string? originalPath = null)
+        {
+            if (IsActive || _starting)
+            {
+                return;
+            }
+
+            _recordAfterSelection = false;
+            _ = StartForImageAsync(image, originalPath);
+        }
+
         public void StartRecordingMode()
         {
             Start(recordMode: true);
@@ -66,6 +77,124 @@ namespace CryoUtils.Views
 
             _recordAfterSelection = recordMode;
             _ = StartAsync();
+        }
+
+        private async System.Threading.Tasks.Task StartForImageAsync(BitmapSource image, string? originalPath)
+        {
+            _starting = true;
+            try
+            {
+                var app = Application.Current as App;
+                app?.PrepareForCapture();
+                await System.Threading.Tasks.Task.Delay(150);
+
+                var settings = SettingsService.Instance.Current;
+                Tool = CaptureTool.Select;
+                CurrentColor = string.IsNullOrWhiteSpace(settings.AnnotationColor)
+                    ? AppSettings.DefaultAnnotationColor
+                    : settings.AnnotationColor;
+                Thickness = Math.Clamp(settings.AnnotationThickness, 1, 24);
+                NextStep = Math.Max(1, settings.StepStartNumber);
+                Annotations.Clear();
+                _undo.Clear();
+                _redo.Clear();
+                IsClosing = false;
+                VirtualBounds = ScreenCaptureService.GetVirtualBounds();
+                var desktopBitmap = ScreenCaptureService.CaptureRegion(VirtualBounds);
+                Monitors = ScreenCaptureService.GetMonitors();
+
+                NativeMethods.GetCursorPos(out var cursor);
+                ActiveMonitor = Monitors.FirstOrDefault(monitor =>
+                    cursor.X >= monitor.Bounds.Left && cursor.X < monitor.Bounds.Right &&
+                    cursor.Y >= monitor.Bounds.Top && cursor.Y < monitor.Bounds.Bottom) ?? Monitors.FirstOrDefault();
+
+                var targetMonitor = ActiveMonitor ?? Monitors.FirstOrDefault();
+                int monitorLeft = targetMonitor != null ? targetMonitor.Bounds.Left : VirtualBounds.Left;
+                int monitorTop = targetMonitor != null ? targetMonitor.Bounds.Top : VirtualBounds.Top;
+                int monitorWidth = targetMonitor != null ? targetMonitor.Bounds.Width : VirtualBounds.Width;
+                int monitorHeight = targetMonitor != null ? targetMonitor.Bounds.Height : VirtualBounds.Height;
+
+                int imgW = image.PixelWidth;
+                int imgH = image.PixelHeight;
+
+                // Scale down if image is larger than the monitor with margins for toolbars
+                double maxW = Math.Max(200, monitorWidth - 140);
+                double maxH = Math.Max(200, monitorHeight - 140);
+                if (imgW > maxW || imgH > maxH)
+                {
+                    double scale = Math.Min(maxW / imgW, maxH / imgH);
+                    if (scale < 0.999)
+                    {
+                        image = ImageIO.Resize(image, scale);
+                        imgW = image.PixelWidth;
+                        imgH = image.PixelHeight;
+                    }
+                }
+
+                int targetX = monitorLeft + Math.Max(0, (monitorWidth - imgW) / 2);
+                int targetY = monitorTop + Math.Max(0, (monitorHeight - imgH) / 2);
+
+                if (targetX + imgW > VirtualBounds.Right)
+                {
+                    targetX = Math.Max(VirtualBounds.Left, VirtualBounds.Right - imgW);
+                }
+                if (targetY + imgH > VirtualBounds.Bottom)
+                {
+                    targetY = Math.Max(VirtualBounds.Top, VirtualBounds.Bottom - imgH);
+                }
+                targetX = Math.Max(VirtualBounds.Left, targetX);
+                targetY = Math.Max(VirtualBounds.Top, targetY);
+
+                int clampedW = Math.Min(imgW, VirtualBounds.Right - targetX);
+                int clampedH = Math.Min(imgH, VirtualBounds.Bottom - targetY);
+
+                var visual = new DrawingVisual();
+                RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+                using (var dc = visual.RenderOpen())
+                {
+                    dc.DrawImage(desktopBitmap, new Rect(0, 0, desktopBitmap.PixelWidth, desktopBitmap.PixelHeight));
+                    int relX = targetX - VirtualBounds.Left;
+                    int relY = targetY - VirtualBounds.Top;
+                    dc.DrawImage(image, new Rect(relX, relY, clampedW, clampedH));
+                }
+
+                var rtb = new RenderTargetBitmap(desktopBitmap.PixelWidth, desktopBitmap.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(visual);
+                rtb.Freeze();
+                VirtualBitmap = rtb;
+
+                Selection = new Rect(targetX, targetY, clampedW, clampedH);
+
+                foreach (var monitor in Monitors)
+                {
+                    var overlay = new CaptureOverlayWindow(this, monitor);
+                    _windows.Add(overlay);
+                }
+
+                IsActive = true;
+                foreach (var overlay in _windows)
+                {
+                    overlay.Show();
+                }
+
+                ActiveOverlay = _windows.FirstOrDefault(w => w.Monitor == targetMonitor) ?? _windows.FirstOrDefault();
+                if (ActiveOverlay != null)
+                {
+                    ActiveOverlay.Activate();
+                    ActiveOverlay.Focus();
+                }
+
+                NotifyChanged();
+            }
+            catch (Exception ex)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+                CloseAll();
+            }
+            finally
+            {
+                _starting = false;
+            }
         }
 
         private async System.Threading.Tasks.Task StartAsync()
@@ -326,7 +455,7 @@ namespace CryoUtils.Views
                 }
             }
 
-            RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Recent_Copy"));
+            RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Nav_Capture"));
             if (SettingsService.Instance.Current.CaptureSound)
             {
                 NativeMethods.MessageBeep(0x40);
@@ -421,6 +550,52 @@ namespace CryoUtils.Views
                 }
 
                 var window = new OcrResultWindow(text);
+                window.Show();
+                window.Activate();
+            }
+            catch (Exception ex)
+            {
+                app?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+            }
+        }
+
+        public void QrSelection()
+        {
+            var bitmap = RenderSelection();
+            if (bitmap == null)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            var app = Application.Current as App;
+            CloseAll();
+            try
+            {
+                var result = QrCodeService.Decode(bitmap);
+                if (result == null || string.IsNullOrWhiteSpace(result.Text))
+                {
+                    app?.ShowToast(LocalizationService.Get("Qr_NotFound"));
+                    return;
+                }
+
+                string? savedPath = null;
+                try
+                {
+                    savedPath = ScreenCaptureService.QuickSave(bitmap, ".png");
+                }
+                catch
+                {
+                }
+
+                RecentCaptureService.Instance.Add(bitmap, savedPath, LocalizationService.Get("Tools_QrTitle"));
+
+                if (SettingsService.Instance.Current.CaptureSound)
+                {
+                    NativeMethods.MessageBeep(0x40);
+                }
+
+                var window = new QrResultWindow(result.Text, result.FormatName, bitmap);
                 window.Show();
                 window.Activate();
             }

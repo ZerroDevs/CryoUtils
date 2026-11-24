@@ -83,13 +83,29 @@ namespace CryoUtils
             _dashboard.Focus();
         }
 
-        public void StartCapture()
+        public void StartCapture(int delaySeconds = -1)
         {
             if (!SettingsService.Instance.Current.CaptureEnabled)
             {
                 ShowToast(LocalizationService.Get("Module_OffNote"));
                 return;
             }
+
+            int delay = delaySeconds >= 0
+                ? delaySeconds
+                : SettingsService.Instance.Current.CaptureDelaySeconds;
+
+            if (delay > 0)
+            {
+                PrepareForCapture();
+                var countdown = new CountdownWindow(delay, () =>
+                {
+                    CaptureController.Instance.Start();
+                });
+                countdown.Show();
+                return;
+            }
+
             CaptureController.Instance.Start();
         }
 
@@ -145,11 +161,17 @@ namespace CryoUtils
                 return;
             }
 
+            if (TopmostService.Instance.IsPinned)
+            {
+                TopmostService.Instance.Unpin();
+                return;
+            }
+
             bool restore = IsDashboardVisible;
             if (restore)
             {
                 _dashboard?.Hide();
-                await Task.Delay(140);
+                await Task.Delay(180);
             }
 
             TopmostService.Instance.ToggleFocusedWindow();
