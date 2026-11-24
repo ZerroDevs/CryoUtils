@@ -11,10 +11,17 @@ namespace CryoUtils.Tray
 {
     public sealed class TrayIconManager : IDisposable
     {
+        private const int MainMenuFloorWidth = 216;
+        private const int SubMenuFloorWidth = 190;
+        private const int MenuTextHorizontalReserve = 48;
+
         private readonly Forms.NotifyIcon _notifyIcon;
         private readonly Drawing.Icon _icon;
         private Forms.ContextMenuStrip? _menu;
         private IntPtr _iconHandle;
+
+        private readonly Drawing.Font _menuFont = new("Segoe UI", 9.5f, Drawing.FontStyle.Regular, Drawing.GraphicsUnit.Point);
+        private readonly Drawing.Font _menuPrimaryFont = new("Segoe UI Semibold", 9.5f, Drawing.FontStyle.Regular, Drawing.GraphicsUnit.Point);
 
         public TrayIconManager()
         {
@@ -22,14 +29,16 @@ namespace CryoUtils.Tray
             _notifyIcon = new Forms.NotifyIcon
             {
                 Icon = _icon,
-                Text = "CryoUtils",
+                Text = LocalizationService.Get("Tray_Tooltip"),
                 Visible = true
             };
 
             _menu = BuildMenu();
             _notifyIcon.ContextMenuStrip = _menu;
+
             LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
             TopmostService.Instance.StateChanged += OnTopmostStateChanged;
+
             _notifyIcon.DoubleClick += (_, _) => Invoke(() => App.CurrentApp?.ShowDashboard());
             _notifyIcon.MouseClick += (_, e) =>
             {
@@ -61,30 +70,72 @@ namespace CryoUtils.Tray
         private Forms.ContextMenuStrip BuildMenu()
         {
             bool rtl = LocalizationService.Instance.IsArabic;
-            var menu = new Forms.ContextMenuStrip
-            {
-                BackColor = Drawing.Color.FromArgb(22, 24, 27),
-                ForeColor = Drawing.Color.FromArgb(236, 239, 242),
-                ShowImageMargin = false,
-                ShowCheckMargin = false,
-                Padding = new Forms.Padding(3),
-                Font = new Drawing.Font("Segoe UI", 9f),
-                RightToLeft = rtl ? Forms.RightToLeft.Yes : Forms.RightToLeft.No
-            };
-            menu.Renderer = new CryoMenuRenderer(menu.BackColor, Drawing.Color.FromArgb(15, 122, 108));
-            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_TakeScreenshot"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(0))));
-            var delayedSubmenu = new Forms.ToolStripMenuItem(LocalizationService.Get("Tray_TakeDelayed"))
-            {
-                ForeColor = Drawing.Color.FromArgb(236, 239, 242),
-                Padding = new Forms.Padding(6, 3, 6, 3)
-            };
-            delayedSubmenu.DropDownItems.Add(CreateItem(LocalizationService.Get("Tray_Delay3s"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(3))));
-            delayedSubmenu.DropDownItems.Add(CreateItem(LocalizationService.Get("Tray_Delay5s"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(5))));
-            delayedSubmenu.DropDownItems.Add(CreateItem(LocalizationService.Get("Tray_Delay10s"), (_, _) => Invoke(() => App.CurrentApp?.StartCapture(10))));
-            menu.Items.Add(delayedSubmenu);
-            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_RecordGif"), (_, _) => Invoke(() => App.CurrentApp?.StartRecording())));
-            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_ColorPicker"), (_, _) => Invoke(() => App.CurrentApp?.OpenColorPicker())));
+            var renderer = new DarkMenuRenderer();
+            var menu = new Forms.ContextMenuStrip();
+            ConfigureDarkDropDown(menu, renderer, rtl);
 
+            // 1. Primary Open Dashboard item
+            var itemOpen = CreateMenuItem(
+                LocalizationService.Get("Tray_OpenDashboard"),
+                () => App.CurrentApp?.ShowDashboard(),
+                _menuPrimaryFont);
+            menu.Items.Add(itemOpen);
+            menu.Items.Add(CreateSeparator());
+
+            // 2. Screen capture & recording tools
+            var itemCapture = CreateMenuItem(
+                LocalizationService.Get("Tray_TakeScreenshot"),
+                () => App.CurrentApp?.StartCapture(0));
+            menu.Items.Add(itemCapture);
+
+            var delayedSubmenu = new Forms.ToolStripMenuItem(LocalizationService.Get("Tray_TakeDelayed"));
+            if (delayedSubmenu.DropDown is Forms.ToolStripDropDownMenu delayedDropDown)
+            {
+                ConfigureDarkDropDown(delayedDropDown, renderer, rtl);
+            }
+            delayedSubmenu.DropDownItems.Add(CreateMenuItem(
+                LocalizationService.Get("Tray_Delay3s"),
+                () => App.CurrentApp?.StartCapture(3)));
+            delayedSubmenu.DropDownItems.Add(CreateMenuItem(
+                LocalizationService.Get("Tray_Delay5s"),
+                () => App.CurrentApp?.StartCapture(5)));
+            delayedSubmenu.DropDownItems.Add(CreateMenuItem(
+                LocalizationService.Get("Tray_Delay10s"),
+                () => App.CurrentApp?.StartCapture(10)));
+            menu.Items.Add(delayedSubmenu);
+
+            var itemRecord = CreateMenuItem(
+                LocalizationService.Get("Tray_RecordGif"),
+                () => App.CurrentApp?.StartRecording());
+            menu.Items.Add(itemRecord);
+
+            menu.Items.Add(CreateSeparator());
+
+            // 3. Local Utilities
+            var itemColor = CreateMenuItem(
+                LocalizationService.Get("Tray_ColorPicker"),
+                () => App.CurrentApp?.OpenColorPicker());
+            menu.Items.Add(itemColor);
+
+            var qrSubmenu = new Forms.ToolStripMenuItem(LocalizationService.Get("Tray_QrSuite"));
+            if (qrSubmenu.DropDown is Forms.ToolStripDropDownMenu qrDropDown)
+            {
+                ConfigureDarkDropDown(qrDropDown, renderer, rtl);
+            }
+            qrSubmenu.DropDownItems.Add(CreateMenuItem(
+                LocalizationService.Get("Tray_QrScan"),
+                () => App.CurrentApp?.StartCapture()));
+            qrSubmenu.DropDownItems.Add(CreateMenuItem(
+                LocalizationService.Get("Tray_QrGenerate"),
+                () => App.CurrentApp?.ShowDashboard("Tools")));
+            menu.Items.Add(qrSubmenu);
+
+            var itemClipboard = CreateMenuItem(
+                LocalizationService.Get("Tray_Clipboard"),
+                () => App.CurrentApp?.OpenClipboardHistory());
+            menu.Items.Add(itemClipboard);
+
+            // Window Pinner dynamic items
             if (TopmostService.Instance.IsPinned)
             {
                 string title = TopmostService.Instance.PinnedTitle;
@@ -93,20 +144,114 @@ namespace CryoUtils.Tray
                     title = title.Substring(0, 21) + "...";
                 }
                 string itemText = LocalizationService.Format("Tray_UnpinWindow", title);
-                menu.Items.Add(CreateItem(itemText, (_, _) => Invoke(() => TopmostService.Instance.Unpin())));
-                menu.Items.Add(CreateItem(LocalizationService.Get("Tray_ResetPinner"), (_, _) => Invoke(() => TopmostService.Instance.ForceClearAll())));
+                menu.Items.Add(CreateMenuItem(itemText, () => TopmostService.Instance.Unpin()));
+                menu.Items.Add(CreateMenuItem(
+                    LocalizationService.Get("Tray_ResetPinner"),
+                    () => TopmostService.Instance.ForceClearAll()));
             }
             else
             {
-                menu.Items.Add(CreateItem(LocalizationService.Get("Tray_PinWindow"), (_, _) => Invoke(() => App.CurrentApp?.TogglePinnerFromDashboard())));
+                menu.Items.Add(CreateMenuItem(
+                    LocalizationService.Get("Tray_PinWindow"),
+                    () => App.CurrentApp?.TogglePinnerFromDashboard()));
             }
 
-            menu.Items.Add(new Forms.ToolStripSeparator());
-            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_OpenDashboard"), (_, _) => Invoke(() => App.CurrentApp?.ShowDashboard())));
-            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_Settings"), (_, _) => Invoke(() => App.CurrentApp?.ShowDashboard("General"))));
-            menu.Items.Add(new Forms.ToolStripSeparator());
-            menu.Items.Add(CreateItem(LocalizationService.Get("Tray_Exit"), (_, _) => Invoke(() => App.CurrentApp?.ExitApplication())));
+            menu.Items.Add(CreateSeparator());
+
+            // 4. App settings & exit
+            var itemSettings = CreateMenuItem(
+                LocalizationService.Get("Tray_Settings"),
+                () => App.CurrentApp?.ShowDashboard("General"));
+            menu.Items.Add(itemSettings);
+
+            menu.Items.Add(CreateSeparator());
+
+            var itemExit = CreateMenuItem(
+                LocalizationService.Get("Tray_Exit"),
+                () => App.CurrentApp?.ExitApplication());
+            menu.Items.Add(itemExit);
+
+            // Dynamic size adjustment on opening
+            menu.Opening += (_, _) =>
+            {
+                UpdateDropDownSizes(menu, MainMenuFloorWidth, MenuTextHorizontalReserve);
+                UpdateDropDownSizes(delayedSubmenu.DropDown, SubMenuFloorWidth, MenuTextHorizontalReserve);
+                UpdateDropDownSizes(qrSubmenu.DropDown, SubMenuFloorWidth, MenuTextHorizontalReserve);
+            };
+
+            UpdateDropDownSizes(menu, MainMenuFloorWidth, MenuTextHorizontalReserve);
+            UpdateDropDownSizes(delayedSubmenu.DropDown, SubMenuFloorWidth, MenuTextHorizontalReserve);
+            UpdateDropDownSizes(qrSubmenu.DropDown, SubMenuFloorWidth, MenuTextHorizontalReserve);
+
             return menu;
+        }
+
+        private void ConfigureDarkDropDown(Forms.ToolStripDropDownMenu dropDown, Forms.ToolStripRenderer renderer, bool rtl)
+        {
+            dropDown.Renderer = renderer;
+            dropDown.ShowImageMargin = false;
+            dropDown.ShowCheckMargin = false;
+            dropDown.BackColor = DarkMenuRenderer.SurfaceBg;
+            dropDown.ForeColor = DarkMenuRenderer.TextNormal;
+            dropDown.Font = _menuFont;
+            dropDown.Padding = new Forms.Padding(1, 5, 1, 5);
+            dropDown.RightToLeft = rtl ? Forms.RightToLeft.Yes : Forms.RightToLeft.No;
+        }
+
+        private Forms.ToolStripMenuItem CreateMenuItem(string text, Action onClick, Drawing.Font? font = null)
+        {
+            var item = new Forms.ToolStripMenuItem(text)
+            {
+                ForeColor = DarkMenuRenderer.TextNormal,
+                Padding = new Forms.Padding(0, 5, 0, 5)
+            };
+            if (font != null)
+            {
+                item.Font = font;
+            }
+            item.Click += (_, _) => Invoke(onClick);
+            return item;
+        }
+
+        private static Forms.ToolStripSeparator CreateSeparator() => new()
+        {
+            AutoSize = false,
+            Height = 9,
+            Margin = new Forms.Padding(0, 2, 0, 2)
+        };
+
+        private void UpdateDropDownSizes(Forms.ToolStripDropDown dropDown, int floorWidth, int horizontalExtra)
+        {
+            int maxTextWidth = 0;
+            foreach (Forms.ToolStripItem item in dropDown.Items)
+            {
+                if (item is Forms.ToolStripMenuItem menuItem && !string.IsNullOrEmpty(menuItem.Text))
+                {
+                    Drawing.Size measured = Forms.TextRenderer.MeasureText(
+                        menuItem.Text,
+                        menuItem.Font ?? _menuFont,
+                        Drawing.Size.Empty,
+                        Forms.TextFormatFlags.SingleLine | Forms.TextFormatFlags.NoPrefix);
+                    if (measured.Width > maxTextWidth)
+                    {
+                        maxTextWidth = measured.Width;
+                    }
+                }
+            }
+
+            int targetWidth = Math.Max(floorWidth, maxTextWidth + horizontalExtra);
+            dropDown.MinimumSize = new Drawing.Size(targetWidth, 0);
+
+            foreach (Forms.ToolStripItem item in dropDown.Items)
+            {
+                if (item is Forms.ToolStripMenuItem menuItem)
+                {
+                    int textH = Forms.TextRenderer.MeasureText("Ag", menuItem.Font ?? _menuFont).Height;
+                    int itemHeight = Math.Max(30, textH + 12);
+                    menuItem.AutoSize = false;
+                    menuItem.Size = new Drawing.Size(targetWidth - 2, itemHeight);
+                }
+            }
         }
 
         private void OnLanguageChanged()
@@ -125,15 +270,6 @@ namespace CryoUtils.Tray
             _menu = BuildMenu();
             _notifyIcon.ContextMenuStrip = _menu;
             previous?.Dispose();
-        }
-
-        private static Forms.ToolStripMenuItem CreateItem(string text, EventHandler handler)
-        {
-            return new Forms.ToolStripMenuItem(text)
-            {
-                ForeColor = Drawing.Color.FromArgb(236, 239, 242),
-                Padding = new Forms.Padding(6, 3, 6, 3)
-            }.WithHandler(handler);
         }
 
         private static void Invoke(Action action)
@@ -218,6 +354,7 @@ namespace CryoUtils.Tray
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _icon.Dispose();
+            _menu?.Dispose();
             if (_iconHandle != IntPtr.Zero)
             {
                 DestroyIcon(_iconHandle);
@@ -228,76 +365,166 @@ namespace CryoUtils.Tray
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyIcon(IntPtr handle);
 
-        private sealed class CryoMenuRenderer : Forms.ToolStripProfessionalRenderer
+        // Custom owner-drawn renderer avoiding .NET 8 ToolStripProfessionalRenderer white margins.
+        private sealed class DarkMenuRenderer : Forms.ToolStripRenderer
         {
-            private readonly Drawing.Color _background;
-            private readonly Drawing.Color _accent;
-
-            public CryoMenuRenderer(Drawing.Color background, Drawing.Color accent)
-                : base(new CryoColorTable(background, accent))
-            {
-                _background = background;
-                _accent = accent;
-                RoundedEdges = false;
-            }
+            public static readonly Drawing.Color SurfaceBg = Drawing.Color.FromArgb(20, 24, 28);
+            public static readonly Drawing.Color SurfaceBorder = Drawing.Color.FromArgb(46, 52, 60);
+            public static readonly Drawing.Color HoverFill = Drawing.Color.FromArgb(32, 40, 48);
+            public static readonly Drawing.Color PressedFill = Drawing.Color.FromArgb(26, 34, 42);
+            public static readonly Drawing.Color HoverBorder = Drawing.Color.FromArgb(47, 211, 189);
+            public static readonly Drawing.Color SeparatorLine = Drawing.Color.FromArgb(40, 46, 54);
+            public static readonly Drawing.Color TextNormal = Drawing.Color.FromArgb(236, 239, 242);
+            public static readonly Drawing.Color TextSelected = Drawing.Color.White;
+            public static readonly Drawing.Color TextDisabled = Drawing.Color.FromArgb(120, 126, 134);
+            public static readonly Drawing.Color ChevronNormal = Drawing.Color.FromArgb(170, 178, 186);
+            public static readonly Drawing.Color ChevronSelected = Drawing.Color.FromArgb(47, 211, 189);
 
             protected override void OnRenderToolStripBackground(Forms.ToolStripRenderEventArgs e)
             {
-                using var brush = new Drawing.SolidBrush(_background);
-                e.Graphics.FillRectangle(brush, e.AffectedBounds);
+                using var bg = new Drawing.SolidBrush(SurfaceBg);
+                e.Graphics.FillRectangle(bg, e.AffectedBounds);
             }
 
-            protected override void OnRenderSeparator(Forms.ToolStripSeparatorRenderEventArgs e)
+            protected override void OnRenderImageMargin(Forms.ToolStripRenderEventArgs e)
             {
-                int y = e.Item.Height / 2;
-                using var pen = new Drawing.Pen(Drawing.Color.FromArgb(46, 50, 56));
-                e.Graphics.DrawLine(pen, 6, y, e.Item.Width - 6, y);
+                // Suppress default Win32 white image/check margin strip.
+            }
+
+            protected override void OnRenderToolStripBorder(Forms.ToolStripRenderEventArgs e)
+            {
+                SmoothingMode prev = e.Graphics.SmoothingMode;
+                e.Graphics.SmoothingMode = SmoothingMode.None;
+                using var pen = new Drawing.Pen(SurfaceBorder, 1f);
+                e.Graphics.DrawRectangle(pen, 0, 0, e.AffectedBounds.Width - 1, e.AffectedBounds.Height - 1);
+                e.Graphics.SmoothingMode = prev;
             }
 
             protected override void OnRenderMenuItemBackground(Forms.ToolStripItemRenderEventArgs e)
             {
-                if (!e.Item.Selected)
+                int stripW = e.ToolStrip != null && e.ToolStrip.Width > 0
+                    ? e.ToolStrip.Width
+                    : e.Item.Width + 2;
+                int itemX = e.Item.Bounds.Left;
+
+                if (e.Item.Enabled && (e.Item.Selected || e.Item.Pressed))
                 {
-                    return;
+                    int pillLeft = 5 - itemX;
+                    int pillRight = (stripW - 6) - itemX;
+                    var pillRect = new Drawing.Rectangle(pillLeft, 1, Math.Max(8, pillRight - pillLeft), Math.Max(8, e.Item.Height - 3));
+                    Drawing.Color fillColor = e.Item.Pressed ? PressedFill : HoverFill;
+
+                    SmoothingMode prev = e.Graphics.SmoothingMode;
+                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    using var path = CreateRoundedRectPath(pillRect, 4);
+                    using var fill = new Drawing.SolidBrush(fillColor);
+                    using var border = new Drawing.Pen(HoverBorder, 1f);
+                    e.Graphics.FillPath(fill, path);
+                    e.Graphics.DrawPath(border, path);
+                    e.Graphics.SmoothingMode = prev;
+                }
+            }
+
+            protected override void OnRenderItemText(Forms.ToolStripItemTextRenderEventArgs e)
+            {
+                int stripW = e.ToolStrip != null && e.ToolStrip.Width > 0
+                    ? e.ToolStrip.Width
+                    : e.Item.Width + 2;
+                int itemX = e.Item.Bounds.Left;
+                bool rtl = IsRtl(e.ToolStrip, e.Item);
+
+                int textLeft = rtl ? 32 - itemX : 14 - itemX;
+                int textRight = rtl ? (stripW - 14) - itemX : (stripW - 32) - itemX;
+                var textBounds = new Drawing.Rectangle(textLeft, 0, Math.Max(20, textRight - textLeft), e.Item.Height);
+
+                Drawing.Color textColor = !e.Item.Enabled
+                    ? TextDisabled
+                    : (e.Item.Selected || e.Item.Pressed ? TextSelected : TextNormal);
+
+                Forms.TextFormatFlags flags = Forms.TextFormatFlags.VerticalCenter
+                    | Forms.TextFormatFlags.SingleLine
+                    | Forms.TextFormatFlags.EndEllipsis
+                    | Forms.TextFormatFlags.NoPrefix;
+                if (rtl)
+                {
+                    flags |= Forms.TextFormatFlags.Right | Forms.TextFormatFlags.RightToLeft;
                 }
 
-                using var brush = new Drawing.SolidBrush(Drawing.Color.FromArgb(30, 34, 39));
-                e.Graphics.FillRectangle(brush, new Drawing.Rectangle(2, 1, e.Item.Width - 4, e.Item.Height - 2));
+                Forms.TextRenderer.DrawText(e.Graphics, e.Text, e.TextFont, textBounds, textColor, flags);
             }
-        }
 
-        private sealed class CryoColorTable : Forms.ProfessionalColorTable
-        {
-            private readonly Drawing.Color _background;
-            private readonly Drawing.Color _accent;
-
-            public CryoColorTable(Drawing.Color background, Drawing.Color accent)
+            protected override void OnRenderArrow(Forms.ToolStripArrowRenderEventArgs e)
             {
-                _background = background;
-                _accent = accent;
-                UseSystemColors = false;
+                Forms.ToolStrip? owner = e.Item?.Owner;
+                int stripW = owner != null && owner.Width > 0
+                    ? owner.Width
+                    : (e.Item?.Width ?? 0) + 2;
+                int itemX = e.Item?.Bounds.Left ?? 0;
+                bool rtl = IsRtl(owner, e.Item);
+
+                float cx = rtl ? 18f - itemX : (stripW - 18f) - itemX;
+                float cy = (e.Item?.Height ?? e.ArrowRectangle.Height) / 2f;
+                Drawing.Color arrowColor = e.Item != null && !e.Item.Enabled
+                    ? TextDisabled
+                    : (e.Item != null && (e.Item.Selected || e.Item.Pressed) ? ChevronSelected : ChevronNormal);
+
+                SmoothingMode prev = e.Graphics.SmoothingMode;
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var pen = new Drawing.Pen(arrowColor, 1.55f)
+                {
+                    StartCap = LineCap.Round,
+                    EndCap = LineCap.Round,
+                    LineJoin = LineJoin.Round
+                };
+
+                Drawing.PointF[] pts = rtl
+                    ? new[]
+                    {
+                        new Drawing.PointF(cx + 2.0f, cy - 3.6f),
+                        new Drawing.PointF(cx - 2.0f, cy),
+                        new Drawing.PointF(cx + 2.0f, cy + 3.6f)
+                    }
+                    : new[]
+                    {
+                        new Drawing.PointF(cx - 2.0f, cy - 3.6f),
+                        new Drawing.PointF(cx + 2.0f, cy),
+                        new Drawing.PointF(cx - 2.0f, cy + 3.6f)
+                    };
+                e.Graphics.DrawLines(pen, pts);
+                e.Graphics.SmoothingMode = prev;
             }
 
-            public override Drawing.Color ToolStripDropDownBackground => _background;
-            public override Drawing.Color ImageMarginGradientBegin => _background;
-            public override Drawing.Color ImageMarginGradientMiddle => _background;
-            public override Drawing.Color ImageMarginGradientEnd => _background;
-            public override Drawing.Color MenuBorder => Drawing.Color.FromArgb(46, 50, 56);
-            public override Drawing.Color MenuItemBorder => Drawing.Color.Transparent;
-            public override Drawing.Color MenuItemSelected => Drawing.Color.FromArgb(30, 34, 39);
-            public override Drawing.Color SeparatorDark => Drawing.Color.FromArgb(46, 50, 56);
-            public override Drawing.Color SeparatorLight => Drawing.Color.FromArgb(46, 50, 56);
-        }
-    }
+            protected override void OnRenderSeparator(Forms.ToolStripSeparatorRenderEventArgs e)
+            {
+                int stripW = e.ToolStrip != null && e.ToolStrip.Width > 0
+                    ? e.ToolStrip.Width
+                    : e.Item.Width + 4;
+                int sepX = e.Item.Bounds.Left;
+                int left = 10 - sepX;
+                int right = (stripW - 11) - sepX;
+                int y = e.Item.Height / 2;
 
-    internal static class ToolStripItemExtensions
-    {
-        public static Forms.ToolStripMenuItem WithHandler(
-            this Forms.ToolStripMenuItem item,
-            EventHandler handler)
-        {
-            item.Click += handler;
-            return item;
+                SmoothingMode prev = e.Graphics.SmoothingMode;
+                e.Graphics.SmoothingMode = SmoothingMode.None;
+                using var pen = new Drawing.Pen(SeparatorLine, 1f);
+                e.Graphics.DrawLine(pen, left, y, right, y);
+                e.Graphics.SmoothingMode = prev;
+            }
+
+            private static bool IsRtl(Forms.ToolStrip? strip, Forms.ToolStripItem? item) =>
+                (item?.RightToLeft == Forms.RightToLeft.Yes) || (strip?.RightToLeft == Forms.RightToLeft.Yes);
+
+            private static GraphicsPath CreateRoundedRectPath(Drawing.Rectangle bounds, int radius)
+            {
+                int diameter = radius * 2;
+                var path = new GraphicsPath();
+                path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
+                path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
+                path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+                path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+                path.CloseFigure();
+                return path;
+            }
         }
     }
 }

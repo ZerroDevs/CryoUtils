@@ -341,6 +341,10 @@
     <sys:String x:Key="Tray_Delay3s">3 seconds</sys:String>
     <sys:String x:Key="Tray_Delay5s">5 seconds</sys:String>
     <sys:String x:Key="Tray_Delay10s">10 seconds</sys:String>
+    <sys:String x:Key="Tray_QrSuite">QR code suite</sys:String>
+    <sys:String x:Key="Tray_QrScan">Scan screen QR</sys:String>
+    <sys:String x:Key="Tray_QrGenerate">Generate QR code...</sys:String>
+    <sys:String x:Key="Tray_Clipboard">Clipboard history</sys:String>
 
     <sys:String x:Key="Tools_PinnedOpacity">Window opacity</sys:String>
     <sys:String x:Key="Tools_PinnedClickThrough">Click-through (transparent)</sys:String>

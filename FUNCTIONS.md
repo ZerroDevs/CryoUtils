@@ -179,7 +179,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `QrResultWindow` | `Views/QrResultWindow.xaml.cs` | Shows decoded QR payload, format, clickable QR image thumbnail, copy text, save text, and save QR image. |
 | `PinWindow.xaml` | Frameless always-on-top image, drag, wheel zoom, Ctrl+wheel opacity, right-click menu. |
 | `ToastWindow.xaml` | Non-intrusive toast, bottom-right, click-through. |
-| `TrayIconManager.cs` | Packaged CryoUtils icon (with generated fallback), dark menu, capture, delayed capture submenu, record, color picker, dynamic pin/unpin window item, dashboard, settings, exit, left-click action; `BuildMenu` and `RebuildMenu` keep labels and RTL in sync with language and topmost pin states. |
+| `TrayIconManager.cs` | Packaged CryoUtils icon with custom `DarkMenuRenderer`, rounded pill hover, custom anti-aliased chevrons, floor width constraints, full RTL support, capture, delayed capture submenu, record, color picker, QR suite submenu, clipboard history, dynamic pin/unpin/reset items, dashboard, settings, and exit. |
 | `RecentCaptureService.cs` | In-memory recent capture manager with `INotifyPropertyChanged` item model, inline delete confirmation, and dimension/filesize formatting. |
 | `CryoIcon` / `IconData` | Vector geometry resources used by XAML. |
 

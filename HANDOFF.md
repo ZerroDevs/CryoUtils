@@ -2,7 +2,26 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — Unclipped Copy button, thumbnail pencil hover & edit in Screenshot mode
+## Latest turn — Ported CryoTray custom dark tray menu renderer & expanded options
+
+- **CryoTray-Grade Custom Renderer (`DarkMenuRenderer`)**:
+  - Replaced legacy `ToolStripProfessionalRenderer` with custom `ToolStripRenderer` based on `CryoTray` architecture.
+  - Eliminated Win32 white image and check margin artifacts (`OnRenderImageMargin` suppressed).
+  - Rounded pill hover highlights on menu items (`CreateRoundedRectPath(pillRect, 4)` with `HoverFill` and `HoverBorder`).
+  - Custom anti-aliased vector chevron arrows for submenus with bidirectional RTL (pointing left) and LTR (pointing right) support.
+  - Custom indented 1px separator lines (`OnRenderSeparator`).
+  - Text typography hierarchy: `_menuPrimaryFont` ("Segoe UI Semibold", 9.5f) for primary actions, `_menuFont` ("Segoe UI", 9.5f) for standard items.
+  - Floor width constraints (`MainMenuFloorWidth = 216`, `SubMenuFloorWidth = 190`) and 30px touch/mouse item height via `UpdateDropDownSizes`.
+- **Expanded Tray Tool Suite**:
+  - Top: `Open dashboard` (Semibold, opens main app).
+  - Screen capture & recording: `Take screenshot` (F10), `Take screenshot (delayed)` submenu (`3 seconds`, `5 seconds`, `10 seconds`), `Record GIF`.
+  - Utilities: `Colour picker` (Ctrl+Shift+C), `QR code suite` submenu (`Scan screen QR`, `Generate QR code...`), `Clipboard history` (Ctrl+Shift+H), `Pin active window` / `Unpin: {title}` + `Reset pinned overlays`.
+  - App: `Settings`, `Exit`.
+- **Parity & Build**:
+  - Added 4 localization keys to `Strings.en.xaml` and `Strings.ar.xaml` (`Tray_QrSuite`, `Tray_QrScan`, `Tray_QrGenerate`, `Tray_Clipboard`), bringing total to 366 keys each with 100% key parity.
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+
+## Previous turn — Unclipped Copy button, thumbnail pencil hover & edit in Screenshot mode
 
 - **Copy Button Vertical Truncation Fixed**:
   - `PrimaryButton` defined `Padding="14,7"` which left only 10px vertical height when constrained to a compact button, causing the 10.5pt font to be vertically sliced ("Conv").

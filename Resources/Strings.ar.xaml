@@ -341,6 +341,10 @@
     <sys:String x:Key="Tray_Delay3s">3 ثوانٍ</sys:String>
     <sys:String x:Key="Tray_Delay5s">5 ثوانٍ</sys:String>
     <sys:String x:Key="Tray_Delay10s">10 ثوانٍ</sys:String>
+    <sys:String x:Key="Tray_QrSuite">حزمة رموز QR</sys:String>
+    <sys:String x:Key="Tray_QrScan">مسح رمز QR من الشاشة</sys:String>
+    <sys:String x:Key="Tray_QrGenerate">توليد رمز QR...</sys:String>
+    <sys:String x:Key="Tray_Clipboard">سجل الحافظة</sys:String>
 
     <sys:String x:Key="Tools_PinnedOpacity">شفافية النافذة</sys:String>
     <sys:String x:Key="Tools_PinnedClickThrough">تمرير النقرات (شفافة)</sys:String>
