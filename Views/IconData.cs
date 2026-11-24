@@ -19,7 +19,14 @@ namespace CryoUtils.Views
         public static Geometry Folder { get; } = Frozen(CryoIcons.Folder);
         public static Geometry Trash { get; } = Frozen(CryoIcons.Trash);
         public static Geometry Check { get; } = Frozen(CryoIcons.Check);
+        public static Geometry Tools { get; } = Frozen(CryoIcons.Tools);
+        public static Geometry Menu { get; } = Frozen(CryoIcons.Menu);
+        public static Geometry Record { get; } = Frozen(CryoIcons.Record);
         public static Geometry Edit { get; } = Frozen(CryoIcons.Pen);
+        public static Geometry Home { get; } = Frozen(CryoIcons.Home);
+        public static Geometry Keyboard { get; } = Frozen(CryoIcons.Keyboard);
+        public static Geometry Info { get; } = Frozen(CryoIcons.Info);
+        public static Geometry Power { get; } = Frozen(CryoIcons.Power);
 
         private static Geometry Frozen(string data)
         {

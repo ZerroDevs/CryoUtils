@@ -33,16 +33,21 @@
     <sys:String x:Key="Common_SaveRecordingFilter">رسوم GIF (*.gif)|*.gif|فيديو MP4 (*.mp4)|*.mp4</sys:String>
     <sys:String x:Key="Common_ExecutableFilter">التطبيقات (*.exe)|*.exe|كل الملفات (*.*)|*.*</sys:String>
 
+    <sys:String x:Key="Nav_CoreGroup">الرئيسية</sys:String>
+    <sys:String x:Key="Nav_SystemGroup">النظام</sys:String>
+    <sys:String x:Key="App_LocalPill">محلي 100% • بدون تتبع</sys:String>
+    <sys:String x:Key="Overview_LaunchColor">منتقي الألوان</sys:String>
+    <sys:String x:Key="Overview_LaunchQr">استوديو QR</sys:String>
     <sys:String x:Key="Nav_Overview">نظرة عامة</sys:String>
-    <sys:String x:Key="Nav_Capture">الالتقاط و GIF</sys:String>
-    <sys:String x:Key="Nav_Tools">الأدوات</sys:String>
+    <sys:String x:Key="Nav_Capture">التقاط الشاشة</sys:String>
+    <sys:String x:Key="Nav_Tools">الأدوات والمرافق</sys:String>
     <sys:String x:Key="Nav_Hotkeys">الاختصارات</sys:String>
-    <sys:String x:Key="Nav_General">عام</sys:String>
+    <sys:String x:Key="Nav_General">الإعدادات</sys:String>
     <sys:String x:Key="Nav_About">حول</sys:String>
 
-    <sys:String x:Key="Main_OverviewTitle">خمس أدوات محلية، على بعد اختصار واحد.</sys:String>
+    <sys:String x:Key="Main_OverviewTitle">ست أدوات محلية، على بعد اختصار واحد.</sys:String>
     <sys:String x:Key="Main_OverviewSubtitle">كل وحدة تعمل على هذا الجهاز. إيقاف أي وحدة يلغي تسجيل اختصارها ويوقف مستمعاتها.</sys:String>
-    <sys:String x:Key="Main_ActiveModules">{0} من 5 وحدات قيد التشغيل</sys:String>
+    <sys:String x:Key="Main_ActiveModules">{0} من 6 وحدات قيد التشغيل</sys:String>
     <sys:String x:Key="Main_CaptureNow">التقاط الشاشة</sys:String>
     <sys:String x:Key="Main_RecordNow">تسجيل GIF</sys:String>
     <sys:String x:Key="Main_HeroKicker">التقاط الشاشة</sys:String>
@@ -324,6 +329,8 @@
     <sys:String x:Key="Capture_RecordGuide">حدد منطقة ثم اختر تسجيل من شريط الأدوات.</sys:String>
     <sys:String x:Key="Capture_ToolSelect">تحديد</sys:String>
     <sys:String x:Key="Main_TooltipMinimize">تصغير إلى شريط النظام</sys:String>
+    <sys:String x:Key="Main_TooltipQuit">إغلاق كرايويوتيلز (انقر مرتين)</sys:String>
+    <sys:String x:Key="Main_TooltipQuitConfirm">انقر مرة أخرى للإغلاق</sys:String>
     <sys:String x:Key="Recent_DeleteConfirm">حذف {0}؟ سيُحذف الملف من القرص.</sys:String>
     <sys:String x:Key="Recent_DeleteFailed">تعذر حذف هذا العنصر.</sys:String>
     <sys:String x:Key="Recent_FolderMissing">لا يوجد ملف محفوظ لهذا العنصر.</sys:String>

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:CryoUtils.Views"
         Title="{DynamicResource App_Title}"
-        Width="1040" Height="760"
+        Width="1080" Height="750"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -22,21 +22,20 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="44"/>
-                <RowDefinition Height="38"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="28"/>
             </Grid.RowDefinitions>
 
-            <!-- Title bar with integrated actions (Row 0) -->
-            <Grid Grid.Row="0" Margin="14,0,12,0" Background="{DynamicResource TitleBarBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <!-- Row 0: Modern Custom Titlebar -->
+            <Grid Grid.Row="0" Background="{DynamicResource TitleBarBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: App Identity -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Left: App Identity & Version Badge -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
                     <Border Width="24" Height="24" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="4" Margin="0,0,9,0">
                         <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Path Data="M4,9 L4,4 L9,4 M15,4 L20,4 L20,9 M20,15 L20,20 L15,20 M9,20 L4,20 L4,15" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform"/>
@@ -58,8 +57,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Right: Quick Actions & Close -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Right: Quick Actions & Minimize / Close -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                     <Border Style="{StaticResource HotkeyPill}" Margin="0,0,6,0" VerticalAlignment="Center">
                         <TextBlock x:Name="TxtHeaderHotkey"
                                    Foreground="{DynamicResource AccentTextBrush}"
@@ -70,352 +69,651 @@
                     <Button Content="{DynamicResource Main_CaptureNow}"
                             Style="{StaticResource PrimaryButton}"
                             Height="28"
-                            Padding="10,4"
+                            Padding="12,0"
                             FontSize="11"
+                            VerticalContentAlignment="Center"
                             Click="BtnHeroCapture_Click"
                             Margin="0,0,6,0"/>
                     <Button Content="{DynamicResource Main_RecordNow}"
                             Style="{StaticResource SecondaryButton}"
                             Height="28"
-                            Padding="10,4"
+                            Padding="12,0"
                             FontSize="11"
+                            VerticalContentAlignment="Center"
                             Click="BtnRecordNow_Click"
                             Margin="0,0,10,0"/>
                     <Rectangle Width="1" Height="18" Fill="{DynamicResource DividerBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnQuit"
+                            Style="{StaticResource TitleActionBtn}"
+                            Click="BtnQuit_Click"
+                            Margin="0,0,4,0"
+                            ToolTip="{DynamicResource Main_TooltipQuit}"
+                            AutomationProperties.Name="{DynamicResource Main_TooltipQuit}">
+                        <Path x:Name="PathQuitIcon"
+                              Data="{x:Static views:IconData.Power}"
+                              Stroke="{DynamicResource IconBrush}"
+                              StrokeThickness="1.5"
+                              Width="13" Height="13"
+                              Stretch="Uniform"/>
+                    </Button>
                     <Button x:Name="BtnClose"
                             Style="{StaticResource TitleActionBtn}"
                             Click="BtnClose_Click"
                             ToolTip="{DynamicResource Main_TooltipMinimize}"
                             AutomationProperties.Name="{DynamicResource Main_TooltipMinimize}">
-                        <Path Data="M4,4 L16,16 M16,4 L4,16" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="13" Height="13" Stretch="Uniform"/>
+                        <Path Data="{x:Static views:IconData.Close}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="13" Height="13" Stretch="Uniform"/>
                     </Button>
                 </StackPanel>
             </Grid>
 
-            <!-- Navigation Tabs (Row 1) -->
-            <Grid Grid.Row="1" Margin="16,0,16,0">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
-                    <RadioButton x:Name="TabOverview" Style="{StaticResource TabButtonStyle}" IsChecked="True" Checked="Tab_Checked" Tag="Overview" Content="{DynamicResource Nav_Overview}"/>
-                    <RadioButton x:Name="TabCapture" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="Capture" Content="{DynamicResource Nav_Capture}"/>
-                    <RadioButton x:Name="TabTools" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="Tools" Content="{DynamicResource Nav_Tools}"/>
-                    <RadioButton x:Name="TabHotkeys" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="Hotkeys" Content="{DynamicResource Nav_Hotkeys}"/>
-                    <RadioButton x:Name="TabGeneral" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="General" Content="{DynamicResource Nav_General}"/>
-                    <RadioButton x:Name="TabAbout" Style="{StaticResource TabButtonStyle}" Checked="Tab_Checked" Tag="About" Content="{DynamicResource Nav_About}"/>
-                </StackPanel>
-                <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" VerticalAlignment="Bottom"/>
-            </Grid>
+            <!-- Row 1: Main Body with Left Sidebar (Col 0) and Content Area (Col 1) -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="SidebarCol" Width="220"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- Content (Row 2) -->
-            <ScrollViewer Grid.Row="2" Style="{StaticResource CryoScrollViewer}" Padding="22,18,22,20">
-                <Grid>
-                    <!-- ==================== OVERVIEW ==================== -->
-                    <StackPanel x:Name="PanelOverview">
-                        <Grid>
-                            <StackPanel>
-                                <TextBlock Text="{DynamicResource Main_OverviewTitle}" Style="{StaticResource PageTitle}"/>
-                                <TextBlock Text="{DynamicResource Main_OverviewSubtitle}" Style="{StaticResource BodyText}" Margin="0,6,0,0" MaxWidth="640" HorizontalAlignment="Left"/>
+                <!-- Column 0: Collapsible Navigation Sidebar -->
+                <Border Grid.Column="0"
+                        Background="{DynamicResource HeaderBackgroundBrush}"
+                        BorderBrush="{DynamicResource DividerBrush}"
+                        BorderThickness="0,0,1,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Row 0: Hamburger / Collapse Toggle -->
+                        <Border Grid.Row="0" Height="40" Padding="4,4,4,0" VerticalAlignment="Center">
+                            <Button x:Name="BtnToggleSidebar"
+                                    Style="{StaticResource TitleActionBtn}"
+                                    Width="44" Height="34"
+                                    HorizontalAlignment="Left"
+                                    Focusable="False"
+                                    FocusVisualStyle="{x:Null}"
+                                    Click="BtnToggleSidebar_Click"
+                                    ToolTip="Toggle sidebar"
+                                    AutomationProperties.Name="Toggle sidebar">
+                                <Path Data="{x:Static views:IconData.Menu}"
+                                      Stroke="{DynamicResource IconBrush}"
+                                      StrokeThickness="1.5"
+                                      Width="15" Height="15"
+                                      Stretch="Uniform"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                            </Button>
+                        </Border>
+
+                        <!-- Row 1: Top Navigation (Core Tools) -->
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="4,4,4,6">
+                                <TextBlock x:Name="TxtNavGroupCore"
+                                           Text="{DynamicResource Nav_CoreGroup}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Margin="14,2,14,6"/>
+
+                                <RadioButton x:Name="TabOverview"
+                                             Style="{StaticResource SidebarTabStyle}"
+                                             Tag="Overview"
+                                             IsChecked="True"
+                                             Checked="Tab_Checked"
+                                             ToolTip="{DynamicResource Nav_Overview}">
+                                    <Grid Height="36">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0"
+                                              Data="{x:Static views:IconData.Home}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                              StrokeThickness="1.4"
+                                              Width="16" Height="16"
+                                              Stretch="Uniform"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   x:Name="TxtNavOverview"
+                                                   Text="{DynamicResource Nav_Overview}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"/>
+                                    </Grid>
+                                </RadioButton>
+
+                                <RadioButton x:Name="TabCapture"
+                                             Style="{StaticResource SidebarTabStyle}"
+                                             Tag="Capture"
+                                             Checked="Tab_Checked"
+                                             ToolTip="{DynamicResource Nav_Capture}">
+                                    <Grid Height="36">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0"
+                                              Data="{x:Static views:IconData.Capture}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                              StrokeThickness="1.4"
+                                              Width="16" Height="16"
+                                              Stretch="Uniform"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   x:Name="TxtNavCapture"
+                                                   Text="{DynamicResource Nav_Capture}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"/>
+                                    </Grid>
+                                </RadioButton>
+
+                                <RadioButton x:Name="TabTools"
+                                             Style="{StaticResource SidebarTabStyle}"
+                                             Tag="Tools"
+                                             Checked="Tab_Checked"
+                                             ToolTip="{DynamicResource Nav_Tools}">
+                                    <Grid Height="36">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0"
+                                              Data="{x:Static views:IconData.Tools}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                              StrokeThickness="1.4"
+                                              Width="16" Height="16"
+                                              Stretch="Uniform"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   x:Name="TxtNavTools"
+                                                   Text="{DynamicResource Nav_Tools}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"/>
+                                    </Grid>
+                                </RadioButton>
                             </StackPanel>
-                            <Border Style="{StaticResource HotkeyPill}" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                <TextBlock x:Name="TxtModuleCount" Foreground="{DynamicResource AccentTextBrush}" FontSize="11"/>
-                            </Border>
-                        </Grid>
+                        </ScrollViewer>
 
-                        <!-- 6 Core Module Cards -->
-                        <Grid Margin="0,18,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="14"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="14"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="14"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                        <!-- Row 2: Bottom Navigation (Hotkeys & Settings) -->
+                        <Border Grid.Row="2" Padding="4,6,4,10">
+                            <StackPanel>
+                                <Rectangle x:Name="SidebarDivider" Height="1" Fill="{DynamicResource DividerBrush}" Margin="6,0,6,8"/>
 
-                            <!-- 1. Screen Capture & Annotation -->
-                            <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CardBorder}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
-                                                <Path Data="{x:Static views:IconData.Capture}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBlock Text="{DynamicResource Module_CaptureName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <ToggleButton x:Name="ChkModuleCapture" Style="{StaticResource ToggleSwitch}" Tag="Capture" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_CaptureName}"/>
+                                <RadioButton x:Name="TabHotkeys"
+                                             Style="{StaticResource SidebarTabStyle}"
+                                             Tag="Hotkeys"
+                                             Checked="Tab_Checked"
+                                             ToolTip="{DynamicResource Nav_Hotkeys}">
+                                    <Grid Height="36">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0"
+                                              Data="{x:Static views:IconData.Keyboard}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                              StrokeThickness="1.4"
+                                              Width="16" Height="16"
+                                              Stretch="Uniform"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   x:Name="TxtNavHotkeys"
+                                                   Text="{DynamicResource Nav_Hotkeys}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"/>
                                     </Grid>
-                                    <TextBlock Grid.Row="1" Text="{DynamicResource Module_CaptureDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
-                                    <Grid Grid.Row="2">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Style="{StaticResource HotkeyPill}">
-                                                <TextBlock x:Name="TxtHotkeyCapture" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
-                                            </Border>
-                                            <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickCapture_Click" Margin="8,0,0,0"/>
-                                        </StackPanel>
-                                        <Button Content="{DynamicResource Recent_Compress}" Style="{StaticResource LinkButton}" Click="BtnGoCompress_Click" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Grid>
-                            </Border>
+                                </RadioButton>
 
-                            <!-- 2. Precision Colour Picker -->
-                            <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource CardBorder}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
-                                                <Path Data="{x:Static views:IconData.Droplet}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBlock Text="{DynamicResource Module_ColorName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <ToggleButton x:Name="ChkModuleColor" Style="{StaticResource ToggleSwitch}" Tag="Color" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_ColorName}"/>
+                                <RadioButton x:Name="TabGeneral"
+                                             Style="{StaticResource SidebarTabStyle}"
+                                             Tag="General"
+                                             Checked="Tab_Checked"
+                                             ToolTip="{DynamicResource Nav_General}">
+                                    <Grid Height="36">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Grid.Column="0"
+                                              Data="{x:Static views:IconData.Settings}"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"
+                                              StrokeThickness="1.4"
+                                              Width="16" Height="16"
+                                              Stretch="Uniform"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   x:Name="TxtNavGeneral"
+                                                   Text="{DynamicResource Nav_General}"
+                                                   FontSize="12.5"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0"/>
                                     </Grid>
-                                    <TextBlock Grid.Row="1" Text="{DynamicResource Module_ColorDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
-                                    <Grid Grid.Row="2">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Style="{StaticResource HotkeyPill}">
-                                                <TextBlock x:Name="TxtHotkeyColor" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
-                                            </Border>
-                                            <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickColor_Click" Margin="8,0,0,0"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-
-                            <!-- 3. Always on Top (Window Pinner) -->
-                            <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource CardBorder}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
-                                                <Path Data="{x:Static views:IconData.Pin}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBlock Text="{DynamicResource Module_PinnerName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <ToggleButton x:Name="ChkModulePinner" Style="{StaticResource ToggleSwitch}" Tag="Pinner" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_PinnerName}"/>
-                                    </Grid>
-                                    <TextBlock x:Name="TxtOverviewPinnedStatus" Grid.Row="1" Text="{DynamicResource Module_PinnerDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14" TextTrimming="CharacterEllipsis"/>
-                                    <Grid Grid.Row="2">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Style="{StaticResource HotkeyPill}">
-                                                <TextBlock x:Name="TxtHotkeyPinner" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
-                                            </Border>
-                                            <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickPinner_Click" Margin="8,0,0,0"/>
-                                            <Button x:Name="BtnOverviewUnpin" Content="{DynamicResource Tools_Unpin}" Style="{StaticResource DangerButton}" Click="BtnUnpin_Click" Margin="6,0,0,0" Visibility="Collapsed"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-
-                            <!-- 4. Image and GIF Compressor -->
-                            <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource CardBorder}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
-                                                <Path Data="{x:Static views:IconData.Compress}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBlock Text="{DynamicResource Module_CompressorName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <ToggleButton x:Name="ChkModuleCompressor" Style="{StaticResource ToggleSwitch}" Tag="Compressor" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_CompressorName}"/>
-                                    </Grid>
-                                    <TextBlock Grid.Row="1" Text="{DynamicResource Module_CompressorDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
-                                    <Grid Grid.Row="2">
-                                        <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnGoCompress_Click" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-
-                            <!-- 5. Clipboard History -->
-                            <Border Grid.Row="4" Grid.Column="0" Style="{StaticResource CardBorder}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
-                                                <Path Data="{x:Static views:IconData.Clipboard}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBlock Text="{DynamicResource Module_ClipboardName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <ToggleButton x:Name="ChkModuleClipboard" Style="{StaticResource ToggleSwitch}" Tag="Clipboard" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_ClipboardName}"/>
-                                    </Grid>
-                                    <TextBlock Grid.Row="1" Text="{DynamicResource Module_ClipboardDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
-                                    <Grid Grid.Row="2">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Style="{StaticResource HotkeyPill}">
-                                                <TextBlock x:Name="TxtHotkeyClipboard" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
-                                            </Border>
-                                            <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickClipboard_Click" Margin="8,0,0,0"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-
-                            <!-- 6. QR Code Suite -->
-                            <Border Grid.Row="4" Grid.Column="2" Style="{StaticResource CardBorder}">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid Grid.Row="0">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
-                                                <Path Data="{x:Static views:IconData.QrCode}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <TextBlock Text="{DynamicResource Tools_QrTitle}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                        <Border Padding="6,2" CornerRadius="3" Background="{DynamicResource AccentSoftBrush}" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                            <TextBlock Text="NEW" Foreground="{DynamicResource AccentTextBrush}" FontFamily="{StaticResource CryoMono}" FontSize="9.5" FontWeight="Bold"/>
-                                        </Border>
-                                    </Grid>
-                                    <TextBlock Grid.Row="1" Text="{DynamicResource Tools_QrDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
-                                    <Grid Grid.Row="2">
-                                        <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnGoQr_Click" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                        </Grid>
-
-                        <!-- Recent captures -->
-                        <Grid Margin="0,20,0,0">
-                            <TextBlock Text="{DynamicResource Recent_Title}" Style="{StaticResource SectionTitle}"/>
-                            <TextBlock Text="{DynamicResource Recent_OpenFolder}" Foreground="{DynamicResource TextMutedBrush}" FontSize="10.5" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                        </Grid>
-                        <Border x:Name="RecentEmpty" Style="{StaticResource InsetBorder}" Margin="0,8,0,0" Padding="16,14">
-                            <StackPanel Orientation="Horizontal">
-                                <Path Data="{x:Static views:IconData.Capture}" Stroke="{DynamicResource ModuleMutedBrush}" StrokeThickness="1.4" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"/>
-                                <TextBlock Text="{DynamicResource Recent_Empty}" Style="{StaticResource MutedText}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                </RadioButton>
                             </StackPanel>
                         </Border>
-                        <ItemsControl x:Name="RecentItems" Margin="0,8,0,0" Visibility="Collapsed">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource CardBorder}" Width="180" Margin="0,0,10,0" Padding="8">
-                                            <StackPanel>
-                                                <!-- Clickable thumbnail with hover pencil badge to edit in screenshot mode -->
-                                                <Border Height="82"
-                                                        Background="{DynamicResource InsetBackgroundBrush}"
-                                                        BorderThickness="1"
-                                                        CornerRadius="2"
-                                                        Cursor="Hand"
-                                                        ClipToBounds="True"
-                                                        Tag="{Binding}"
-                                                        MouseLeftButtonUp="RecentThumbnail_Click"
-                                                        ToolTip="{DynamicResource Recent_EditTip}">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}"/>
-                                                            <Style.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-                                                                </Trigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <Grid>
-                                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Grid>
+                </Border>
 
-                                                        <!-- Hover overlay with pencil icon -->
-                                                        <Border Background="#75080C10" Cursor="Hand">
+                <!-- Column 1: Right Content Area -->
+                <ScrollViewer Grid.Column="1" Style="{StaticResource CryoScrollViewer}" Padding="24,20,24,24">
+                    <Grid>
+                        <!-- ==================== OVERVIEW ==================== -->
+                        <StackPanel x:Name="PanelOverview">
+                            <!-- Header & live module count -->
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource Main_OverviewTitle}" Style="{StaticResource PageTitle}"/>
+                                    <TextBlock Text="{DynamicResource Main_OverviewSubtitle}" Style="{StaticResource BodyText}" Margin="0,5,0,0" MaxWidth="600" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                                <Border Style="{StaticResource HotkeyPill}" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                    <TextBlock x:Name="TxtModuleCount" Foreground="{DynamicResource AccentTextBrush}" FontSize="11"/>
+                                </Border>
+                            </Grid>
+
+                            <!-- Quick Action Hero Bar (4 Tiles) -->
+                            <Grid Margin="0,18,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Tile 1: Capture -->
+                                <Button Grid.Column="0" Style="{StaticResource QuickTileButton}" Click="BtnHeroCapture_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="34" Height="34" CornerRadius="4" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center" Margin="0,0,10,0">
+                                            <Path Data="{x:Static views:IconData.Capture}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Main_CaptureNow}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="F10 · Screen" Foreground="{DynamicResource AccentTextBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+
+                                <!-- Tile 2: Record GIF -->
+                                <Button Grid.Column="2" Style="{StaticResource QuickTileButton}" Click="BtnRecordNow_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="34" Height="34" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                            <Path Data="{x:Static views:IconData.Record}" Stroke="{DynamicResource DangerTextBrush}" StrokeThickness="1.4" Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Main_RecordNow}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="GIF / MP4" Foreground="{DynamicResource TextMutedBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+
+                                <!-- Tile 3: Colour Picker -->
+                                <Button Grid.Column="4" Style="{StaticResource QuickTileButton}" Click="BtnQuickColor_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="34" Height="34" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                            <Path Data="{x:Static views:IconData.Droplet}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.4" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Module_ColorName}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="Ctrl+Shift+C" Foreground="{DynamicResource TextMutedBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+
+                                <!-- Tile 4: QR Suite -->
+                                <Button Grid.Column="6" Style="{StaticResource QuickTileButton}" Click="BtnGoQr_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="34" Height="34" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" VerticalAlignment="Center" Margin="0,0,10,0">
+                                            <Path Data="{x:Static views:IconData.QrCode}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.4" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Tools_QrTitle}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="Scan &amp; Make" Foreground="{DynamicResource TextMutedBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </Grid>
+
+                            <!-- Recent Captures Section (Front & Center) -->
+                            <Border Margin="0,20,0,0" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="5" Padding="16,14">
+                                <StackPanel>
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{DynamicResource Recent_Title}" Style="{StaticResource SectionTitle}" FontSize="13.5"/>
+                                            <Border Margin="8,0,0,0" Padding="5,1" CornerRadius="2" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}">
+                                                <TextBlock Text="Session" Foreground="{DynamicResource TextMutedBrush}" FontSize="9.5" FontFamily="{StaticResource CryoMono}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <Button Content="{DynamicResource Recent_OpenFolder}" Style="{StaticResource LinkButton}" Click="RecentOpenFolder_Click" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11"/>
+                                    </Grid>
+
+                                    <!-- Empty state -->
+                                    <Border x:Name="RecentEmpty" Style="{StaticResource InsetBorder}" Margin="0,12,0,0" Padding="20,18">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                            <Path Data="{x:Static views:IconData.Capture}" Stroke="{DynamicResource ModuleMutedBrush}" StrokeThickness="1.4" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{DynamicResource Recent_Empty}" Style="{StaticResource MutedText}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Items wrap panel -->
+                                    <ItemsControl x:Name="RecentItems" Margin="0,12,0,0" Visibility="Collapsed">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource CardBorder}" Width="182" Margin="0,0,10,10" Padding="8" Background="{DynamicResource InsetBackgroundBrush}">
+                                                    <StackPanel>
+                                                        <!-- Clickable thumbnail with hover pencil badge to edit in screenshot mode -->
+                                                        <Border Height="86"
+                                                                Background="{DynamicResource WindowBackgroundBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="3"
+                                                                Cursor="Hand"
+                                                                ClipToBounds="True"
+                                                                Tag="{Binding}"
+                                                                MouseLeftButtonUp="RecentThumbnail_Click"
+                                                                ToolTip="{DynamicResource Recent_EditTip}">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
-                                                                    <Setter Property="Opacity" Value="0"/>
-                                                                    <Setter Property="IsHitTestVisible" Value="False"/>
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}"/>
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border, AncestorLevel=1}}" Value="True">
-                                                                            <Setter Property="Opacity" Value="1"/>
-                                                                        </DataTrigger>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+                                                                        </Trigger>
                                                                     </Style.Triggers>
                                                                 </Style>
                                                             </Border.Style>
-                                                            <Border Width="28" Height="28"
-                                                                    CornerRadius="14"
-                                                                    Background="{DynamicResource AccentButtonBrush}"
-                                                                    BorderBrush="{DynamicResource AccentButtonBrush}"
-                                                                    BorderThickness="1"
-                                                                    HorizontalAlignment="Center"
-                                                                    VerticalAlignment="Center">
-                                                                <Path Data="{x:Static views:IconData.Edit}"
-                                                                      Stroke="{DynamicResource AccentButtonTextBrush}"
-                                                                      StrokeThickness="1.3"
-                                                                      Width="13" Height="13"
-                                                                      Stretch="Uniform"
-                                                                      HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"/>
-                                                            </Border>
+                                                            <Grid>
+                                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+
+                                                                <!-- Hover overlay with pencil icon -->
+                                                                <Border Background="#75080C10" Cursor="Hand">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Setter Property="Opacity" Value="0"/>
+                                                                            <Setter Property="IsHitTestVisible" Value="False"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border, AncestorLevel=1}}" Value="True">
+                                                                                    <Setter Property="Opacity" Value="1"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <Border Width="28" Height="28"
+                                                                            CornerRadius="14"
+                                                                            Background="{DynamicResource AccentButtonBrush}"
+                                                                            BorderBrush="{DynamicResource AccentButtonBrush}"
+                                                                            BorderThickness="1"
+                                                                            HorizontalAlignment="Center"
+                                                                            VerticalAlignment="Center">
+                                                                        <Path Data="{x:Static views:IconData.Edit}"
+                                                                              Stroke="{DynamicResource AccentButtonTextBrush}"
+                                                                              StrokeThickness="1.3"
+                                                                              Width="13" Height="13"
+                                                                              Stretch="Uniform"
+                                                                              HorizontalAlignment="Center"
+                                                                              VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                </Border>
+                                                            </Grid>
                                                         </Border>
-                                                    </Grid>
+                                                        <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                                                        <TextBlock Text="{Binding SizeText}" Foreground="{DynamicResource TextMutedBrush}" FontFamily="{StaticResource CryoMono}" FontSize="9.5" Margin="0,2,0,6"/>
+
+                                                        <!-- Copy button is the biggest (primary action) -->
+                                                        <Button Content="{DynamicResource Recent_Copy}" Tag="{Binding}" Click="RecentCopy_Click" Style="{StaticResource PrimaryButton}" Height="27" Padding="0" FontSize="10.5" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,0,5"/>
+
+                                                        <!-- Action row: Compress small, Folder icon, Trash icon -->
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="4"/>
+                                                                <ColumnDefinition Width="26"/>
+                                                                <ColumnDefinition Width="4"/>
+                                                                <ColumnDefinition Width="26"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <!-- Compress button (small) -->
+                                                            <Button Grid.Column="0" Content="{DynamicResource Recent_Compress}" Tag="{Binding}" Click="RecentCompress_Click" Style="{StaticResource SecondaryButton}" Height="24" FontSize="9.5" Padding="4,1" ToolTip="{DynamicResource Recent_Compress}"/>
+
+                                                            <!-- Folder icon (open folder) -->
+                                                            <Button Grid.Column="2" Tag="{Binding}" Click="RecentOpenFolder_Click" Style="{StaticResource SecondaryButton}" Width="26" Height="24" Padding="0" ToolTip="{DynamicResource Recent_OpenFolder}">
+                                                                <Path Data="{x:Static views:IconData.Folder}" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.2" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Button>
+
+                                                            <!-- Trash can / Confirm delete icon -->
+                                                            <Button Grid.Column="4" Tag="{Binding}" Click="RecentDelete_Click" Style="{StaticResource SecondaryButton}" Width="26" Height="24" Padding="0" Background="{Binding DeleteBackground}" BorderBrush="{Binding DeleteBorderBrush}" ToolTip="{Binding DeleteToolTip}">
+                                                                <Path Data="{Binding DeleteIcon}" Stroke="{Binding DeleteIconBrush}" StrokeThickness="1.3" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Button>
+                                                        </Grid>
+                                                    </StackPanel>
                                                 </Border>
-                                                <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="10.5" TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
-                                                <TextBlock Text="{Binding SizeText}" Foreground="{DynamicResource TextMutedBrush}" FontSize="9.5" Margin="0,2,0,6"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
 
-                                                <!-- Copy button is the biggest (primary action) -->
-                                                <Button Content="{DynamicResource Recent_Copy}" Tag="{Binding}" Click="RecentCopy_Click" Style="{StaticResource PrimaryButton}" Height="27" Padding="0" FontSize="10.5" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,0,5"/>
+                            <!-- Active Modules Control Grid -->
+                            <StackPanel Margin="0,22,0,0">
+                                <TextBlock Text="{DynamicResource Main_OverviewTitle}" Style="{StaticResource SectionTitle}" FontSize="13.5"/>
+                                <TextBlock Text="{DynamicResource Main_OverviewSubtitle}" Style="{StaticResource MutedText}" Margin="0,3,0,12"/>
 
-                                                <!-- Action row: Compress small, Folder icon, Trash icon -->
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="4"/>
-                                                        <ColumnDefinition Width="26"/>
-                                                        <ColumnDefinition Width="4"/>
-                                                        <ColumnDefinition Width="26"/>
-                                                    </Grid.ColumnDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="12"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="12"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
-                                                    <!-- Compress button (small) -->
-                                                    <Button Grid.Column="0" Content="{DynamicResource Recent_Compress}" Tag="{Binding}" Click="RecentCompress_Click" Style="{StaticResource SecondaryButton}" Height="24" FontSize="9.5" Padding="4,1" ToolTip="{DynamicResource Recent_Compress}"/>
+                                    <!-- 1. Screen Capture & Annotation -->
+                                    <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource CardBorder}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
+                                                        <Path Data="{x:Static views:IconData.Capture}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="{DynamicResource Module_CaptureName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <ToggleButton x:Name="ChkModuleCapture" Style="{StaticResource ToggleSwitch}" Tag="Capture" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_CaptureName}"/>
+                                            </Grid>
+                                            <TextBlock Grid.Row="1" Text="{DynamicResource Module_CaptureDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
+                                            <Grid Grid.Row="2">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Style="{StaticResource HotkeyPill}">
+                                                        <TextBlock x:Name="TxtHotkeyCapture" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                                    </Border>
+                                                    <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickCapture_Click" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                                <Button Content="{DynamicResource Recent_Compress}" Style="{StaticResource LinkButton}" Click="BtnGoCompress_Click" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
 
-                                                    <!-- Folder icon (open folder) -->
-                                                    <Button Grid.Column="2" Tag="{Binding}" Click="RecentOpenFolder_Click" Style="{StaticResource SecondaryButton}" Width="26" Height="24" Padding="0" ToolTip="{DynamicResource Recent_OpenFolder}">
-                                                        <Path Data="{x:Static views:IconData.Folder}" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.2" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                    </Button>
+                                    <!-- 2. Precision Colour Picker -->
+                                    <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource CardBorder}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
+                                                        <Path Data="{x:Static views:IconData.Droplet}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="{DynamicResource Module_ColorName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <ToggleButton x:Name="ChkModuleColor" Style="{StaticResource ToggleSwitch}" Tag="Color" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_ColorName}"/>
+                                            </Grid>
+                                            <TextBlock Grid.Row="1" Text="{DynamicResource Module_ColorDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
+                                            <Grid Grid.Row="2">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Style="{StaticResource HotkeyPill}">
+                                                        <TextBlock x:Name="TxtHotkeyColor" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                                    </Border>
+                                                    <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickColor_Click" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
 
-                                                    <!-- Trash can / Confirm delete icon -->
-                                                    <Button Grid.Column="4" Tag="{Binding}" Click="RecentDelete_Click" Style="{StaticResource SecondaryButton}" Width="26" Height="24" Padding="0" Background="{Binding DeleteBackground}" BorderBrush="{Binding DeleteBorderBrush}" ToolTip="{Binding DeleteToolTip}">
-                                                        <Path Data="{Binding DeleteIcon}" Stroke="{Binding DeleteIconBrush}" StrokeThickness="1.3" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                    </Button>
-                                                </Grid>
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
+                                    <!-- 3. Always on Top -->
+                                    <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource CardBorder}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
+                                                        <Path Data="{x:Static views:IconData.Pin}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="{DynamicResource Module_PinnerName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <ToggleButton x:Name="ChkModulePinner" Style="{StaticResource ToggleSwitch}" Tag="Pinner" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_PinnerName}"/>
+                                            </Grid>
+                                            <TextBlock x:Name="TxtOverviewPinnedStatus" Grid.Row="1" Text="{DynamicResource Module_PinnerDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14" TextTrimming="CharacterEllipsis"/>
+                                            <Grid Grid.Row="2">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Style="{StaticResource HotkeyPill}">
+                                                        <TextBlock x:Name="TxtHotkeyPinner" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                                    </Border>
+                                                    <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickPinner_Click" Margin="8,0,0,0"/>
+                                                    <Button x:Name="BtnOverviewUnpin" Content="{DynamicResource Tools_Unpin}" Style="{StaticResource DangerButton}" Click="BtnUnpin_Click" Margin="6,0,0,0" Visibility="Collapsed"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
 
-                    <!-- ==================== CAPTURE ==================== -->
+                                    <!-- 4. Image and GIF Compressor -->
+                                    <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource CardBorder}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
+                                                        <Path Data="{x:Static views:IconData.Compress}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="{DynamicResource Module_CompressorName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <ToggleButton x:Name="ChkModuleCompressor" Style="{StaticResource ToggleSwitch}" Tag="Compressor" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_CompressorName}"/>
+                                            </Grid>
+                                            <TextBlock Grid.Row="1" Text="{DynamicResource Module_CompressorDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
+                                            <Grid Grid.Row="2">
+                                                <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnGoCompress_Click" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- 5. Plain Paste & Clipboard History -->
+                                    <Border Grid.Row="4" Grid.Column="0" Style="{StaticResource CardBorder}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
+                                                        <Path Data="{x:Static views:IconData.Clipboard}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="{DynamicResource Module_ClipboardName}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <ToggleButton x:Name="ChkModuleClipboard" Style="{StaticResource ToggleSwitch}" Tag="Clipboard" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="ModuleToggle_Changed" Unchecked="ModuleToggle_Changed" AutomationProperties.Name="{DynamicResource Module_ClipboardName}"/>
+                                            </Grid>
+                                            <TextBlock Grid.Row="1" Text="{DynamicResource Module_ClipboardDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
+                                            <Grid Grid.Row="2">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Style="{StaticResource HotkeyPill}">
+                                                        <TextBlock x:Name="TxtHotkeyClipboard" FontFamily="{StaticResource CryoMono}" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" FlowDirection="LeftToRight"/>
+                                                    </Border>
+                                                    <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnQuickClipboard_Click" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- 6. QR Code Suite -->
+                                    <Border Grid.Row="4" Grid.Column="2" Style="{StaticResource CardBorder}">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Row="0">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="28" Height="28" CornerRadius="4" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Margin="0,0,10,0">
+                                                        <Path Data="{x:Static views:IconData.QrCode}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.5" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="{DynamicResource Tools_QrTitle}" Style="{StaticResource CardTitle}" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <Border Padding="6,2" CornerRadius="3" Background="{DynamicResource AccentSoftBrush}" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBlock Text="NEW" Foreground="{DynamicResource AccentTextBrush}" FontFamily="{StaticResource CryoMono}" FontSize="9.5" FontWeight="Bold"/>
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Grid.Row="1" Text="{DynamicResource Tools_QrDesc}" Style="{StaticResource MutedText}" Margin="0,10,0,14"/>
+                                            <Grid Grid.Row="2">
+                                                <Button Content="{DynamicResource Module_QuickLaunch}" Style="{StaticResource SecondaryButton}" Click="BtnGoQr_Click" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- ==================== CAPTURE ==================== -->
                     <StackPanel x:Name="PanelCapture" Visibility="Collapsed">
                         <TextBlock Text="{DynamicResource Nav_Capture}" Style="{StaticResource PageTitle}"/>
                         <TextBlock Text="{DynamicResource Capture_RecordHint}" Style="{StaticResource BodyText}" Margin="0,5,0,16"/>
@@ -864,7 +1162,7 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- ==================== GENERAL ==================== -->
+                        <!-- ==================== GENERAL ==================== -->
                     <StackPanel x:Name="PanelGeneral" Visibility="Collapsed">
                         <TextBlock Text="{DynamicResource Nav_General}" Style="{StaticResource PageTitle}"/>
                         <TextBlock Text="{DynamicResource General_StartupDesc}" Style="{StaticResource BodyText}" Margin="0,5,0,16" MaxWidth="720" HorizontalAlignment="Left"/>
@@ -921,11 +1219,13 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
-                    </StackPanel>
 
-                    <!-- ==================== ABOUT ==================== -->
-                    <StackPanel x:Name="PanelAbout" Visibility="Collapsed">
-                        <Grid>
+                        <!-- About & System Information Section (Inside Settings) -->
+                        <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,22,0,18"/>
+                        <TextBlock Text="{DynamicResource Nav_About}" Style="{StaticResource SectionTitle}" FontSize="14" Margin="0,0,0,14"/>
+
+                        <StackPanel x:Name="PanelAbout">
+                            <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="16"/>
@@ -990,12 +1290,14 @@
                                 </Border>
                             </StackPanel>
                         </Grid>
+                        </StackPanel>
                     </StackPanel>
-                </Grid>
-            </ScrollViewer>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
 
-            <!-- Status bar (Row 3) -->
-            <Grid Grid.Row="3" Margin="22,0,22,0">
+            <!-- Row 2: Status bar -->
+            <Grid Grid.Row="2" Margin="22,0,22,0">
                 <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" VerticalAlignment="Top"/>
                 <TextBlock x:Name="TxtStatusBar"
                            Text="{DynamicResource About_Privacy}"

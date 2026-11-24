@@ -2,7 +2,86 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — Ported CryoTray custom dark tray menu renderer & expanded options
+## Latest turn — Two-click confirm Quit button in title bar near X
+
+- **Two-Click Confirm Quit Button (`BtnQuit`)**:
+  - Added dedicated Quit button in title bar directly next to `BtnClose` (X).
+  - Uses `IconData.Power` vector geometry (`M10,2.5 L10,9.5 M5.8,5.5 A6.5,6.5 0 1 0 14.2,5.5`) in default idle state.
+  - On first click:
+    - Changes icon to `IconData.Check` (`✓`).
+    - Sets stroke to `DangerTextBrush` (coral/red) and background to `DangerSoftBackgroundBrush`.
+    - Updates tooltip to `Main_TooltipQuitConfirm` ("Click again to quit" / "انقر مرة أخرى للإغلاق").
+    - Starts a 3.5-second `DispatcherTimer`.
+  - On second click within 3.5 seconds:
+    - Calls `App.CurrentApp?.ExitApplication()` to cleanly shut down CryoUtils and dispose background listeners.
+  - On timeout (3.5 seconds) or when clicking `BtnClose` (X) / closing window:
+    - Automatically reverts back to `IconData.Power`, default stroke, transparent background, and `Main_TooltipQuit`.
+- **Localization Parity**:
+  - Added `Main_TooltipQuit` and `Main_TooltipQuitConfirm` to both `Strings.en.xaml` and `Strings.ar.xaml` (373 keys each, 100% key parity).
+- **Parity & Build**:
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+
+## Previous turn — Unclipped centered icon rail layout for collapsed sidebar
+
+- **Fixed Collapsed Icon Slicing & Centering**:
+  - Root cause: `SidebarTabStyle` inherited 10px padding and 8px left margin from expanded mode, causing the 16px icons to be sliced in half when constrained to the collapsed rail.
+  - Redesigned `SidebarTabStyle` with zero padding and fixed 44px icon container column (`Grid.ColumnDefinitions` with 44px width for icon, `*` for text).
+  - Icons are now 100% visible, unclipped, and centered on the exact 44px button axis (`(44 - 16)/2 = 14px` left/right margin).
+  - Width adjusted to 52px (standard Windows 11 Fluent).
+  - Aligned `BtnToggleSidebar` hamburger button along the same 44px center axis and suppressed WPF default cyan focus rectangle (`FocusVisualStyle="{x:Null}"`, `Focusable="False"`).
+- **Parity & Build**:
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+  - Startup smoke test passed with 0 runtime exceptions.
+
+## Previous turn — Collapsible sidebar, pinned bottom Hotkeys/Settings & merged About into Settings
+
+- **Collapsible / Closeable Sidebar**:
+  - Added hamburger toggle button (`BtnToggleSidebar`) with `IconData.Menu` vector geometry at the top of the sidebar.
+  - Toggling collapses sidebar from 220px to 56px compact icon rail (`SidebarCol.Width = new GridLength(_isSidebarCollapsed ? 56 : 220)`).
+  - In compact mode, text labels (`TxtNavOverview`, `TxtNavCapture`, `TxtNavTools`, `TxtNavHotkeys`, `TxtNavGeneral`, `TxtNavGroupCore`) are hidden, active indicator pill is retained, and tooltips show on hover.
+- **Pinned Bottom Navigation (Hotkeys & Settings)**:
+  - Moved `TabHotkeys` (Hotkeys) and `TabGeneral` (Settings) to the bottom of the sidebar in `Grid.Row="2"`, separated by a subtle 1px divider line (`DividerBrush`).
+  - Removed the "100% Offline / Private & Local" pill card completely from the sidebar as requested.
+- **Merged About Tab into Settings**:
+  - Removed `TabAbout` from navigation tabs.
+  - Moved the full About suite (App identity, version badge `TxtAboutVersion`, creator, license, privacy pledge, GitHub repo link, updates system, and rollback backup) inside the Settings tab (`PanelGeneral`) under a clean divider and section header.
+  - Preserved `PanelAbout` container and all inner control bindings (`BtnCheckUpdates`, `BtnDownloadUpdate`, `UpdateProgress`, `UpdateNotesPanel`, `BtnRestore`, `BtnDeleteBackup`, etc.).
+  - `ShowTab("About")` redirects automatically to `"General"` and checks `TabGeneral`.
+- **Parity & Build**:
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+  - Startup smoke test passed with 0 runtime exceptions.
+
+## Previous turn — Complete UI overhaul: Modern Windows 11 Fluent Left-Sidebar Architecture
+
+- **Left-Sidebar Navigation (Concept A: Windows 11 Fluent / PowerToys Architecture)**:
+  - Retired the legacy top horizontal tab strip in favor of a 220px modern left navigation sidebar.
+  - Divided navigation into logical groups:
+    - **CORE**: `Overview` (Home), `Screen Capture` (Capture), `Tools & Utilities` (Tools).
+    - **SYSTEM**: `Hotkeys` (Keyboard), `Settings` (General), `About` (Info).
+  - Implemented `SidebarTabStyle` for `RadioButton` in `Controls.xaml`:
+    - Teal active indicator pill (`AccentBrush`, 3x16px rounded), rounded hover borders, semibold active text.
+    - Full bidirectional LTR/RTL support for Arabic and English.
+  - Added bottom sidebar badge: "100% Offline · Private & Local" with teal checkmark icon.
+- **Overview Command Hub Rework**:
+  - **Quick Action Hero Bar**: 4-column quick action tiles (`QuickTileButton` style) for instant 1-click execution:
+    1. Screenshot (`BtnHeroCapture_Click`): F10 · Native DPI multi-monitor capture.
+    2. Record GIF (`BtnRecordNow_Click`): GIF / MP4 screen recorder.
+    3. Colour Picker (`BtnQuickColor_Click`): Ctrl+Shift+C · Precision desktop loupe.
+    4. QR Suite (`BtnGoQr_Click`): Scan screen / decode files / generate codes.
+  - **Recent Captures Showcase (Front & Center)**:
+    - Positioned directly below the hero bar as the focal point of the dashboard.
+    - Header with session badge, `RecentEmpty` inset card, and horizontal `RecentItems` wrap panel.
+    - Retains all recent capture upgrades: hover pencil thumbnail edit, full-width `Copy`, compact `Compress`, `Folder` icon, and inline confirm `Trash` icon.
+  - **Module Status & Control Grid**:
+    - Clean 2-column card grid for all 6 local modules (Screen capture, Colour picker, Always on top, Compressor, Clipboard, QR code).
+    - Status pills, active hotkeys, toggle switches, and direct module configuration buttons.
+- **Preservation & 100% Compatibility**:
+  - Preserved all 114 `x:Name` UI bindings and all 58 event handlers without missing or breaking any functionality.
+  - Preserved 100% localization parity across both `Strings.en.xaml` and `Strings.ar.xaml` (371 keys each).
+  - Added `Tools` and `Record` vector geometries to `CryoIcons.cs` and `IconData.cs`.
+  - Both `dotnet build -c Release` and `dotnet build -c Debug` pass with 0 warnings and 0 errors.
+
+## Previous turn — Ported CryoTray custom dark tray menu renderer & expanded options
 
 - **CryoTray-Grade Custom Renderer (`DarkMenuRenderer`)**:
   - Replaced legacy `ToolStripProfessionalRenderer` with custom `ToolStripRenderer` based on `CryoTray` architecture.

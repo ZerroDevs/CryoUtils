@@ -168,8 +168,8 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 
 | Component | Key behavior |
 |---|---|
-| `MainWindow.xaml` | Title bar with integrated quick actions, six navigation tabs, symmetric 6-module overview grid, capture settings, tools, hotkeys, general, about, status footer. |
-| `MainWindow.xaml.cs` | `ReloadUi`, `ShowTab`, `ModuleToggle_Changed`, `Setting_Changed`, `CmbTheme_SelectionChanged`, `CmbLanguage_SelectionChanged`, `RefreshHotkeyRows`, `AddHotkeyRow`, `RefreshRecentStrip`, `LoadCompressionSource`, `BtnCompress_Click`, `RefreshPinnedState`, `RefreshClipboardState`, `BtnExportSettings_Click`, `BtnImportSettings_Click`, `BtnResetSettings_Click`, `BtnHeroCapture_Click`, `BtnRecordNow_Click`, `BtnGoCompress_Click`, `BtnGoQr_Click`, update handlers, `TitleBar_MouseLeftButtonDown`, `BtnClose_Click`, `Window_Closing` (hide to tray unless shutdown is in progress). |
+| `MainWindow.xaml` | Title bar with integrated quick actions, two-click confirm Quit button (`BtnQuit`), Minimize to tray button (`BtnClose`), Windows 11 Fluent collapsible left navigation sidebar (220px expanded, 52px compact rail), 4-tile Quick Action Hero Bar, front-and-center Recent Captures showcase, 2-column active module status grid, capture settings, tools, hotkeys, general (with embedded about section), status footer. |
+| `MainWindow.xaml.cs` | `ReloadUi`, `ShowTab`, `BtnToggleSidebar_Click`, `SetSidebarCollapsed`, `BtnQuit_Click`, `ResetQuitConfirmState`, `ModuleToggle_Changed`, `Setting_Changed`, `CmbTheme_SelectionChanged`, `CmbLanguage_SelectionChanged`, `RefreshHotkeyRows`, `AddHotkeyRow`, `RefreshRecentStrip`, `LoadCompressionSource`, `BtnCompress_Click`, `RefreshPinnedState`, `RefreshClipboardState`, `BtnExportSettings_Click`, `BtnImportSettings_Click`, `BtnResetSettings_Click`, `BtnHeroCapture_Click`, `BtnRecordNow_Click`, `BtnGoCompress_Click`, `BtnGoQr_Click`, update handlers, `TitleBar_MouseLeftButtonDown`, `BtnClose_Click`, `Window_Closing` (hide to tray unless shutdown is in progress). |
 | `CaptureOverlayWindow.xaml` | Selection canvas, top-left size badge, optional magnifier, vertical tool rail, horizontal action rail, tooltips. |
 | `CaptureOverlayWindow.xaml.cs` | Selection drag/move/resize, handles, double-click window, Ctrl+A, annotation tool selection, color/width, undo/redo, text editor, blur commit, OCR/pin/print/save/copy shortcuts, Esc; places both rails without overlap and gates the magnifier on `ShowCaptureLoupe`. |
 | `CaptureSurface.cs` | Shared physical selection, annotation list, hit testing, cursor state, redraw. |
@@ -181,7 +181,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `ToastWindow.xaml` | Non-intrusive toast, bottom-right, click-through. |
 | `TrayIconManager.cs` | Packaged CryoUtils icon with custom `DarkMenuRenderer`, rounded pill hover, custom anti-aliased chevrons, floor width constraints, full RTL support, capture, delayed capture submenu, record, color picker, QR suite submenu, clipboard history, dynamic pin/unpin/reset items, dashboard, settings, and exit. |
 | `RecentCaptureService.cs` | In-memory recent capture manager with `INotifyPropertyChanged` item model, inline delete confirmation, and dimension/filesize formatting. |
-| `CryoIcon` / `IconData` | Vector geometry resources used by XAML. |
+| `CryoIcon` / `IconData` | Vector geometry resources used by XAML (`Home`, `Keyboard`, `Info`, `Edit`, `Tools`, `Record`, `Menu`, `Check`, `Folder`, `Trash`, `Capture`, `Droplet`, `Pin`, `Compress`, `Clipboard`, `Settings`, `Close`, `Power`, `QrCode`, `Contrast`). |
 
 ## Reuse rules
 

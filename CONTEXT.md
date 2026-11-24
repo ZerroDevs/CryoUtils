@@ -162,7 +162,8 @@ Defaults:
 
 ## Structural decisions
 
-- The dashboard is a single window with six radio-driven panels instead of separate pages. This keeps navigation instant and avoids duplicate state.
+- The dashboard is a single window featuring a modern Windows 11 Fluent collapsible left navigation sidebar (220px expanded, 56px compact rail with hamburger toggle). Core tools (Overview, Screen Capture, Tools & Utilities) sit at the top while Hotkeys and Settings are pinned to the bottom. About is implemented directly inside Settings (`PanelGeneral`).
+- The Overview tab acts as the Command Hub, prioritizing a 4-tile Quick Action Hero Bar and front-and-center Recent Captures gallery above the modular 2-column active module status grid.
 - Capture overlays are separate windows per monitor so mixed DPI is handled by the compositor rather than by manual scaling.
 - GIF is implemented in-project to avoid a native dependency; WebP uses SkiaSharp.
 - MP4 uses Windows Media Foundation instead of bundling FFmpeg.

@@ -213,14 +213,66 @@ namespace CryoUtils.Views
             }
         }
 
+        private DispatcherTimer? _quitConfirmTimer;
+        private bool _isQuitConfirmPending;
+
+        private void BtnQuit_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isQuitConfirmPending)
+            {
+                ResetQuitConfirmState();
+                SaveWindowPosition();
+                App.CurrentApp?.ExitApplication();
+                return;
+            }
+
+            _isQuitConfirmPending = true;
+            PathQuitIcon.Data = IconData.Check;
+            PathQuitIcon.SetResourceReference(System.Windows.Shapes.Path.StrokeProperty, "DangerTextBrush");
+            BtnQuit.SetResourceReference(Control.BackgroundProperty, "DangerSoftBackgroundBrush");
+            BtnQuit.ToolTip = LocalizationService.Get("Main_TooltipQuitConfirm");
+
+            _quitConfirmTimer ??= new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(3.5)
+            };
+            _quitConfirmTimer.Tick -= QuitConfirmTimer_Tick;
+            _quitConfirmTimer.Tick += QuitConfirmTimer_Tick;
+            _quitConfirmTimer.Stop();
+            _quitConfirmTimer.Start();
+        }
+
+        private void QuitConfirmTimer_Tick(object? sender, EventArgs e)
+        {
+            ResetQuitConfirmState();
+        }
+
+        private void ResetQuitConfirmState()
+        {
+            _quitConfirmTimer?.Stop();
+            _isQuitConfirmPending = false;
+            if (PathQuitIcon != null)
+            {
+                PathQuitIcon.Data = IconData.Power;
+                PathQuitIcon.SetResourceReference(System.Windows.Shapes.Path.StrokeProperty, "IconBrush");
+            }
+            if (BtnQuit != null)
+            {
+                BtnQuit.ClearValue(Control.BackgroundProperty);
+                BtnQuit.ToolTip = LocalizationService.Get("Main_TooltipQuit");
+            }
+        }
+
         private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
+            ResetQuitConfirmState();
             SaveWindowPosition();
             Hide();
         }
 
         private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            ResetQuitConfirmState();
             if (_allowClose)
             {
                 return;
@@ -255,15 +307,53 @@ namespace CryoUtils.Views
             ShowTab(tag);
         }
 
+        private bool _isSidebarCollapsed;
+
+        private void BtnToggleSidebar_Click(object sender, RoutedEventArgs e)
+        {
+            SetSidebarCollapsed(!_isSidebarCollapsed);
+        }
+
+        private void SetSidebarCollapsed(bool collapsed)
+        {
+            _isSidebarCollapsed = collapsed;
+            if (SidebarCol != null)
+            {
+                SidebarCol.Width = new GridLength(_isSidebarCollapsed ? 52 : 220);
+            }
+
+            var textVis = _isSidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
+            if (TxtNavOverview != null) TxtNavOverview.Visibility = textVis;
+            if (TxtNavCapture != null) TxtNavCapture.Visibility = textVis;
+            if (TxtNavTools != null) TxtNavTools.Visibility = textVis;
+            if (TxtNavHotkeys != null) TxtNavHotkeys.Visibility = textVis;
+            if (TxtNavGeneral != null) TxtNavGeneral.Visibility = textVis;
+            if (TxtNavGroupCore != null) TxtNavGroupCore.Visibility = textVis;
+
+            if (SidebarDivider != null)
+            {
+                SidebarDivider.Margin = _isSidebarCollapsed ? new Thickness(6, 4, 6, 8) : new Thickness(6, 0, 6, 8);
+            }
+
+            if (BtnToggleSidebar != null)
+            {
+                BtnToggleSidebar.ToolTip = _isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
+            }
+        }
+
         public void ShowTab(string tab)
         {
             _currentTab = string.IsNullOrWhiteSpace(tab) ? "Overview" : tab;
+            if (_currentTab == "About")
+            {
+                _currentTab = "General";
+            }
+
             PanelOverview.Visibility = _currentTab == "Overview" ? Visibility.Visible : Visibility.Collapsed;
             PanelCapture.Visibility = _currentTab == "Capture" ? Visibility.Visible : Visibility.Collapsed;
             PanelTools.Visibility = _currentTab == "Tools" ? Visibility.Visible : Visibility.Collapsed;
             PanelHotkeys.Visibility = _currentTab == "Hotkeys" ? Visibility.Visible : Visibility.Collapsed;
             PanelGeneral.Visibility = _currentTab == "General" ? Visibility.Visible : Visibility.Collapsed;
-            PanelAbout.Visibility = _currentTab == "About" ? Visibility.Visible : Visibility.Collapsed;
 
             RadioButton? target = _currentTab switch
             {
@@ -271,7 +361,6 @@ namespace CryoUtils.Views
                 "Tools" => TabTools,
                 "Hotkeys" => TabHotkeys,
                 "General" => TabGeneral,
-                "About" => TabAbout,
                 _ => TabOverview
             };
             if (target != null && target.IsChecked != true)

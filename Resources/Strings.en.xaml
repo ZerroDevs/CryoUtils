@@ -33,16 +33,21 @@
     <sys:String x:Key="Common_SaveRecordingFilter">GIF animation (*.gif)|*.gif|MP4 video (*.mp4)|*.mp4</sys:String>
     <sys:String x:Key="Common_ExecutableFilter">Applications (*.exe)|*.exe|All files (*.*)|*.*</sys:String>
 
+    <sys:String x:Key="Nav_CoreGroup">CORE</sys:String>
+    <sys:String x:Key="Nav_SystemGroup">SYSTEM</sys:String>
+    <sys:String x:Key="App_LocalPill">100% Local • Zero Telemetry</sys:String>
+    <sys:String x:Key="Overview_LaunchColor">Color Picker</sys:String>
+    <sys:String x:Key="Overview_LaunchQr">QR Studio</sys:String>
     <sys:String x:Key="Nav_Overview">Overview</sys:String>
-    <sys:String x:Key="Nav_Capture">Capture &amp; GIF</sys:String>
-    <sys:String x:Key="Nav_Tools">Tools</sys:String>
+    <sys:String x:Key="Nav_Capture">Screen Capture</sys:String>
+    <sys:String x:Key="Nav_Tools">Tools &amp; Utilities</sys:String>
     <sys:String x:Key="Nav_Hotkeys">Hotkeys</sys:String>
-    <sys:String x:Key="Nav_General">General</sys:String>
+    <sys:String x:Key="Nav_General">Settings</sys:String>
     <sys:String x:Key="Nav_About">About</sys:String>
 
-    <sys:String x:Key="Main_OverviewTitle">Five local tools, one hotkey away.</sys:String>
+    <sys:String x:Key="Main_OverviewTitle">Six local tools, one hotkey away.</sys:String>
     <sys:String x:Key="Main_OverviewSubtitle">Every module runs on this PC. Turning one off unregisters its hook and stops its listeners.</sys:String>
-    <sys:String x:Key="Main_ActiveModules">{0} of 5 modules on</sys:String>
+    <sys:String x:Key="Main_ActiveModules">{0} of 6 modules on</sys:String>
     <sys:String x:Key="Main_CaptureNow">Take screenshot</sys:String>
     <sys:String x:Key="Main_RecordNow">Record GIF</sys:String>
     <sys:String x:Key="Main_HeroKicker">Screen capture</sys:String>
@@ -324,6 +329,8 @@
     <sys:String x:Key="Capture_RecordGuide">Select a region, then choose Record on the toolbar.</sys:String>
     <sys:String x:Key="Capture_ToolSelect">Select</sys:String>
     <sys:String x:Key="Main_TooltipMinimize">Minimize to tray</sys:String>
+    <sys:String x:Key="Main_TooltipQuit">Quit CryoUtils (click twice)</sys:String>
+    <sys:String x:Key="Main_TooltipQuitConfirm">Click again to quit</sys:String>
     <sys:String x:Key="Recent_DeleteConfirm">Delete {0}? This removes the file from disk.</sys:String>
     <sys:String x:Key="Recent_DeleteFailed">Could not delete this capture.</sys:String>
     <sys:String x:Key="Recent_FolderMissing">This capture has no file on disk.</sys:String>
