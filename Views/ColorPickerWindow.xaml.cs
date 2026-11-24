@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using CryoUtils.Services;
 
@@ -16,6 +17,7 @@ namespace CryoUtils.Views
     {
         private readonly DispatcherTimer _timer;
         private readonly List<Window> _backdrops = new();
+        private readonly Dictionary<Button, DispatcherTimer> _copyFeedbackTimers = new();
         private NativeMethods.RECT _virtualBounds;
         private BitmapSource? _desktopBitmap;
         private byte[]? _desktopPixels;
@@ -32,7 +34,6 @@ namespace CryoUtils.Views
         {
             InitializeComponent();
             FlowDirection = LocalizationService.Instance.FlowDirection;
-            SelectFormat(SettingsService.Instance.Current.ColorFormat);
 
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(24) };
             _timer.Tick += (_, _) => PollCursorUnderSampling();
@@ -55,19 +56,7 @@ namespace CryoUtils.Views
             };
         }
 
-        private void SelectFormat(string? format)
-        {
-            foreach (var item in CmbFormat.Items)
-            {
-                if (item is ComboBoxItem comboItem &&
-                    string.Equals(comboItem.Tag as string, format, StringComparison.OrdinalIgnoreCase))
-                {
-                    CmbFormat.SelectedItem = comboItem;
-                    return;
-                }
-            }
-            CmbFormat.SelectedIndex = 0;
-        }
+
 
         private void PositionNearWorkAreaEdge()
         {
@@ -271,7 +260,7 @@ namespace CryoUtils.Views
 
         private void PollCursorUnderSampling()
         {
-            if (!_isSampling || !IsVisible || CmbFormat.IsDropDownOpen)
+            if (!_isSampling || !IsVisible)
             {
                 return;
             }
@@ -304,7 +293,7 @@ namespace CryoUtils.Views
 
         private void Backdrop_MouseMove(object sender, MouseEventArgs e)
         {
-            if (!_isSampling || CmbFormat.IsDropDownOpen)
+            if (!_isSampling)
             {
                 return;
             }
@@ -467,8 +456,7 @@ namespace CryoUtils.Views
 
         private void CopyActiveFormatToClipboard()
         {
-            string format = (CmbFormat.SelectedItem as ComboBoxItem)?.Tag as string ?? "HEX";
-            string text = FormatColorString(format);
+            string text = _hex;
 
             try
             {
@@ -507,24 +495,48 @@ namespace CryoUtils.Views
             await StartSamplingAsync(waitForHide: true);
         }
 
-        private void BtnCopySelected_Click(object sender, RoutedEventArgs e)
-        {
-            CopyActiveFormatToClipboard();
-        }
-
         private void BtnCopyRow_Click(object sender, RoutedEventArgs e)
         {
-            string format = (sender as FrameworkElement)?.Tag as string ?? "HEX";
+            if (sender is not Button btn) return;
+            string format = btn.Tag as string ?? "HEX";
             string text = FormatColorString(format);
             try
             {
                 Clipboard.SetText(text);
                 SettingsService.Instance.RegisterRecentColor(_hex);
                 (Application.Current as App)?.ShowToast(LocalizationService.Format("Color_Copied", text));
+                ShowCopyCheckmark(btn);
             }
             catch
             {
             }
+        }
+
+        private void ShowCopyCheckmark(Button btn)
+        {
+            var path = btn.Content as Path;
+            if (path == null) return;
+
+            if (_copyFeedbackTimers.TryGetValue(btn, out var existing))
+            {
+                existing.Stop();
+                _copyFeedbackTimers.Remove(btn);
+            }
+
+            var originalData = IconData.Copy;
+            path.Data = IconData.Check;
+            path.Stroke = ThemeService.GetBrush("SuccessBrush");
+
+            var revertTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            revertTimer.Tick += (_, _) =>
+            {
+                revertTimer.Stop();
+                _copyFeedbackTimers.Remove(btn);
+                path.Data = originalData;
+                path.Stroke = ThemeService.GetBrush("IconBrush");
+            };
+            _copyFeedbackTimers[btn] = revertTimer;
+            revertTimer.Start();
         }
 
         private void BtnLockContrast_Click(object sender, RoutedEventArgs e)
@@ -563,16 +575,6 @@ namespace CryoUtils.Views
             Close();
         }
 
-        private void CmbFormat_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!IsLoaded)
-            {
-                return;
-            }
 
-            string format = (CmbFormat.SelectedItem as ComboBoxItem)?.Tag as string ?? "HEX";
-            SettingsService.Instance.Current.ColorFormat = format;
-            SettingsService.Instance.Save();
-        }
     }
 }
