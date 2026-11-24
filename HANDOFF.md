@@ -2,7 +2,40 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — Recent Captures Scope Dropdown (Session / All time) & Saved Limit
+## Latest turn — ColorPicker Rework, ScrollWheel Fixes & Real App Icons
+
+- **Reworked Precision Colour Picker (`Views/ColorPickerWindow.xaml`, `Views/ColorPickerWindow.xaml.cs`)**:
+  - Removed cursor-chasing `SetWindowPos` loop that prevented users from clicking buttons or opening the `HEX`/`RGB`/`HSL` format dropdown.
+  - Built a stationary, draggable inspector anchored cleanly near the work-area edge opposite the initial cursor (`PositionNearWorkAreaEdge`) combined with per-monitor frozen virtual-desktop eyedropper backdrops (`StartSamplingAsync` / `StopSampling`).
+  - Moving over the desktop previews crisp 15x15 `NearestNeighbor` magnified pixels and physical `(X, Y)` coordinates; hovering the inspector or opening `CmbFormat` pauses sampling so controls never overwrite the active color.
+  - Clicking a screen pixel picks and copies it to clipboard (`HEX`/`RGB`/`HSL` or WCAG Contrast summary), registers in Recent Colours, shows a toast, and closes only the screen backdrop so users can copy other formats (`BtnCopySelected`, per-row `BtnCopyRow_Click`), lock Contrast base (`BtnLockContrast` / `Space`), or click `Pick from screen` (`BtnPick`) again.
+- **Dashboard Scrolling & Hit-Testing (`Resources/Controls.xaml`, `Views/MainWindow.xaml`, `Views/MainWindow.xaml.cs`)**:
+  - Added `CryoScrollRepeatButton` template, `MinHeight`/`MinWidth="24"` on `CryoScrollBarThumb`, Horizontal `Orientation` support, and `Background="Transparent"` / `PanningMode="None"` on `CryoScrollViewer` and all dashboard panels to prevent layered-window hit-test pass-through.
+  - Added `MainContentScroll_PreviewMouseWheel` (and `AddHandler(PreviewMouseWheelEvent, ..., true)`) so mouse-wheel scrolling over inner containers (`RecentScroll` when unscrollable/at boundary, inputs, sliders) smoothly scrolls `MainContentScroll`, and reset scroll offset on tab switch (`MainContentScroll?.ScrollToTop()`).
+- **Packaged App Icon Alignment (`CryoUtils.csproj`, `Views/MainWindow.xaml`, `Views/ColorPickerWindow.xaml`)**:
+  - Embedded `Images\CryoUtils-Icon.png` as a WPF `<Resource>` and replaced legacy wireframe square vector marks in `MainWindow` Title Bar, `Settings > About` (`PanelAbout`), and `ColorPickerWindow` Title Bar with crisp `CryoUtils-Icon.png` imagery.
+- **Localization & Verification**:
+  - Added 3 EN/AR key pairs for the reworked Colour Picker (`EN=451`, `AR=451`, `Diff=[]`).
+  - Verified both `dotnet build -c Release` and `dotnet build -c Debug` pass with `0` warnings and `0` errors.
+
+## Previous turn — Cryo-Family UI & Color System Redesign (CryoTray Alignment)
+
+- **Cryo-Family Color & Chrome Alignment (`App.xaml`, `Services/ThemeService.cs`, `Resources/Controls.xaml`)**:
+  - Replaced legacy teal accent tokens with CryoTray's Cryo Blue signature system (`WindowBorderBrush` `#2B88D8` Dark / `#1B6CB3` Light, `AccentBrush` `#2B88D8`, `AccentButtonBrush` `#1E6FAE`, WCAG-safe `AccentTextBrush` `#6FB8F2` on dark `#242424` cards).
+  - Adopted CryoTray's shared 4-accent domain palette for clear tool grouping without visual clutter: `CaptureAccentBrush` (`#4FC3F7`), `MediaAccentBrush` (`#7CB342`), `ColorAccentBrush` (`#F3C765`), and `UtilityAccentBrush` (`#62B0E8`), plus Dark/Light/HighContrast parity and previously missing `SuccessBrush` / `SuccessMutedBrush` tokens for WCAG contrast badges.
+  - Updated `TabButtonStyle` (horizontal underline indicator strip), `QuickTileButton`, `CryoTextBox` (`Padding="8,3"`, `MinHeight="28"` to fix bottom digit clipping in compact inputs), and borderless `CornerRadius="0"` frames across `MainWindow`, `UploadProgressWindow`, and `QrResultWindow` (now borderless custom chrome with drag bar).
+- **Dashboard Navigation, Feature Placement & Visual Fixes (`Views/MainWindow.xaml`, `Views/MainWindow.xaml.cs`)**:
+  - Replaced the 220px collapsible sidebar (which clipped Quick Action labels, wasted vertical void, and suffered dual active `RadioButton` highlighting across top/bottom `StackPanel`s) with a CryoTray-style top underline Tab Bar sharing `GroupName="MainNav"` and a compact 36px Title Bar (`BtnQuit`, `BtnClose`, `TxtHeaderHotkey`).
+  - **Overview (`PanelOverview`)**: Removed duplicate `"Six local tools, one hotkey away."` header; consolidated into a single Cryo-Blue Hero Banner (`#1E4F7A` -> `#18649C`), 4 full-width unclipped Quick Action tiles with localized subtypes (`Overview_TileCaptureSub`, `Overview_TileQrSub`), LTR-pinned capture filenames/sizes (`DisplayName`/`SizeText`) in Arabic RTL mode, and a 2x3 Domain-Colored Module grid without decorative `"NEW"` badges.
+  - **Screen Capture (`PanelCapture`)**: Reorganized into a 2-column non-scrolling layout (Capture Behaviour/Storage left; Annotation defaults + GIF/MP4 recorder settings right), preserving exact `WEBP` and `10/20/30/60` persisted tags.
+  - **Tools & Utilities (`PanelTools`)**: Combined orphaned `Recent colours` directly into the WCAG `Contrast checker and recent colours` studio alongside QR Code Suite, Image & GIF Compressor, Window Pinner, and Clipboard History.
+  - **Settings (`PanelGeneral`)**: Replaced misused startup hint under the `Settings` page title with `General_Subtitle`, grouped preferences/workspace storage limits (`SavedCapturesLimit`) on the left, and Cryo-Family identity + updates + rollback + backup on the right in a single zero-scroll view.
+- **Localization & Verification**:
+  - Updated `Strings.en.xaml` and `Strings.ar.xaml` to `448` matching keys (`Diff=[]`).
+  - Built both `Release` and `Debug` configurations with `0` warnings and `0` errors.
+  - Ran live UI Automation + `PrintWindow` screenshot verification across all 5 tabs (Dark), Light theme, and Arabic RTL mode, confirming zero TextBox clipping, clean tab exclusivity, and accurate Contrast/RTL rendering.
+
+## Previous turn — Recent Captures Scope Dropdown (Session / All time) & Saved Limit
 
 - **Recent Captures Scope Dropdown & Auto-Pruned History Limit**:
   - Replaced static `Session` pill with `CmbRecentScope` (`Session` vs `All time`) persisted via `AppSettings.RecentCapturesScope`. `All time` loads all saved captures (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.mp4`) from `EffectiveSaveFolder` using lock-free downscaled thumbnails (`ImageIO.LoadThumbnail` / video placeholder) inside a scrollable strip (`MaxHeight="340"`).

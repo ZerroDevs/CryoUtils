@@ -1221,7 +1221,7 @@ namespace CryoUtils.Views
             string[] palette =
             {
                 "#E5534B", "#F2C94C", "#3FBF7F", "#4C8DF6",
-                "#FFFFFF", "#141414", "#F2994A", "#2FD3BD"
+                "#FFFFFF", "#141414", "#F2994A", "#2B88D8"
             };
 
             foreach (string hex in palette)

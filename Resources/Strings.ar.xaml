@@ -471,4 +471,15 @@
     <sys:String x:Key="Context_DirImgsToPdf">دمج صور المجلد في PDF واحد</sys:String>
     <sys:String x:Key="Context_DirImgsToGif">تحويل صور المجلد إلى GIF متحرك</sys:String>
     <sys:String x:Key="Context_DirCompressImgs">ضغط جميع الصور بالمجلد</sys:String>
+    <sys:String x:Key="Main_QuickActionsTitle">تشغيل سريع</sys:String>
+    <sys:String x:Key="Tools_ColorStudio">فاحص التباين والألوان الحديثة</sys:String>
+    <sys:String x:Key="General_Subtitle">المظهر واللغة وحدود حفظ اللقطات والتحديثات ومعلومات التطبيق.</sys:String>
+    <sys:String x:Key="General_PrefsTitle">السلوك وشريط النظام</sys:String>
+    <sys:String x:Key="General_WorkspaceTitle">مساحة العمل واللقطات</sys:String>
+    <sys:String x:Key="Overview_TileCaptureSub">F10 · منطقة / نافذة</sys:String>
+    <sys:String x:Key="Overview_TileQrSub">مسح وتوليد</sys:String>
+    <sys:String x:Key="Color_PickFromScreen">التقاط من الشاشة</sys:String>
+    <sys:String x:Key="Color_PickingStatus">انقر على الشاشة للاختيار</sys:String>
+    <sys:String x:Key="Color_PickedStatus">تم الاختيار</sys:String>
+    <sys:String x:Key="Color_InteractiveHint">انقر على أي بكسل على الشاشة لاختياره ونسخه. اضغط مسافة لقفل لون التباين.</sys:String>
 </ResourceDictionary>

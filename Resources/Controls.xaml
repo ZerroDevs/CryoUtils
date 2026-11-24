@@ -319,9 +319,11 @@
     <!-- ============================ Tabs ============================ -->
     <Style x:Key="TabButtonStyle" TargetType="RadioButton">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="FontFamily" Value="{StaticResource SegoeUIVariableText}"/>
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Padding" Value="12,8,12,7"/>
+        <Setter Property="Padding" Value="14,9,14,8"/>
+        <Setter Property="MinHeight" Value="36"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{StaticResource CryoFocusVisual}"/>
         <Setter Property="Template">
@@ -332,14 +334,16 @@
                                 Background="{TemplateBinding Background}"
                                 Padding="{TemplateBinding Padding}"
                                 CornerRadius="3"
+                                Margin="2,2,2,3"
                                 SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/>
                         </Border>
                         <Border x:Name="Underline"
                                 Height="2"
                                 Background="Transparent"
+                                CornerRadius="1"
                                 VerticalAlignment="Bottom"
-                                Margin="8,0,8,0"/>
+                                Margin="10,0,10,0"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -347,68 +351,9 @@
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
                             <Setter TargetName="Underline" Property="Background" Value="{DynamicResource AccentBrush}"/>
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-                            <Setter Property="FontWeight" Value="SemiBold"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.4"/>
-                            <Setter Property="Cursor" Value="Arrow"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- ============================ Sidebar Navigation ============================ -->
-    <Style x:Key="SidebarTabStyle" TargetType="RadioButton">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontFamily" Value="{StaticResource SegoeUIVariableText}"/>
-        <Setter Property="Height" Value="36"/>
-        <Setter Property="Margin" Value="0,2"/>
-        <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="RadioButton">
-                    <Border x:Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="Transparent"
-                            BorderThickness="1"
-                            CornerRadius="5"
-                            Padding="0"
-                            Margin="0"
-                            SnapsToDevicePixels="True">
-                        <Grid>
-                            <!-- Active indicator pill -->
-                            <Border x:Name="ActivePill"
-                                    Width="3"
-                                    Height="16"
-                                    CornerRadius="1.5"
-                                    Background="{DynamicResource AccentBrush}"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Center"
-                                    Margin="2,0,0,0"
-                                    Visibility="Collapsed"/>
-                            
-                            <ContentPresenter HorizontalAlignment="Stretch"
-                                              VerticalAlignment="Center"
-                                              RecognizesAccessKey="True"/>
-                        </Grid>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBackgroundBrush}"/>
-                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-                        </Trigger>
-                        <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
-                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}"/>
-                            <Setter TargetName="ActivePill" Property="Visibility" Value="Visible"/>
-                            <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -424,12 +369,12 @@
     <!-- ============================ Quick Action Hero Tile ============================ -->
     <Style x:Key="QuickTileButton" TargetType="Button">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
         <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="Padding" Value="12,10"/>
-        <Setter Property="Height" Value="60"/>
+        <Setter Property="Padding" Value="12,9"/>
+        <Setter Property="MinHeight" Value="54"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         <Setter Property="FocusVisualStyle" Value="{StaticResource CryoFocusVisual}"/>
@@ -440,7 +385,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="5"
+                            CornerRadius="4"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
@@ -473,7 +418,8 @@
         <Setter Property="SelectionBrush" Value="{DynamicResource SelectionBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource SegoeUIVariableText}"/>
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Padding" Value="7,5"/>
+        <Setter Property="Padding" Value="8,3"/>
+        <Setter Property="MinHeight" Value="28"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
@@ -757,7 +703,25 @@
     </Style>
 
     <!-- ============================ Scrollbars ============================ -->
+    <Style x:Key="CryoScrollRepeatButton" TargetType="RepeatButton">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="{TemplateBinding Background}"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="CryoScrollBarThumb" TargetType="Thumb">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="IsTabStop" Value="False"/>
+        <Setter Property="MinHeight" Value="24"/>
+        <Setter Property="MinWidth" Value="24"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
@@ -769,6 +733,9 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}"/>
                         </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -776,18 +743,20 @@
     </Style>
 
     <Style x:Key="CryoScrollBar" TargetType="ScrollBar">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
         <Setter Property="Background" Value="{DynamicResource ScrollTrackBrush}"/>
-        <Setter Property="Width" Value="9"/>
+        <Setter Property="Width" Value="11"/>
+        <Setter Property="MinWidth" Value="11"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
                     <Border Background="{TemplateBinding Background}" CornerRadius="4">
                         <Track x:Name="PART_Track" IsDirectionReversed="True">
                             <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"/>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource CryoScrollRepeatButton}"/>
                             </Track.DecreaseRepeatButton>
                             <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"/>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Style="{StaticResource CryoScrollRepeatButton}"/>
                             </Track.IncreaseRepeatButton>
                             <Track.Thumb>
                                 <Thumb Style="{StaticResource CryoScrollBarThumb}"/>
@@ -797,15 +766,43 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="Height" Value="11"/>
+                <Setter Property="MinHeight" Value="11"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageLeftCommand" Style="{StaticResource CryoScrollRepeatButton}"/>
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageRightCommand" Style="{StaticResource CryoScrollRepeatButton}"/>
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource CryoScrollBarThumb}"/>
+                                    </Track.Thumb>
+                                </Track>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="ScrollBar" BasedOn="{StaticResource CryoScrollBar}"/>
 
     <Style x:Key="CryoScrollViewer" TargetType="ScrollViewer">
+        <Setter Property="Background" Value="Transparent"/>
         <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
         <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
         <Setter Property="CanContentScroll" Value="False"/>
-        <Setter Property="PanningMode" Value="VerticalOnly"/>
+        <Setter Property="PanningMode" Value="None"/>
     </Style>
 
     <!-- ============================ Cards / chips ============================ -->

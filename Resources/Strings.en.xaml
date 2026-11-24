@@ -471,4 +471,15 @@
     <sys:String x:Key="Context_DirImgsToPdf">Folder Images to Single PDF</sys:String>
     <sys:String x:Key="Context_DirImgsToGif">Folder Images to Animated GIF</sys:String>
     <sys:String x:Key="Context_DirCompressImgs">Batch Compress All Images</sys:String>
+    <sys:String x:Key="Main_QuickActionsTitle">Quick launch</sys:String>
+    <sys:String x:Key="Tools_ColorStudio">Contrast checker and recent colours</sys:String>
+    <sys:String x:Key="General_Subtitle">Theme, language, capture storage, updates, and app info.</sys:String>
+    <sys:String x:Key="General_PrefsTitle">Behaviour and tray</sys:String>
+    <sys:String x:Key="General_WorkspaceTitle">Workspace and captures</sys:String>
+    <sys:String x:Key="Overview_TileCaptureSub">F10 · Region / Window</sys:String>
+    <sys:String x:Key="Overview_TileQrSub">Scan &amp; Generate</sys:String>
+    <sys:String x:Key="Color_PickFromScreen">Pick from screen</sys:String>
+    <sys:String x:Key="Color_PickingStatus">Click screen to sample</sys:String>
+    <sys:String x:Key="Color_PickedStatus">Picked</sys:String>
+    <sys:String x:Key="Color_InteractiveHint">Click any pixel on screen to pick and copy. Press Space to lock contrast base.</sys:String>
 </ResourceDictionary>

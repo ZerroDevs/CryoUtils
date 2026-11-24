@@ -58,20 +58,22 @@ Core tokens:
 
 | Token | Dark | Light |
 |---|---|---|
-| Accent | `#2FD3BD` | `#0E7C6C` |
-| Accent strong | `#0F7A6C` | `#0B6455` |
-| Window | `#141414` | `#F5F3EF` |
+| Accent | `#2B88D8` | `#1B6CB3` |
+| Accent strong / button | `#1E6FAE` | `#1B6CB3` |
+| Accent text | `#6FB8F2` | `#1B6CB3` |
+| Capture / Media / Color / Utility | `#4FC3F7` / `#7CB342` / `#F3C765` / `#62B0E8` | `#0B6E99` / `#4C7A22` / `#8A6500` / `#1D6FA5` |
+| Window / Header | `#141414` / `#1B1B1B` | `#F5F3EF` / `#EDEAE4` |
 | Surface | `#1E1E1E` | `#FFFFFF` |
 | Surface raised | `#242424` | `#F7F4EF` |
 | Border | `#333333` | `#DDD7CD` |
 | Text primary | `#FFFFFF` | `#1C1A17` |
 | Text secondary | `#B8B8B8` | `#5C564D` |
 
-Rules: flat surfaces, 1 px crisp borders, no gradients, no pink or purple, teal as the only signature accent. Radius is small and consistent (`6` to `10`), not pill-shaped. Typography uses Segoe UI Variable / Segoe UI with Cascadia Mono for technical values. Arabic uses the same sizes with `FlowDirection=RightToLeft`; technical tokens (`PNG`, `GIF`, `FPS`, `HEX`, `RGB`, `HSL`, paths, shortcuts) stay LTR.
+Rules: CryoTray-aligned `141414` / `1E1E1E` / `242424` neutral surfaces, 1 px `CornerRadius="0"` Cryo Blue window border (`#2B88D8` / `#1B6CB3`), purposeful hero gradient (`#1E4F7A -> #18649C`), and semantic 4-accent domain coding matching CryoTray (`Capture`, `Media`, `Color`, `Utility`).Typography uses Segoe UI Variable / Segoe UI with Cascadia Mono for technical values. Arabic uses the same sizes with `FlowDirection=RightToLeft`; filenames, sizes, color codes, PNG/GIF/FPS, paths, and shortcuts stay LTR.
 
 ### Localization
 
-`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 366 keys each.
+`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 451 keys each.
 
 ### QR Code & Utilities Suite
 
@@ -162,10 +164,10 @@ Defaults:
 
 ## Structural decisions
 
-- The dashboard is a single window featuring a modern Windows 11 Fluent collapsible left navigation sidebar (220px expanded, 56px compact rail with hamburger toggle). Core tools (Overview, Screen Capture, Tools & Utilities) sit at the top while Hotkeys and Settings are pinned to the bottom. About is implemented directly inside Settings (`PanelGeneral`).
-- The Overview tab acts as the Command Hub, prioritizing a 4-tile Quick Action Hero Bar and front-and-center Recent Captures gallery above the modular 2-column active module status grid.
+- The dashboard is a single `1040x710` Cryo-Family borderless window with a 36 px title bar (`BtnQuit`, `BtnClose`, `TxtHeaderHotkey`) and a unified horizontal underline tab strip (`GroupName="MainNav"`, `TabButtonStyle`) across Overview, Screen Capture, Tools & Utilities, Hotkeys, and Settings (with integrated About & Updates).
+- The Overview tab features a single Cryo Blue Hero Command Banner, 4 full-width domain-coded Quick Launch tiles, Recent Captures (`Session` / `All time`), and a 2x3 active module control grid.
 - Capture overlays are separate windows per monitor so mixed DPI is handled by the compositor rather than by manual scaling.
 - GIF is implemented in-project to avoid a native dependency; WebP uses SkiaSharp.
 - MP4 uses Windows Media Foundation instead of bundling FFmpeg.
 - Clipboard history is opt-in and memory-only; there is no disk cache.
-- Tray menu is native `ContextMenuStrip` with a custom renderer to match the dark surfaces and teal highlight.
+- Tray menu is native `ContextMenuStrip` with a custom renderer to match the dark surfaces and Cryo Blue highlight.

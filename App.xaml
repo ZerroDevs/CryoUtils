@@ -13,8 +13,8 @@
             <FontFamily x:Key="SegoeUIVariableText">Segoe UI Variable Text, Segoe UI, Tahoma, Arial</FontFamily>
             <FontFamily x:Key="CryoMono">Cascadia Mono, Consolas, Courier New</FontFamily>
 
-            <!-- Theme palette: replaced at runtime by ThemeService. -->
-            <SolidColorBrush x:Key="WindowBorderBrush" Color="#2BB8A3"/>
+            <!-- Theme palette: Cryo-Family tokens replaced at runtime by ThemeService. -->
+            <SolidColorBrush x:Key="WindowBorderBrush" Color="#2B88D8"/>
             <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#141414"/>
             <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="#141414"/>
             <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#1B1B1B"/>
@@ -36,7 +36,7 @@
             <SolidColorBrush x:Key="TextTitleBrush" Color="#D5D5D5"/>
             <SolidColorBrush x:Key="TextSecondaryBrush" Color="#B8B8B8"/>
             <SolidColorBrush x:Key="TextTertiaryBrush" Color="#9A9A9A"/>
-            <SolidColorBrush x:Key="TextMutedBrush" Color="#888888"/>
+            <SolidColorBrush x:Key="TextMutedBrush" Color="#929292"/>
             <SolidColorBrush x:Key="TextDisabledBrush" Color="#787878"/>
             <SolidColorBrush x:Key="TextDimBrush" Color="#A6A6A6"/>
             <SolidColorBrush x:Key="IconBrush" Color="#C4C4C4"/>
@@ -49,27 +49,34 @@
             <SolidColorBrush x:Key="CheckboxBackgroundBrush" Color="#1A1A1A"/>
             <SolidColorBrush x:Key="CheckboxBorderBrush" Color="#4A4A4A"/>
 
-            <SolidColorBrush x:Key="AccentBrush" Color="#2FD3BD"/>
-            <SolidColorBrush x:Key="AccentHoverBrush" Color="#46E2CD"/>
-            <SolidColorBrush x:Key="AccentPressedBrush" Color="#22A995"/>
-            <SolidColorBrush x:Key="AccentSoftBrush" Color="#143B36"/>
-            <SolidColorBrush x:Key="AccentTextBrush" Color="#4FE0CE"/>
-            <SolidColorBrush x:Key="AccentButtonBrush" Color="#0F7A6C"/>
+            <SolidColorBrush x:Key="AccentBrush" Color="#2B88D8"/>
+            <SolidColorBrush x:Key="AccentHoverBrush" Color="#3A9AE8"/>
+            <SolidColorBrush x:Key="AccentPressedBrush" Color="#1E6FAE"/>
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="#1E3A4A"/>
+            <SolidColorBrush x:Key="AccentTextBrush" Color="#6FB8F2"/>
+            <SolidColorBrush x:Key="AccentButtonBrush" Color="#1E6FAE"/>
             <SolidColorBrush x:Key="AccentButtonTextBrush" Color="#FFFFFF"/>
-            <SolidColorBrush x:Key="SearchMatchBrush" Color="#7FE8DA"/>
+            <SolidColorBrush x:Key="SearchMatchBrush" Color="#6FB8F2"/>
+
+            <SolidColorBrush x:Key="CaptureAccentBrush" Color="#4FC3F7"/>
+            <SolidColorBrush x:Key="MediaAccentBrush" Color="#7CB342"/>
+            <SolidColorBrush x:Key="ColorAccentBrush" Color="#F3C765"/>
+            <SolidColorBrush x:Key="UtilityAccentBrush" Color="#62B0E8"/>
 
             <SolidColorBrush x:Key="SuccessTextBrush" Color="#ABD068"/>
+            <SolidColorBrush x:Key="SuccessBrush" Color="#ABD068"/>
+            <SolidColorBrush x:Key="SuccessMutedBrush" Color="#223519"/>
             <SolidColorBrush x:Key="WarningTextBrush" Color="#F3C765"/>
             <SolidColorBrush x:Key="DangerTextBrush" Color="#FAAA9A"/>
             <SolidColorBrush x:Key="DangerSoftBackgroundBrush" Color="#3A2424"/>
             <SolidColorBrush x:Key="DangerSoftHoverBrush" Color="#4A2929"/>
 
-            <SolidColorBrush x:Key="ToggleOnTrackBrush" Color="#174F47"/>
-            <SolidColorBrush x:Key="ToggleOnThumbBrush" Color="#2FD3BD"/>
+            <SolidColorBrush x:Key="ToggleOnTrackBrush" Color="#1E5C91"/>
+            <SolidColorBrush x:Key="ToggleOnThumbBrush" Color="#FFFFFF"/>
             <SolidColorBrush x:Key="ToggleOffTrackBrush" Color="#333333"/>
             <SolidColorBrush x:Key="ToggleOffThumbBrush" Color="#8A8A8A"/>
             <SolidColorBrush x:Key="ToggleOffTextBrush" Color="#B8B8B8"/>
-            <SolidColorBrush x:Key="ToggleOnTextBrush" Color="#4FE0CE"/>
+            <SolidColorBrush x:Key="ToggleOnTextBrush" Color="#6FB8F2"/>
 
             <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#E6161616"/>
             <SolidColorBrush x:Key="OverlayLabelBrush" Color="#AAAAAA"/>
@@ -77,25 +84,27 @@
             <SolidColorBrush x:Key="OverlayMutedBrush" Color="#9A9A9A"/>
             <SolidColorBrush x:Key="OverlayIconBrush" Color="#888888"/>
             <SolidColorBrush x:Key="OverlayDimBrush" Color="#A6141414"/>
-            <SolidColorBrush x:Key="OverlaySelectionBorderBrush" Color="#2FD3BD"/>
+            <SolidColorBrush x:Key="OverlaySelectionBorderBrush" Color="#2B88D8"/>
             <SolidColorBrush x:Key="RecordingBorderBrush" Color="#E5534B"/>
             <SolidColorBrush x:Key="RecordingFillBrush" Color="#33E5534B"/>
-            <SolidColorBrush x:Key="PinnedBorderBrush" Color="#2FD3BD"/>
+            <SolidColorBrush x:Key="PinnedBorderBrush" Color="#2B88D8"/>
 
             <SolidColorBrush x:Key="AlternateRowBrush" Color="#272727"/>
-            <SolidColorBrush x:Key="HighlightRowBrush" Color="#172F2C"/>
-            <SolidColorBrush x:Key="HighlightRowBorderBrush" Color="#2FD3BD"/>
-            <SolidColorBrush x:Key="SelectionBrush" Color="#1B4B44"/>
+            <SolidColorBrush x:Key="HighlightRowBrush" Color="#1E3A4A"/>
+            <SolidColorBrush x:Key="HighlightRowBorderBrush" Color="#2B88D8"/>
+            <SolidColorBrush x:Key="SelectionBrush" Color="#1E5C91"/>
             <SolidColorBrush x:Key="SelectionTextBrush" Color="#FFFFFF"/>
-            <SolidColorBrush x:Key="FocusBrush" Color="#2FD3BD"/>
+            <SolidColorBrush x:Key="FocusBrush" Color="#2B88D8"/>
             <SolidColorBrush x:Key="ScrollThumbBrush" Color="#4A4A4A"/>
             <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#5E5E5E"/>
             <SolidColorBrush x:Key="ScrollTrackBrush" Color="#1A1A1A"/>
 
-            <SolidColorBrush x:Key="ScanFrameBrush" Color="#2FD3BD"/>
-            <SolidColorBrush x:Key="ModuleMutedBrush" Color="#8C8C8C"/>
+            <SolidColorBrush x:Key="ScanFrameBrush" Color="#2B88D8"/>
+            <SolidColorBrush x:Key="ModuleMutedBrush" Color="#929292"/>
             <SolidColorBrush x:Key="HeroBackgroundBrush" Color="#1B1B1B"/>
-            <SolidColorBrush x:Key="HeroInsetBrush" Color="#101615"/>
+            <SolidColorBrush x:Key="HeroInsetBrush" Color="#162B3D"/>
+            <SolidColorBrush x:Key="HeroGradientStartBrush" Color="#1E4F7A"/>
+            <SolidColorBrush x:Key="HeroGradientEndBrush" Color="#18649C"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -24,7 +24,7 @@
     <Border Background="{DynamicResource WindowBackgroundBrush}"
             BorderBrush="{DynamicResource WindowBorderBrush}"
             BorderThickness="1"
-            CornerRadius="6"
+            CornerRadius="0"
             ClipToBounds="True">
         <Grid>
             <Grid.RowDefinitions>

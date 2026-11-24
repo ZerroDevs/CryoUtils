@@ -43,6 +43,7 @@ namespace CryoUtils.Views
             RecentItems.ItemsSource = RecentCaptureService.Instance.Items;
             RecentCaptureService.Instance.Items.CollectionChanged += RecentItems_CollectionChanged;
             RecentCaptureService.Instance.AllTimeItems.CollectionChanged += RecentItems_CollectionChanged;
+            AddHandler(PreviewMouseWheelEvent, new MouseWheelEventHandler(MainContentScroll_PreviewMouseWheel), true);
             TopmostService.Instance.StateChanged += RefreshPinnedState;
             ClipboardService.Instance.Changed += RefreshClipboardState;
             LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
@@ -326,40 +327,6 @@ namespace CryoUtils.Views
             ShowTab(tag);
         }
 
-        private bool _isSidebarCollapsed;
-
-        private void BtnToggleSidebar_Click(object sender, RoutedEventArgs e)
-        {
-            SetSidebarCollapsed(!_isSidebarCollapsed);
-        }
-
-        private void SetSidebarCollapsed(bool collapsed)
-        {
-            _isSidebarCollapsed = collapsed;
-            if (SidebarCol != null)
-            {
-                SidebarCol.Width = new GridLength(_isSidebarCollapsed ? 52 : 220);
-            }
-
-            var textVis = _isSidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
-            if (TxtNavOverview != null) TxtNavOverview.Visibility = textVis;
-            if (TxtNavCapture != null) TxtNavCapture.Visibility = textVis;
-            if (TxtNavTools != null) TxtNavTools.Visibility = textVis;
-            if (TxtNavHotkeys != null) TxtNavHotkeys.Visibility = textVis;
-            if (TxtNavGeneral != null) TxtNavGeneral.Visibility = textVis;
-            if (TxtNavGroupCore != null) TxtNavGroupCore.Visibility = textVis;
-
-            if (SidebarDivider != null)
-            {
-                SidebarDivider.Margin = _isSidebarCollapsed ? new Thickness(6, 4, 6, 8) : new Thickness(6, 0, 6, 8);
-            }
-
-            if (BtnToggleSidebar != null)
-            {
-                BtnToggleSidebar.ToolTip = _isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar";
-            }
-        }
-
         public void ShowTab(string tab)
         {
             _currentTab = string.IsNullOrWhiteSpace(tab) ? "Overview" : tab;
@@ -391,6 +358,52 @@ namespace CryoUtils.Views
             {
                 ApplyRecentScope();
             }
+
+            MainContentScroll?.ScrollToTop();
+        }
+
+        private void MainContentScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (MainContentScroll == null || e.Delta == 0)
+            {
+                return;
+            }
+
+            // Let scrollable inner ScrollViewers (e.g., All-Time recent gallery or Update notes) consume wheel
+            // while they actually have room to scroll in the requested direction; forward everything else.
+            var current = e.OriginalSource as DependencyObject;
+            while (current != null && !ReferenceEquals(current, MainContentScroll))
+            {
+                if (current is ScrollViewer inner &&
+                    !ReferenceEquals(inner, MainContentScroll) &&
+                    inner.ComputedVerticalScrollBarVisibility == Visibility.Visible &&
+                    inner.ScrollableHeight > 0.5)
+                {
+                    bool scrollingUp = e.Delta > 0;
+                    bool canScroll = scrollingUp
+                        ? inner.VerticalOffset > 0.5
+                        : inner.VerticalOffset < inner.ScrollableHeight - 0.5;
+                    if (canScroll)
+                    {
+                        return;
+                    }
+                    break;
+                }
+
+                current = VisualTreeHelper.GetParent(current);
+            }
+
+            if (MainContentScroll.ScrollableHeight <= 0)
+            {
+                return;
+            }
+
+            double nextOffset = Math.Clamp(
+                MainContentScroll.VerticalOffset - (e.Delta * 0.6),
+                0,
+                MainContentScroll.ScrollableHeight);
+            MainContentScroll.ScrollToVerticalOffset(nextOffset);
+            e.Handled = true;
         }
 
         // ============================ Module toggles ============================
