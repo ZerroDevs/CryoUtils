@@ -120,5 +120,53 @@ namespace CryoUtils.Services
             transformed.Freeze();
             return transformed;
         }
+
+        public static BitmapSource LoadThumbnail(string path, int maxWidth = 180)
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+            using var skBitmap = SKBitmap.Decode(bytes) ?? throw new InvalidOperationException("Unsupported image.");
+            if (skBitmap.Width <= maxWidth)
+            {
+                return SkiaBitmapToWpf(skBitmap);
+            }
+
+            int targetW = maxWidth;
+            int targetH = Math.Max(1, (int)Math.Round(skBitmap.Height * (maxWidth / (double)skBitmap.Width)));
+            using var scaled = skBitmap.Resize(
+                new SKImageInfo(targetW, targetH, SKColorType.Bgra8888, SKAlphaType.Premul),
+                SKFilterQuality.Medium);
+            return SkiaBitmapToWpf(scaled ?? skBitmap);
+        }
+
+        public static BitmapSource CreateVideoThumbnailPlaceholder(int width = 180, int height = 102)
+        {
+            using var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
+            using (var canvas = new SKCanvas(bitmap))
+            {
+                canvas.Clear(new SKColor(18, 22, 24));
+                using var paint = new SKPaint
+                {
+                    Color = new SKColor(47, 211, 189),
+                    IsAntialias = true,
+                    Style = SKPaintStyle.Fill
+                };
+                using var playPath = new SKPath();
+                float cx = width / 2f;
+                float cy = height / 2f;
+                playPath.MoveTo(cx - 10, cy - 12);
+                playPath.LineTo(cx + 14, cy);
+                playPath.LineTo(cx - 10, cy + 12);
+                playPath.Close();
+                canvas.DrawPath(playPath, paint);
+            }
+            return SkiaBitmapToWpf(bitmap);
+        }
+
+        private static BitmapSource SkiaBitmapToWpf(SKBitmap bitmap)
+        {
+            using var img = SKImage.FromBitmap(bitmap);
+            using var encoded = img.Encode(SKEncodedImageFormat.Png, 100);
+            return DecodeBytes(encoded.ToArray());
+        }
     }
 }

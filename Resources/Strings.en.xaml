@@ -336,7 +336,7 @@
     <sys:String x:Key="Main_TooltipQuit">Quit CryoUtils (click twice)</sys:String>
     <sys:String x:Key="Main_TooltipQuitConfirm">Click again to quit</sys:String>
     <sys:String x:Key="General_ContextMenuTitle">Windows Explorer context menu</sys:String>
-    <sys:String x:Key="General_ContextMenuDesc">Add CryoUtils tools to right-click menu for PDFs, images, and videos.</sys:String>
+    <sys:String x:Key="General_ContextMenuDesc">Add CryoUtils tools to Windows right-click menu for images, PDFs, media, files, and folders.</sys:String>
     <sys:String x:Key="Context_PdfToPng">Export to PNG Images</sys:String>
     <sys:String x:Key="Context_PdfToJpg">Export to JPG Images</sys:String>
     <sys:String x:Key="Context_CompressPdf">Compress PDF</sys:String>
@@ -355,6 +355,10 @@
     <sys:String x:Key="Recent_DeleteConfirm">Delete {0}? This removes the file from disk.</sys:String>
     <sys:String x:Key="Recent_DeleteFailed">Could not delete this capture.</sys:String>
     <sys:String x:Key="Recent_FolderMissing">This capture has no file on disk.</sys:String>
+    <sys:String x:Key="Recent_ScopeSession">Session</sys:String>
+    <sys:String x:Key="Recent_ScopeAllTime">All time</sys:String>
+    <sys:String x:Key="General_SavedLimit">Saved captures limit</sys:String>
+    <sys:String x:Key="General_SavedLimitDesc">Auto-deletes oldest saved captures when exceeded (default 50, 0 = unlimited).</sys:String>
     <sys:String x:Key="Tools_ClipboardCount">{0} clips in memory</sys:String>
     <sys:String x:Key="Tools_ClipboardDisabled">Clipboard history is off.</sys:String>
 
@@ -423,4 +427,48 @@
     <sys:String x:Key="Qr_NotFound">No QR code found in selection.</sys:String>
     <sys:String x:Key="Qr_Found">QR code decoded.</sys:String>
     <sys:String x:Key="Capture_ToolQr">Scan QR code</sys:String>
+
+    <sys:String x:Key="Upload_Title">Uploading to Cloud</sys:String>
+    <sys:String x:Key="Upload_Complete">Upload Complete</sys:String>
+    <sys:String x:Key="Upload_Failed">Upload Failed</sys:String>
+    <sys:String x:Key="Upload_Cancelled">Upload Cancelled</sys:String>
+    <sys:String x:Key="Upload_Minimize">Minimize</sys:String>
+    <sys:String x:Key="Upload_Placeholder">Waiting for link...</sys:String>
+    <sys:String x:Key="Upload_Finalizing">Finalizing link...</sys:String>
+    <sys:String x:Key="Upload_DoneCopied">Finished — link copied to clipboard</sys:String>
+    <sys:String x:Key="Upload_DoneClosingFmt">Finished — link copied · closing in {0}s</sys:String>
+    <sys:String x:Key="Upload_ProgressFmt">{0}% · {1} / {2}</sys:String>
+
+    <sys:String x:Key="Context_TopConvert">CryoUtils Convert</sys:String>
+    <sys:String x:Key="Context_GroupResize">Resize</sys:String>
+    <sys:String x:Key="Context_FlattenWhite">Flatten Alpha (White JPG)</sys:String>
+    <sys:String x:Key="Context_ExtractGifFrames">Extract GIF Frames (PNG)</sys:String>
+    <sys:String x:Key="Context_CopyBase64">Copy as Base64 Data URI</sys:String>
+    <sys:String x:Key="Context_Resize50">Resize 50%</sys:String>
+    <sys:String x:Key="Context_Resize1920">Resize 1920px Width</sys:String>
+    <sys:String x:Key="Context_Resize512">Resize 512px Icon</sys:String>
+    <sys:String x:Key="Context_TrimAlpha">Trim Transparent Margins</sys:String>
+    <sys:String x:Key="Context_ExtractOcr">Extract Text (OCR)</sys:String>
+    <sys:String x:Key="Context_ScanQr">Scan QR Code</sys:String>
+    <sys:String x:Key="Context_CopyPixels">Copy Image Pixels</sys:String>
+    <sys:String x:Key="Context_PinImage">Pin on Screen</sys:String>
+    <sys:String x:Key="Context_UploadLink">Upload &amp; Copy Link</sys:String>
+    <sys:String x:Key="Context_PdfGrayscale">Grayscale / Print-Ready PDF</sys:String>
+    <sys:String x:Key="Context_PdfRotate90">Rotate Pages (90°)</sys:String>
+    <sys:String x:Key="Context_PdfRotate180">Rotate Pages (180°)</sys:String>
+    <sys:String x:Key="Context_VideoCompress">Compress Video (10 MB Discord)</sys:String>
+    <sys:String x:Key="Context_VideoMute">Mute Video (Strip Audio)</sys:String>
+    <sys:String x:Key="Context_VideoThumbnail">Grab Thumbnail (JPG)</sys:String>
+    <sys:String x:Key="Context_AudioToMp3">Convert to MP3</sys:String>
+    <sys:String x:Key="Context_AudioToWav">Convert to WAV</sys:String>
+    <sys:String x:Key="Context_AudioToM4a">Convert to M4A (AAC)</sys:String>
+    <sys:String x:Key="Context_JsonPretty">Format / Prettify JSON</sys:String>
+    <sys:String x:Key="Context_JsonMinify">Minify JSON</sys:String>
+    <sys:String x:Key="Context_XmlPretty">Format / Prettify XML</sys:String>
+    <sys:String x:Key="Context_TextToQr">Generate QR Code</sys:String>
+    <sys:String x:Key="Context_CopySha256">Copy SHA-256 Checksum</sys:String>
+    <sys:String x:Key="Context_CopyMd5">Copy MD5 Checksum</sys:String>
+    <sys:String x:Key="Context_DirImgsToPdf">Folder Images to Single PDF</sys:String>
+    <sys:String x:Key="Context_DirImgsToGif">Folder Images to Animated GIF</sys:String>
+    <sys:String x:Key="Context_DirCompressImgs">Batch Compress All Images</sys:String>
 </ResourceDictionary>

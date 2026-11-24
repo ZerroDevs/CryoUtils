@@ -215,6 +215,11 @@ namespace CryoUtils.Services
             return $"CryoUtils_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}{cleanExtension}";
         }
 
+        private static readonly HashSet<string> SavedCaptureExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4"
+        };
+
         public static string SaveWithDialog(BitmapSource bitmap, Window? owner, string defaultExtension)
         {
             var dialog = new Microsoft.Win32.SaveFileDialog
@@ -238,6 +243,7 @@ namespace CryoUtils.Services
             }
 
             ImageIO.SaveBitmap(bitmap, dialog.FileName);
+            EnforceSavedCaptureLimit();
             return dialog.FileName;
         }
 
@@ -247,7 +253,76 @@ namespace CryoUtils.Services
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, CreateTimestampedFileName(extension));
             ImageIO.SaveBitmap(bitmap, path);
+            EnforceSavedCaptureLimit();
             return path;
+        }
+
+        public static List<FileInfo> GetSavedCaptureFiles()
+        {
+            string folder = SettingsService.Instance.EffectiveSaveFolder;
+            if (!Directory.Exists(folder))
+            {
+                return new List<FileInfo>();
+            }
+
+            var list = new List<FileInfo>();
+            foreach (string file in Directory.EnumerateFiles(folder))
+            {
+                if (!SavedCaptureExtensions.Contains(Path.GetExtension(file)))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    list.Add(new FileInfo(file));
+                }
+                catch
+                {
+                }
+            }
+
+            list.Sort((a, b) =>
+            {
+                long tb = Math.Max(b.CreationTimeUtc.Ticks, b.LastWriteTimeUtc.Ticks);
+                long ta = Math.Max(a.CreationTimeUtc.Ticks, a.LastWriteTimeUtc.Ticks);
+                return tb.CompareTo(ta);
+            });
+            return list;
+        }
+
+        public static void EnforceSavedCaptureLimit()
+        {
+            int limit = SettingsService.Instance.Current.SavedCapturesLimit;
+            if (limit <= 0)
+            {
+                return;
+            }
+
+            var files = GetSavedCaptureFiles();
+            if (files.Count <= limit)
+            {
+                return;
+            }
+
+            var deletedPaths = new List<string>();
+            for (int i = limit; i < files.Count; i++)
+            {
+                try
+                {
+                    string path = files[i].FullName;
+                    File.Delete(path);
+                    deletedPaths.Add(path);
+                }
+                catch
+                {
+                }
+            }
+
+            if (deletedPaths.Count > 0)
+            {
+                RecentCaptureService.Instance.NotifyFilesDeleted(deletedPaths);
+            }
         }
     }
 }

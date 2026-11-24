@@ -405,10 +405,19 @@
                                 <StackPanel>
                                     <Grid>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="{DynamicResource Recent_Title}" Style="{StaticResource SectionTitle}" FontSize="13.5"/>
-                                            <Border Margin="8,0,0,0" Padding="5,1" CornerRadius="2" Background="{DynamicResource InsetBackgroundBrush}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}">
-                                                <TextBlock Text="Session" Foreground="{DynamicResource TextMutedBrush}" FontSize="9.5" FontFamily="{StaticResource CryoMono}"/>
-                                            </Border>
+                                            <TextBlock Text="{DynamicResource Recent_Title}" Style="{StaticResource SectionTitle}" FontSize="13.5" VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="CmbRecentScope"
+                                                      Style="{StaticResource CryoComboBox}"
+                                                      Height="24"
+                                                      MinWidth="92"
+                                                      FontSize="10.5"
+                                                      Margin="10,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      SelectionChanged="CmbRecentScope_SelectionChanged"
+                                                      AutomationProperties.Name="{DynamicResource Recent_Title}">
+                                                <ComboBoxItem Content="{DynamicResource Recent_ScopeSession}" Tag="Session"/>
+                                                <ComboBoxItem Content="{DynamicResource Recent_ScopeAllTime}" Tag="AllTime"/>
+                                            </ComboBox>
                                         </StackPanel>
                                         <Button Content="{DynamicResource Recent_OpenFolder}" Style="{StaticResource LinkButton}" Click="RecentOpenFolder_Click" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="11"/>
                                     </Grid>
@@ -422,7 +431,13 @@
                                     </Border>
 
                                     <!-- Items wrap panel -->
-                                    <ItemsControl x:Name="RecentItems" Margin="0,12,0,0" Visibility="Collapsed">
+                                    <ScrollViewer x:Name="RecentScroll"
+                                                  Margin="0,12,0,0"
+                                                  MaxHeight="340"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  Style="{StaticResource CryoScrollViewer}"
+                                                  Visibility="Collapsed">
+                                        <ItemsControl x:Name="RecentItems">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel Orientation="Horizontal"/>
@@ -492,12 +507,10 @@
                                                         <!-- Copy button is the biggest (primary action) -->
                                                         <Button Content="{DynamicResource Recent_Copy}" Tag="{Binding}" Click="RecentCopy_Click" Style="{StaticResource PrimaryButton}" Height="27" Padding="0" FontSize="10.5" VerticalContentAlignment="Center" HorizontalAlignment="Stretch" Margin="0,0,0,5"/>
 
-                                                        <!-- Action row: Compress small, Folder icon, Trash icon -->
+                                                        <!-- Action row: Compress and Trash icon -->
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="4"/>
-                                                                <ColumnDefinition Width="26"/>
                                                                 <ColumnDefinition Width="4"/>
                                                                 <ColumnDefinition Width="26"/>
                                                             </Grid.ColumnDefinitions>
@@ -505,13 +518,8 @@
                                                             <!-- Compress button (small) -->
                                                             <Button Grid.Column="0" Content="{DynamicResource Recent_Compress}" Tag="{Binding}" Click="RecentCompress_Click" Style="{StaticResource SecondaryButton}" Height="24" FontSize="9.5" Padding="4,1" ToolTip="{DynamicResource Recent_Compress}"/>
 
-                                                            <!-- Folder icon (open folder) -->
-                                                            <Button Grid.Column="2" Tag="{Binding}" Click="RecentOpenFolder_Click" Style="{StaticResource SecondaryButton}" Width="26" Height="24" Padding="0" ToolTip="{DynamicResource Recent_OpenFolder}">
-                                                                <Path Data="{x:Static views:IconData.Folder}" Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.2" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Button>
-
                                                             <!-- Trash can / Confirm delete icon -->
-                                                            <Button Grid.Column="4" Tag="{Binding}" Click="RecentDelete_Click" Style="{StaticResource SecondaryButton}" Width="26" Height="24" Padding="0" Background="{Binding DeleteBackground}" BorderBrush="{Binding DeleteBorderBrush}" ToolTip="{Binding DeleteToolTip}">
+                                                            <Button Grid.Column="2" Tag="{Binding}" Click="RecentDelete_Click" Style="{StaticResource SecondaryButton}" Width="26" Height="24" Padding="0" Background="{Binding DeleteBackground}" BorderBrush="{Binding DeleteBorderBrush}" ToolTip="{Binding DeleteToolTip}">
                                                                 <Path Data="{Binding DeleteIcon}" Stroke="{Binding DeleteIconBrush}" StrokeThickness="1.3" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                             </Button>
                                                         </Grid>
@@ -519,7 +527,8 @@
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                        </ItemsControl>
+                                    </ScrollViewer>
                                 </StackPanel>
                             </Border>
 
@@ -1209,6 +1218,17 @@
                                     <CheckBox x:Name="ChkPinnedFrame" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_PinnedFrame}" Margin="0,14,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                                     <CheckBox x:Name="ChkPinnedSound" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_PinnedSound}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                                     <CheckBox x:Name="ChkContextMenu" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource General_ContextMenuTitle}" ToolTip="{DynamicResource General_ContextMenuDesc}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{DynamicResource General_SavedLimit}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"/>
+                                        <TextBox x:Name="TxtSavedLimit" Grid.Column="1" Width="70" Style="{StaticResource CryoTextBox}" Text="50" FlowDirection="LeftToRight" LostFocus="TxtSavedLimit_LostFocus" AutomationProperties.Name="{DynamicResource General_SavedLimit}"/>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource General_SavedLimitDesc}" Style="{StaticResource MutedText}" Margin="0,4,0,0"/>
+
                                     <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,14,0,12"/>
                                     <TextBlock Text="{DynamicResource General_DataTitle}" Style="{StaticResource SectionTitle}"/>
                                     <TextBlock Text="{DynamicResource General_DataDesc}" Style="{StaticResource MutedText}" Margin="0,5,0,10"/>

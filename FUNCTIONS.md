@@ -34,19 +34,38 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `SettingsService.WriteAtomicJson` | same | Shared atomic JSON writer. |
 | `StartupService.IsEnabled` | `Services/StartupService.cs` | Reads the HKCU Run value. |
 | `StartupService.SetEnabled` | same | Writes or deletes the HKCU Run value. |
+| `ScreenCaptureService` (`QuickSave`, `GetSavedCaptureFiles`, `EnforceSavedCaptureLimit`) | `Services/ScreenCaptureService.cs` | Saves timestamped captures, enumerates saved captures newest-first, and prunes oldest files beyond `AppSettings.SavedCapturesLimit`. |
 | `CryoContextMenuService.IsEnabled` | `Services/CryoContextMenuService.cs` | Checks whether Windows Explorer cascading context menu integration is enabled in HKCU. |
-| `CryoContextMenuService.SetEnabled` | same | Toggles full registration / unregistration across PDF, Image, and Video file associations. |
-| `CryoContextMenuService.RegisterAll` | same | Registers direct cascading submenus with `subcommands=""` and child `shell/<id>` command keys under `SystemFileAssociations`. |
-| `CryoContextMenuService.UnregisterAll` | same | Cleans up context menu keys from HKCU and notifies Explorer via `SHChangeNotify`. |
-| `CloudUploadService.UploadImageAsync` | `Services/CloudUploadService.cs` | Asynchronously uploads image byte buffer or bitmap to Catbox with zero API key, returns direct URL. |
-| `PdfToolsService.ConvertPdfToImagesAsync` | `Services/PdfToolsService.cs` | Uses `Windows.Data.Pdf.PdfDocument` to render PDF pages to high-res PNG/JPG without external DLLs. |
-| `PdfToolsService.CreatePdfFromImagesAsync` | same | Uses `SkiaSharp.SKDocument.CreatePdf` to bundle multiple images into a single vector/raster PDF. |
+| `CryoContextMenuService.SetEnabled` | same | Toggles full registration / unregistration across Images, GIF, PDF, Video, Audio, Data/Text, All Files (`*`), and Folders (`Directory`). |
+| `CryoContextMenuService.RegisterAll` | same | Registers direct cascading submenus with `SubCommands=""`, `CommandFlags=0x20` dividers, nested `Resize >` group, and `CryoUtilsConvert` sibling for >16 image items. |
+| `CryoContextMenuService.UnregisterAll` | same | Cleans up all `SystemFileAssociations`, `*`, and `Directory` context menu keys from HKCU and notifies Explorer via `SHChangeNotify`. |
+| `CloudUploadService.UploadImageAsync` | `Services/CloudUploadService.cs` | Encodes screenshot bitmap to PNG and streams to Catbox with `IProgress<UploadProgressInfo>` byte reporting and cancellation. |
+| `CloudUploadService.UploadFileAsync` | same | Streams any disk file (`FileStream`) up to Catbox's 200 MB limit with real-time byte progress and cancellation. |
+| `PdfToolsService.PdfToImagesAsync` | `Services/PdfToolsService.cs` | Uses `Windows.Data.Pdf.PdfDocument` to render PDF pages to high-res PNG/JPG without external DLLs. |
+| `PdfToolsService.ImagesToPdf` | same | Uses `SkiaSharp.SKDocument.CreatePdf` to bundle multiple images into a single PDF. |
 | `PdfToolsService.CompressPdfAsync` | same | Compresses PDF pages and embedded raster streams. |
-| `ImageProcessingService.ConvertImage` | `Services/ImageProcessingService.cs` | Converts between PNG, JPG, WebP, ICO, BMP, and JFIF with optimal compression presets. |
+| `PdfToolsService.ConvertPdfToGrayscaleAsync` | same | Renders pages with Rec.709 luminance grayscale matrix for print-ready smaller PDFs. |
+| `PdfToolsService.RotatePdfAsync` | same | Rotates all PDF pages (`90` or `180` degrees) cleanly via SkiaSharp canvas transform. |
+| `ImageProcessingService.ConvertFormat` | `Services/ImageProcessingService.cs` | Converts between PNG, JPG, WebP, ICO, BMP, and JFIF with optimal compression presets. |
 | `ImageProcessingService.RemoveBackground` | same | Smart corner-sampled Euclidean color distance background eraser generating transparent PNG. |
-| `ImageProcessingService.StripMetadata` | same | Re-encodes image to scrub EXIF, camera, GPS, and creation metadata. |
-| `MediaConversionService.ConvertVideoToMp3Async` | `Services/MediaConversionService.cs` | Extracts MP3 audio using Windows native `MediaTranscoder` without requiring FFmpeg. |
-| `MediaConversionService.ConvertVideoToGifAsync` | same | Decodes video frames via `MediaComposition` and renders animated GIF via `GifWriter`. |
+| `ImageProcessingService.StripExif` | same | Re-encodes image to scrub EXIF, camera, GPS, and creation metadata. |
+| `ImageProcessingService.ResizePreset` | same | Resizes images to `50pct`, `w1920`, or `s512` using high-quality SkiaSharp resampling. |
+| `ImageProcessingService.TrimTransparentMargins` | same | Crops bounding non-transparent pixel margins cleanly into PNG. |
+| `ImageProcessingService.FlattenWhite` | same | Composites transparent pixels onto solid white background and exports JPG. |
+| `ImageProcessingService.ExtractGifFrames` | same | Decodes animated GIF frames respecting `SKCodecFrameInfo` disposal into sequential PNGs. |
+| `ImageProcessingService.ToBase64DataUri` | same | Encodes image file as `data:image/<mime>;base64,...` URI string. |
+| `ImageProcessingService.LoadWpfBitmap` | same | Loads frozen WPF `BitmapSource` without locking source file on disk (SkiaSharp fallback for WebP). |
+| `MediaConversionService.VideoToAudioAsync` | `Services/MediaConversionService.cs` | Extracts MP3 audio using Windows native `MediaTranscoder` without FFmpeg. |
+| `MediaConversionService.ConvertAudioAsync` | same | Converts audio between MP3, WAV, and M4A (`MediaTranscoder`). |
+| `MediaConversionService.CompressVideoForDiscordAsync` | same | Computes target bitrate from duration to target <10 MB MP4 via `MediaTranscoder`. |
+| `MediaConversionService.MuteVideoAsync` | same | Silences video via `MediaClip.Volume = 0` + `MediaComposition.CreateDefaultEncodingProfile()`. |
+| `MediaConversionService.SaveThumbnailAsync` | same | Captures thumbnail JPG frame from video via `MediaComposition.GetThumbnailAsync`. |
+| `MediaConversionService.VideoToGifAsync` | same | Decodes video frames via `MediaComposition` and renders animated GIF via `GifWriter`. |
+| `FileToolsService.FormatJson` / `FormatXml` | `Services/FileToolsService.cs` | Prettifies or minifies JSON (`System.Text.Json`) and prettifies XML (`XDocument`). |
+| `FileToolsService.ComputeHash` | same | Streams file hash (`SHA256` / `MD5`) with constant memory overhead. |
+| `FileToolsService.CollectSortedImages` | same | Collects supported images naturally ordered via `NativeMethods.StrCmpLogicalW`. |
+| `FileToolsService.FolderImagesToGif` | same | Fits mixed folder images into uniform GIF canvas and encodes via `GifWriter`. |
+| `FileToolsService.BatchCompressFolderAsync` | same | Compresses all top-level images in folder into `_compressed` subfolder using current preset settings. |
 
 ## Theme and localization
 
@@ -187,6 +206,8 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `NativeMethods.PrintWindow` | same | Window capture. |
 | `NativeMethods.RegisterHotKey`, `UnregisterHotKey` | same | Hotkey registration. |
 | `NativeMethods.GetDpiForMonitor` | same | Per-monitor scale. |
+| `NativeMethods.StrCmpLogicalW` | same | Natural Windows Explorer filename sorting. |
+| `NativeMethods.NotifyShellAssociationChanged` | same | Broadcasts `SHChangeNotify(SHCNE_ASSOCCHANGED)` to refresh Explorer context menus. |
 
 ## UI components and handlers
 
@@ -202,10 +223,11 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `ClipboardHistoryWindow.xaml` | Searchable list, copy, remove, clear, sensitive note. |
 | `QrResultWindow` | `Views/QrResultWindow.xaml.cs` | Shows decoded QR payload, format, clickable QR image thumbnail, copy text, save text, and save QR image. |
 | `PinWindow.xaml` | Frameless always-on-top image, drag, wheel zoom, Ctrl+wheel opacity, right-click menu. |
+| `UploadProgressWindow.xaml` | Non-topmost, taskbar-minimizable cloud upload progress popup with real-time byte percentage, cancel on close, auto-copy link on completion, and inline Copy icon button. |
 | `ToastWindow.xaml` | Non-intrusive toast, bottom-right, click-through. |
 | `TrayIconManager.cs` | Packaged CryoUtils icon with custom `DarkMenuRenderer`, rounded pill hover, custom anti-aliased chevrons, floor width constraints, full RTL support, capture, delayed capture submenu, record, color picker, QR suite submenu, clipboard history, dynamic pin/unpin/reset items, dashboard, settings, and exit. |
-| `RecentCaptureService.cs` | In-memory recent capture manager with `INotifyPropertyChanged` item model, inline delete confirmation, and dimension/filesize formatting. |
-| `CryoIcon` / `IconData` | Vector geometry resources used by XAML (`Home`, `Keyboard`, `Info`, `Edit`, `Tools`, `Record`, `Menu`, `Check`, `Folder`, `Trash`, `Capture`, `Droplet`, `Pin`, `Compress`, `Clipboard`, `Settings`, `Close`, `Power`, `QrCode`, `Contrast`). |
+| `RecentCaptureService.cs` | Manages `Items` (`Session`) and `AllTimeItems` (`EffectiveSaveFolder`), lazy disk thumbnails, inline delete confirmation, `ReloadAllTime()`, `NotifyFilesDeleted()`, and dimension/filesize formatting. |
+| `CryoIcon` / `IconData` | Vector geometry resources used by XAML (`Home`, `Keyboard`, `Info`, `Edit`, `Tools`, `Record`, `Menu`, `Minimize`, `Check`, `Folder`, `Trash`, `Capture`, `Droplet`, `Pin`, `Compress`, `Clipboard`, `Settings`, `Close`, `Power`, `QrCode`, `Contrast`, `CloudUpload`). |
 
 ## Reuse rules
 

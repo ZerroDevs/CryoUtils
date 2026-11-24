@@ -42,6 +42,7 @@ namespace CryoUtils.Views
 
             RecentItems.ItemsSource = RecentCaptureService.Instance.Items;
             RecentCaptureService.Instance.Items.CollectionChanged += RecentItems_CollectionChanged;
+            RecentCaptureService.Instance.AllTimeItems.CollectionChanged += RecentItems_CollectionChanged;
             TopmostService.Instance.StateChanged += RefreshPinnedState;
             ClipboardService.Instance.Changed += RefreshClipboardState;
             LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
@@ -136,6 +137,12 @@ namespace CryoUtils.Views
                 ChkPinnedFrame.IsChecked = settings.ShowPinnedBorder;
                 ChkPinnedSound.IsChecked = settings.PinnedBorderSound;
                 ChkContextMenu.IsChecked = settings.ContextMenuEnabled;
+                TxtSavedLimit.Text = Math.Clamp(settings.SavedCapturesLimit, 0, 10000).ToString(CultureInfo.InvariantCulture);
+                SelectTag(
+                    CmbRecentScope,
+                    string.Equals(settings.RecentCapturesScope, "AllTime", StringComparison.OrdinalIgnoreCase)
+                        ? "AllTime"
+                        : "Session");
                 ChkAutoUpdates.IsChecked = settings.AutomaticUpdateChecks;
                 ChkSaveRollback.IsChecked = settings.SaveRollbackOnUpdate;
 
@@ -161,7 +168,7 @@ namespace CryoUtils.Views
             TxtAboutVersion.Text = LocalizationService.Format("About_Version", version);
             RefreshHotkeyRows();
             RefreshRecentColors();
-            RefreshRecentStrip();
+            ApplyRecentScope();
             RefreshPinnedState();
             RefreshClipboardState();
             RefreshRollbackUi();
@@ -266,6 +273,10 @@ namespace CryoUtils.Views
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
+            if (TxtSavedLimit != null && TxtSavedLimit.IsKeyboardFocusWithin)
+            {
+                TxtSavedLimit_LostFocus(TxtSavedLimit, new RoutedEventArgs());
+            }
             ResetQuitConfirmState();
             SaveWindowPosition();
             Hide();
@@ -291,6 +302,13 @@ namespace CryoUtils.Views
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.Enter && TxtSavedLimit != null && TxtSavedLimit.IsKeyboardFocusWithin)
+            {
+                TxtSavedLimit_LostFocus(TxtSavedLimit, new RoutedEventArgs());
+                Keyboard.ClearFocus();
+                e.Handled = true;
+                return;
+            }
             if (e.Key == Key.Escape && !(Keyboard.FocusedElement is TextBox))
             {
                 Hide();
@@ -367,6 +385,11 @@ namespace CryoUtils.Views
             if (target != null && target.IsChecked != true)
             {
                 target.IsChecked = true;
+            }
+
+            if (!_initializing && _currentTab == "Overview")
+            {
+                ApplyRecentScope();
             }
         }
 
@@ -591,6 +614,26 @@ namespace CryoUtils.Views
             TxtSaveFolder.Text = dialog.FolderName;
             SettingsService.Instance.Current.SaveFolder = dialog.FolderName;
             SettingsService.Instance.Save();
+            ApplyRecentScope();
+        }
+
+        private void TxtSavedLimit_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_loading || _initializing)
+            {
+                return;
+            }
+
+            if (!int.TryParse(TxtSavedLimit.Text, out int limit))
+            {
+                limit = 50;
+            }
+            limit = Math.Clamp(limit, 0, 10000);
+            TxtSavedLimit.Text = limit.ToString(CultureInfo.InvariantCulture);
+            SettingsService.Instance.Current.SavedCapturesLimit = limit;
+            SettingsService.Instance.SaveWithoutNotification();
+            ScreenCaptureService.EnforceSavedCaptureLimit();
+            ApplyRecentScope();
         }
 
         private void BtnUseFallback_Click(object sender, RoutedEventArgs e)
@@ -793,6 +836,39 @@ namespace CryoUtils.Views
         }
 
         // ============================ Recent ============================
+        private void CmbRecentScope_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading || _initializing)
+            {
+                return;
+            }
+
+            string scope = SelectedTag(CmbRecentScope) ?? "Session";
+            SettingsService.Instance.Current.RecentCapturesScope = scope;
+            SettingsService.Instance.SaveWithoutNotification();
+            ApplyRecentScope();
+        }
+
+        private void ApplyRecentScope()
+        {
+            bool allTime = string.Equals(
+                SettingsService.Instance.Current.RecentCapturesScope,
+                "AllTime",
+                StringComparison.OrdinalIgnoreCase);
+
+            if (allTime)
+            {
+                RecentCaptureService.Instance.ReloadAllTime();
+                RecentItems.ItemsSource = RecentCaptureService.Instance.AllTimeItems;
+            }
+            else
+            {
+                RecentItems.ItemsSource = RecentCaptureService.Instance.Items;
+            }
+
+            RefreshRecentStrip();
+        }
+
         private void RecentItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             Dispatcher.BeginInvoke(new Action(RefreshRecentStrip));
@@ -800,9 +876,9 @@ namespace CryoUtils.Views
 
         private void RefreshRecentStrip()
         {
-            bool hasItems = RecentCaptureService.Instance.Items.Count > 0;
+            bool hasItems = (RecentItems.ItemsSource as System.Collections.ICollection)?.Count > 0;
             RecentEmpty.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
-            RecentItems.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+            RecentScroll.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void RecentThumbnail_Click(object sender, MouseButtonEventArgs e)
@@ -812,12 +888,26 @@ namespace CryoUtils.Views
                 return;
             }
 
+            if (!string.IsNullOrEmpty(capture.Path) &&
+                File.Exists(capture.Path) &&
+                string.Equals(IOPath.GetExtension(capture.Path), ".mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(capture.Path) { UseShellExecute = true });
+                }
+                catch
+                {
+                }
+                return;
+            }
+
             var bitmap = capture.Image;
             if (bitmap == null && !string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path))
             {
                 try
                 {
-                    bitmap = ImageIO.DecodeBytes(File.ReadAllBytes(capture.Path));
+                    bitmap = ImageProcessingService.LoadWpfBitmap(capture.Path);
                 }
                 catch
                 {
@@ -841,7 +931,29 @@ namespace CryoUtils.Views
 
             try
             {
-                Clipboard.SetImage(capture.Image);
+                if (!string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path) &&
+                    (IOPath.GetExtension(capture.Path).Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                     IOPath.GetExtension(capture.Path).Equals(".gif", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var files = new System.Collections.Specialized.StringCollection { capture.Path };
+                    Clipboard.SetFileDropList(files);
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
+                    return;
+                }
+
+                var bitmap = capture.Image;
+                if (bitmap == null && !string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path))
+                {
+                    bitmap = ImageProcessingService.LoadWpfBitmap(capture.Path);
+                }
+
+                if (bitmap == null)
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_FolderMissing"));
+                    return;
+                }
+
+                Clipboard.SetImage(bitmap);
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
             }
             catch
@@ -860,12 +972,18 @@ namespace CryoUtils.Views
             string? path = capture.Path;
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
+                if (capture.Image is not BitmapSource srcBitmap)
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Tools_CompressFailed"));
+                    return;
+                }
+
                 try
                 {
                     string folder = IOPath.Combine(IOPath.GetTempPath(), "CryoUtils");
                     Directory.CreateDirectory(folder);
                     path = IOPath.Combine(folder, ScreenCaptureService.CreateTimestampedFileName(".png"));
-                    ImageIO.SaveBitmap(capture.Image, path);
+                    ImageIO.SaveBitmap(srcBitmap, path);
                 }
                 catch
                 {
@@ -881,25 +999,39 @@ namespace CryoUtils.Views
 
         private void RecentOpenFolder_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as FrameworkElement)?.Tag is not RecentCapture capture ||
-                string.IsNullOrEmpty(capture.Path) ||
-                !File.Exists(capture.Path))
+            if ((sender as FrameworkElement)?.Tag is RecentCapture capture &&
+                !string.IsNullOrEmpty(capture.Path) &&
+                File.Exists(capture.Path))
             {
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_FolderMissing"));
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"/select,\"{capture.Path}\"",
+                        UseShellExecute = true
+                    });
+                }
+                catch
+                {
+                }
                 return;
             }
 
             try
             {
+                string folder = SettingsService.Instance.EffectiveSaveFolder;
+                Directory.CreateDirectory(folder);
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "explorer.exe",
-                    Arguments = $"/select,\"{capture.Path}\"",
+                    Arguments = $"\"{folder}\"",
                     UseShellExecute = true
                 });
             }
             catch
             {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_FolderMissing"));
             }
         }
 
@@ -1938,6 +2070,7 @@ namespace CryoUtils.Views
         protected override void OnClosed(EventArgs e)
         {
             RecentCaptureService.Instance.Items.CollectionChanged -= RecentItems_CollectionChanged;
+            RecentCaptureService.Instance.AllTimeItems.CollectionChanged -= RecentItems_CollectionChanged;
             TopmostService.Instance.StateChanged -= RefreshPinnedState;
             ClipboardService.Instance.Changed -= RefreshClipboardState;
             LocalizationService.Instance.LanguageChanged -= OnLanguageChanged;

@@ -2,7 +2,33 @@
 
 Last updated: 2026-11-24
 
-## Latest turn — Fix Windows Explorer cascading context submenu expansion
+## Latest turn — Recent Captures Scope Dropdown (Session / All time) & Saved Limit
+
+- **Recent Captures Scope Dropdown & Auto-Pruned History Limit**:
+  - Replaced static `Session` pill with `CmbRecentScope` (`Session` vs `All time`) persisted via `AppSettings.RecentCapturesScope`. `All time` loads all saved captures (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.mp4`) from `EffectiveSaveFolder` using lock-free downscaled thumbnails (`ImageIO.LoadThumbnail` / video placeholder) inside a scrollable strip (`MaxHeight="340"`).
+  - Added `SavedCapturesLimit` setting (default `50`, `0` = unlimited) via `TxtSavedLimit` in `PanelGeneral` (`Settings`) and `ScreenCaptureService.EnforceSavedCaptureLimit()` which deletes the oldest saved files once exceeded and prunes stale `RecentCaptureService` cards.
+- **Previous Session Work — Minimizable Upload Progress Popup & Expanded Context Menu Suite**:
+
+- **Minimizable Cloud Upload Popup (`UploadProgressWindow`, `CloudUploadService`)**:
+  - Replaced silent `ByteArrayContent` upload with streaming 32 KB `ProgressStreamContent` (`CloudUploadService.UploadImageAsync` and `UploadFileAsync`) reporting real-time byte progress and cancellation up to 10 minutes (`200 MB` Catbox limit).
+  - Created `Views/UploadProgressWindow.xaml(.cs)` with `Topmost="False"`, `ResizeMode="CanMinimize"`, `ShowInTaskbar="True"`, taskbar progress indicator, progress bar (`%` + transferred bytes), auto-copy on completion, and an inline Copy icon button (`IconData.Copy` -> `IconData.Check`).
+  - Created `Views/UploadProgressWindow.xaml(.cs)` with `Topmost="False"`, `ResizeMode="CanMinimize"`, `ShowInTaskbar="True"`, taskbar progress indicator, progress bar (`%` + transferred bytes), auto-copy on completion, inline Copy icon button (`IconData.Copy` -> `IconData.Check`), and 30-second auto-close countdown (`StartAutoCloseCountdown`).
+  - Fixed header `Open folder` link (`MainWindow.RecentOpenFolder_Click`) to open `SettingsService.Instance.EffectiveSaveFolder` directly when `Tag` is null, and removed the redundant per-card folder icon button in `MainWindow.xaml`.
+  - Auto-saved copied screenshots (`CaptureController.CopySelection`), cloud-uploaded screenshots (`CaptureController.UploadSelectionAsync`), and copied screen recordings (`RecordingBarWindow.BtnStopCopy_Click`) directly into `SettingsService.Instance.EffectiveSaveFolder` (`Pictures\CryoUtils` by default) and attached their real paths to `RecentCaptureService` so `Open folder`, file size badges, `Compress`, and disk `Delete` work on every capture.
+  - Wired into both Screenshot overlay (`CaptureController.UploadSelectionAsync`) and Explorer context menu (`--action upload-file`).
+- **Expanded Zero-Bloat Windows Context Menu (`CryoContextMenuService`, `App.xaml.cs`, `FileToolsService`)**:
+  - **Images & GIF**: Split across `CryoUtils` (10 top rows + `Resize >` group for `50%`, `1920px`, `512px`, `Quick Compress`, `Remove Background`, `Trim Alpha`, `Strip EXIF`, `Extract Text (OCR)`, `Scan QR Code`, `Copy Image Pixels`, `Pin on Screen`, `Upload & Copy Link`) and sibling `CryoUtils Convert` (`PNG`, `JPG`, `WebP`, `ICO`, `PDF`, `Flatten White JPG`, `Extract GIF Frames`, `Copy Base64 URI`) — cleanly staying below Windows `shell32.dll`'s 16-subcommand static cascade cap.
+  - **Video & Audio**: `Compress Video (10 MB Discord)`, `Mute Video` (using `MediaClip.Volume = 0` + `MediaComposition.CreateDefaultEncodingProfile()`), `Grab Thumbnail (JPG)`, `Video to GIF`, `Video/Audio <-> MP3/WAV/M4A`.
+  - **PDF**: `Grayscale / Print-Ready PDF` and `Rotate Pages (90° / 180°)` + `Upload & Copy Link` alongside existing exports and compress.
+  - **Data/Text & All Files (`*`)**: `Prettify / Minify JSON`, `Prettify XML`, `Generate QR Code`, `Copy SHA-256 / MD5 Checksum`, `Upload & Copy Link`.
+  - **Folders (`Directory`)**: Natural-sorted (`StrCmpLogicalW`) `Folder Images -> Single PDF`, `Folder Images -> Animated GIF`, and `Batch Compress All Images` into `_compressed`.
+  - Window-owning CLI actions (`upload-file`, `ocr-text`, `scan-qr`, `pin-image`, `text-to-qr`) keep the process alive until closed cleanly; error paths set `Environment.ExitCode = 1`.
+- **Localization & Verification**:
+  - `Strings.en.xaml` and `Strings.ar.xaml` both have `435` keys (`DiffCount=0`).
+  - Both `Release` and `Debug` builds succeed with `0` warnings and `0` errors.
+  - Verified with `IContextMenu3` Windows Shell COM probe across 9 target types, 18 file/audio/clipboard E2E outputs, 5 video E2E tests (`compress`, `mute` x2, `thumbnail`, `gif`), and live Catbox `UploadProgressWindow` auto-copy + lifecycle.
+
+## Previous turn — Fix Windows Explorer cascading context submenu expansion
 
 - **Root Cause of Empty Submenu**:
   - Setting a non-empty `(Default)` string value on the parent `CryoUtils` cascade key (`"" = "CryoUtils"`) causes Windows Shell's `CRegistryVerb` handler to populate `0` submenu items during `WM_INITMENUPOPUP`, leaving the `CryoUtils >` flyout completely blank.

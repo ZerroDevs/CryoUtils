@@ -1,0 +1,190 @@
+<Window x:Class="CryoUtils.Views.UploadProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:CryoUtils.Views"
+        Title="{DynamicResource Upload_Title}"
+        Width="384" SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="CanMinimize"
+        ShowInTaskbar="True"
+        Topmost="False"
+        WindowStartupLocation="Manual"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        FontFamily="{StaticResource SegoeUIVariableText}"
+        Icon="pack://application:,,,/Images/CryoUtils.ico"
+        Closing="Window_Closing">
+
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo x:Name="TaskbarProgress" ProgressState="Normal" ProgressValue="0"/>
+    </Window.TaskbarItemInfo>
+
+    <Border Background="{DynamicResource WindowBackgroundBrush}"
+            BorderBrush="{DynamicResource WindowBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            ClipToBounds="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="36"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Draggable compact title bar with Minimize & Close -->
+            <Grid Grid.Row="0"
+                  Background="{DynamicResource TitleBarBackgroundBrush}"
+                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,8,0">
+                    <Path x:Name="PathHeaderIcon"
+                          Data="{x:Static views:IconData.CloudUpload}"
+                          Stroke="{DynamicResource AccentBrush}"
+                          StrokeThickness="1.5"
+                          Width="14" Height="14"
+                          Stretch="Uniform"
+                          Margin="0,0,8,0"/>
+                    <TextBlock x:Name="TxtStatusTitle"
+                               Text="{DynamicResource Upload_Title}"
+                               Foreground="{DynamicResource TextTitleBrush}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
+                    <Button x:Name="BtnMinimize"
+                            Style="{StaticResource TitleActionBtn}"
+                            Width="28" Height="26"
+                            Click="BtnMinimize_Click"
+                            ToolTip="{DynamicResource Upload_Minimize}"
+                            AutomationProperties.Name="{DynamicResource Upload_Minimize}">
+                        <Path Data="{x:Static views:IconData.Minimize}"
+                              Stroke="{DynamicResource IconBrush}"
+                              StrokeThickness="1.5"
+                              Width="11" Height="11"
+                              Stretch="Uniform"/>
+                    </Button>
+                    <Button x:Name="BtnClose"
+                            Style="{StaticResource TitleActionBtn}"
+                            Width="28" Height="26"
+                            Click="BtnClose_Click"
+                            ToolTip="{DynamicResource Common_Close}"
+                            AutomationProperties.Name="{DynamicResource Common_Close}">
+                        <Path Data="{x:Static views:IconData.Close}"
+                              Stroke="{DynamicResource IconBrush}"
+                              StrokeThickness="1.5"
+                              Width="11" Height="11"
+                              Stretch="Uniform"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- Content body -->
+            <StackPanel Grid.Row="1" Margin="14,10,14,14">
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TxtFileName"
+                               Grid.Column="0"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="12"
+                               FontWeight="Medium"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"
+                               FlowDirection="LeftToRight"/>
+                    <TextBlock x:Name="TxtFileSize"
+                               Grid.Column="1"
+                               Style="{StaticResource UnitText}"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Progress bar -->
+                <ProgressBar x:Name="UploadBar"
+                             Minimum="0" Maximum="100" Value="0"
+                             Height="6"
+                             Margin="0,0,0,6"
+                             Background="{DynamicResource InsetBackgroundBrush}"
+                             Foreground="{DynamicResource AccentBrush}"
+                             BorderThickness="0">
+                    <ProgressBar.Template>
+                        <ControlTemplate TargetType="ProgressBar">
+                            <Grid x:Name="TemplateRoot">
+                                <Border x:Name="PART_Track"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"/>
+                                <Border x:Name="PART_Indicator"
+                                        HorizontalAlignment="Left"
+                                        Background="{TemplateBinding Foreground}"
+                                        CornerRadius="3"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </ProgressBar.Template>
+                </ProgressBar>
+
+                <TextBlock x:Name="TxtProgress"
+                           Style="{StaticResource MutedText}"
+                           FontFamily="{StaticResource CryoMono}"
+                           FontSize="10.5"
+                           FlowDirection="LeftToRight"
+                           Margin="0,0,0,10"/>
+
+                <!-- URL box + Copy icon button -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource InsetBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderStrongBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="8,5">
+                        <TextBox x:Name="TxtUrl"
+                                 Text=""
+                                 IsReadOnly="True"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 Foreground="{DynamicResource AccentTextBrush}"
+                                 FontFamily="{StaticResource CryoMono}"
+                                 FontSize="11"
+                                 VerticalContentAlignment="Center"
+                                 FlowDirection="LeftToRight"/>
+                    </Border>
+
+                    <Button x:Name="BtnCopy"
+                            Grid.Column="1"
+                            Style="{StaticResource IconButton}"
+                            Width="32" Height="30"
+                            Margin="6,0,0,0"
+                            IsEnabled="False"
+                            Background="{DynamicResource PanelAltBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderStrongBrush}"
+                            Click="BtnCopy_Click"
+                            ToolTip="{DynamicResource Common_Copy}"
+                            AutomationProperties.Name="{DynamicResource Common_Copy}">
+                        <Path x:Name="PathCopyIcon"
+                              Data="{x:Static views:IconData.Copy}"
+                              Stroke="{DynamicResource IconBrush}"
+                              StrokeThickness="1.5"
+                              Width="14" Height="14"
+                              Stretch="Uniform"/>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

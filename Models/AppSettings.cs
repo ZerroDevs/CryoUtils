@@ -43,6 +43,8 @@ namespace CryoUtils.Models
         // Capture
         public string SaveFolder { get; set; } = "";
         public bool QuickSave { get; set; } = false;
+        public int SavedCapturesLimit { get; set; } = 50;
+        public string RecentCapturesScope { get; set; } = "Session"; // "Session" or "AllTime"
         public string ImageFormat { get; set; } = "PNG"; // PNG, JPG, WEBP
         public bool AutoCopyCapture { get; set; } = true;
         public bool CaptureSound { get; set; } = false;

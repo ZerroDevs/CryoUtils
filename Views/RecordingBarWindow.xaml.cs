@@ -255,7 +255,7 @@ namespace CryoUtils.Views
             }
 
             string extension = _format == "MP4" ? ".mp4" : ".gif";
-            string folder = Path.Combine(Path.GetTempPath(), "CryoUtils");
+            string folder = SettingsService.Instance.EffectiveSaveFolder;
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, ScreenCaptureService.CreateTimestampedFileName(extension));
             await EncodeAndCloseAsync(result, path, copyToClipboard: true);
@@ -285,9 +285,10 @@ namespace CryoUtils.Views
                 });
 
                 var preview = ImageIO.DecodeBytes(result.PngFrames[0]);
+                ScreenCaptureService.EnforceSavedCaptureLimit();
                 RecentCaptureService.Instance.Add(
                     preview,
-                    copyToClipboard ? null : path,
+                    path,
                     LocalizationService.Get("Rec_Title"));
 
                 if (copyToClipboard)

@@ -336,7 +336,7 @@
     <sys:String x:Key="Main_TooltipQuit">إغلاق كرايويوتيلز (انقر مرتين)</sys:String>
     <sys:String x:Key="Main_TooltipQuitConfirm">انقر مرة أخرى للإغلاق</sys:String>
     <sys:String x:Key="General_ContextMenuTitle">قائمة مستكشف ويندوز (زر الفأرة الأيمن)</sys:String>
-    <sys:String x:Key="General_ContextMenuDesc">إضافة أدوات كرايويوتيلز إلى قائمة النقر الأيمن لملفات PDF والصور والفيديو.</sys:String>
+    <sys:String x:Key="General_ContextMenuDesc">إضافة أدوات كرايويوتيلز إلى قائمة النقر الأيمن للصور وملفات PDF والوسائط والملفات والمجلدات.</sys:String>
     <sys:String x:Key="Context_PdfToPng">تصدير إلى صور PNG</sys:String>
     <sys:String x:Key="Context_PdfToJpg">تصدير إلى صور JPG</sys:String>
     <sys:String x:Key="Context_CompressPdf">ضغط ملف PDF</sys:String>
@@ -355,6 +355,10 @@
     <sys:String x:Key="Recent_DeleteConfirm">حذف {0}؟ سيُحذف الملف من القرص.</sys:String>
     <sys:String x:Key="Recent_DeleteFailed">تعذر حذف هذا العنصر.</sys:String>
     <sys:String x:Key="Recent_FolderMissing">لا يوجد ملف محفوظ لهذا العنصر.</sys:String>
+    <sys:String x:Key="Recent_ScopeSession">الجلسة</sys:String>
+    <sys:String x:Key="Recent_ScopeAllTime">كل المحفوظات</sys:String>
+    <sys:String x:Key="General_SavedLimit">حد اللقطات المحفوظة</sys:String>
+    <sys:String x:Key="General_SavedLimitDesc">يحذف أقدم اللقطات المحفوظة تلقائياً عند تجاوز الحد (الافتراضي 50، و0 = غير محدود).</sys:String>
     <sys:String x:Key="Tools_ClipboardCount">{0} عنصر في الذاكرة</sys:String>
     <sys:String x:Key="Tools_ClipboardDisabled">سجل الحافظة متوقف.</sys:String>
 
@@ -423,4 +427,48 @@
     <sys:String x:Key="Qr_NotFound">لم يُعثر على رمز QR في التحديد.</sys:String>
     <sys:String x:Key="Qr_Found">تم فك رمز QR.</sys:String>
     <sys:String x:Key="Capture_ToolQr">مسح رمز QR</sys:String>
+
+    <sys:String x:Key="Upload_Title">جارٍ الرفع إلى السحابة</sys:String>
+    <sys:String x:Key="Upload_Complete">اكتمل الرفع</sys:String>
+    <sys:String x:Key="Upload_Failed">فشل الرفع</sys:String>
+    <sys:String x:Key="Upload_Cancelled">تم إلغاء الرفع</sys:String>
+    <sys:String x:Key="Upload_Minimize">تصغير</sys:String>
+    <sys:String x:Key="Upload_Placeholder">بانتظار الرابط...</sys:String>
+    <sys:String x:Key="Upload_Finalizing">جارٍ تجهيز الرابط...</sys:String>
+    <sys:String x:Key="Upload_DoneCopied">اكتمل — تم نسخ الرابط للحافظة</sys:String>
+    <sys:String x:Key="Upload_DoneClosingFmt">اكتمل — تم نسخ الرابط · يُغلق خلال {0}ث</sys:String>
+    <sys:String x:Key="Upload_ProgressFmt">{0}% · {1} / {2}</sys:String>
+
+    <sys:String x:Key="Context_TopConvert">CryoUtils للتحويل</sys:String>
+    <sys:String x:Key="Context_GroupResize">تغيير الحجم</sys:String>
+    <sys:String x:Key="Context_FlattenWhite">دمج الشفافية (خلفية بيضاء JPG)</sys:String>
+    <sys:String x:Key="Context_ExtractGifFrames">استخراج إطارات GIF (PNG)</sys:String>
+    <sys:String x:Key="Context_CopyBase64">نسخ كرابط Base64</sys:String>
+    <sys:String x:Key="Context_Resize50">تصغير 50%</sys:String>
+    <sys:String x:Key="Context_Resize1920">تحجيم لعرض 1920px</sys:String>
+    <sys:String x:Key="Context_Resize512">تحجيم لأيقونة 512px</sys:String>
+    <sys:String x:Key="Context_TrimAlpha">قص الحواف الشفافة</sys:String>
+    <sys:String x:Key="Context_ExtractOcr">استخراج النص (OCR)</sys:String>
+    <sys:String x:Key="Context_ScanQr">مسح رمز QR</sys:String>
+    <sys:String x:Key="Context_CopyPixels">نسخ الصورة إلى الحافظة</sys:String>
+    <sys:String x:Key="Context_PinImage">تثبيت على الشاشة</sys:String>
+    <sys:String x:Key="Context_UploadLink">رفع ونسخ الرابط</sys:String>
+    <sys:String x:Key="Context_PdfGrayscale">تحويل PDF لتدرج رمادي (للطباعة)</sys:String>
+    <sys:String x:Key="Context_PdfRotate90">تدوير الصفحات (90°)</sys:String>
+    <sys:String x:Key="Context_PdfRotate180">تدوير الصفحات (180°)</sys:String>
+    <sys:String x:Key="Context_VideoCompress">ضغط الفيديو (10 ميجا ديسكورد)</sys:String>
+    <sys:String x:Key="Context_VideoMute">كتم الصوت من الفيديو</sys:String>
+    <sys:String x:Key="Context_VideoThumbnail">حفظ صورة مصغرة (JPG)</sys:String>
+    <sys:String x:Key="Context_AudioToMp3">تحويل إلى MP3</sys:String>
+    <sys:String x:Key="Context_AudioToWav">تحويل إلى WAV</sys:String>
+    <sys:String x:Key="Context_AudioToM4a">تحويل إلى M4A (AAC)</sys:String>
+    <sys:String x:Key="Context_JsonPretty">تنسيق JSON</sys:String>
+    <sys:String x:Key="Context_JsonMinify">ضغط JSON</sys:String>
+    <sys:String x:Key="Context_XmlPretty">تنسيق XML</sys:String>
+    <sys:String x:Key="Context_TextToQr">توليد رمز QR</sys:String>
+    <sys:String x:Key="Context_CopySha256">نسخ بصمة SHA-256</sys:String>
+    <sys:String x:Key="Context_CopyMd5">نسخ بصمة MD5</sys:String>
+    <sys:String x:Key="Context_DirImgsToPdf">دمج صور المجلد في PDF واحد</sys:String>
+    <sys:String x:Key="Context_DirImgsToGif">تحويل صور المجلد إلى GIF متحرك</sys:String>
+    <sys:String x:Key="Context_DirCompressImgs">ضغط جميع الصور بالمجلد</sys:String>
 </ResourceDictionary>

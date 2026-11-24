@@ -429,7 +429,21 @@ namespace CryoUtils.Views
             return target;
         }
 
-        public async void UploadSelectionAsync()
+        private static string? TryQuickSaveCapture(BitmapSource bitmap, string? overrideExtension = null)
+        {
+            try
+            {
+                string extension = overrideExtension
+                    ?? ImageIO.ExtensionForFormat(SettingsService.Instance.Current.ImageFormat);
+                return ScreenCaptureService.QuickSave(bitmap, extension);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public void UploadSelectionAsync()
         {
             var bitmap = RenderSelection();
             if (bitmap == null)
@@ -438,43 +452,25 @@ namespace CryoUtils.Views
                 return;
             }
 
-            var app = Application.Current as App;
-            app?.ShowToast(LocalizationService.Get("Capture_Uploading"));
+            string? savedPath = TryQuickSaveCapture(bitmap);
+            string? displayName = string.IsNullOrEmpty(savedPath) ? null : System.IO.Path.GetFileName(savedPath);
+
             CloseAll();
-
-            try
-            {
-                string url = await CloudUploadService.UploadImageAsync(bitmap);
-                try
+            UploadProgressWindow.StartCaptureUpload(
+                bitmap,
+                onSuccess: url => RecentCaptureService.Instance.Add(bitmap, savedPath, url),
+                onFailure: _ =>
                 {
-                    Clipboard.SetText(url);
-                }
-                catch
-                {
-                    var data = new DataObject();
-                    data.SetText(url);
-                    Clipboard.SetDataObject(data, true);
-                }
-
-                RecentCaptureService.Instance.Add(bitmap, null, url);
-                if (SettingsService.Instance.Current.CaptureSound)
-                {
-                    NativeMethods.MessageBeep(0x40);
-                }
-                app?.ShowToast(LocalizationService.Format("Capture_UploadSuccess", url));
-            }
-            catch (Exception ex)
-            {
-                try
-                {
-                    Clipboard.SetImage(bitmap);
-                }
-                catch
-                {
-                }
-                RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Nav_Capture"));
-                app?.ShowToast(LocalizationService.Format("Capture_UploadFailed", ex.Message));
-            }
+                    try
+                    {
+                        Clipboard.SetImage(bitmap);
+                    }
+                    catch
+                    {
+                    }
+                    RecentCaptureService.Instance.Add(bitmap, savedPath, LocalizationService.Get("Nav_Capture"));
+                },
+                fileName: displayName);
         }
 
         public void CopySelection()
@@ -503,7 +499,8 @@ namespace CryoUtils.Views
                 }
             }
 
-            RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Nav_Capture"));
+            string? savedPath = TryQuickSaveCapture(bitmap);
+            RecentCaptureService.Instance.Add(bitmap, savedPath, LocalizationService.Get("Nav_Capture"));
             if (SettingsService.Instance.Current.CaptureSound)
             {
                 NativeMethods.MessageBeep(0x40);
@@ -627,14 +624,7 @@ namespace CryoUtils.Views
                     return;
                 }
 
-                string? savedPath = null;
-                try
-                {
-                    savedPath = ScreenCaptureService.QuickSave(bitmap, ".png");
-                }
-                catch
-                {
-                }
+                string? savedPath = TryQuickSaveCapture(bitmap, ".png");
 
                 RecentCaptureService.Instance.Add(bitmap, savedPath, LocalizationService.Get("Tools_QrTitle"));
 

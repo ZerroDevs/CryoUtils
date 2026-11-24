@@ -42,6 +42,7 @@ namespace CryoUtils.Views
         public const string Tools = "M3,3 L9,3 L9,9 L3,9 Z M13,3 L19,3 L19,9 L13,9 Z M3,13 L9,13 L9,19 L3,19 Z M13,13 L19,13 L19,19 L13,19 Z";
         public const string Menu = "M3,5 L17,5 M3,10 L17,10 M3,15 L17,15";
         public const string Power = "M10,2.5 L10,9.5 M5.8,5.5 A6.5,6.5 0 1 0 14.2,5.5";
+        public const string Minimize = "M4,14 L16,14";
         public const string CloudUpload = "M4,15 A4,4 0 0 1 4,8 A5.5,5.5 0 0 1 14.5,5.5 A4.5,4.5 0 0 1 18,12 A3.5,3.5 0 0 1 16.5,18 L5,18 M11,10 L11,16 M8,12 L11,9 L14,12";
 
         public static Geometry GeometryFor(string data, bool filled = false)

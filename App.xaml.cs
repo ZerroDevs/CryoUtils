@@ -18,6 +18,7 @@ namespace CryoUtils
         private ColorPickerWindow? _colorPicker;
         private ClipboardHistoryWindow? _clipboardWindow;
         private ToastWindow? _toast;
+        private string? _lastLanguage;
         private bool _captureRestoresDashboard;
         private bool _pickerRestoresDashboard;
         private bool _exiting;
@@ -34,6 +35,7 @@ namespace CryoUtils
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 
             var settings = SettingsService.Instance.Current;
+            _lastLanguage = settings.Language;
             ThemeService.Initialize(settings.Theme);
             LocalizationService.Instance.Apply(settings.Language);
             StartupService.SetEnabled(settings.StartWithWindows);
@@ -280,6 +282,14 @@ namespace CryoUtils
             var settings = SettingsService.Instance.Current;
             ThemeService.Apply(settings.Theme);
             LocalizationService.Instance.Apply(settings.Language);
+            if (!string.Equals(_lastLanguage, settings.Language, StringComparison.Ordinal))
+            {
+                _lastLanguage = settings.Language;
+                if (settings.ContextMenuEnabled)
+                {
+                    CryoContextMenuService.RegisterAll();
+                }
+            }
             StartupService.SetEnabled(settings.StartWithWindows);
             ClipboardService.Instance.SetEnabled(settings.ClipboardHistoryEnabled);
             if (!settings.WindowPinnerEnabled)
@@ -388,22 +398,97 @@ namespace CryoUtils
             Shutdown();
         }
 
-        private async Task HandleCliActionAsync(string action, string filePath)
+        private async Task HandleCliActionAsync(string action, string rawTargetPath)
         {
+            bool keepAliveForWindow = false;
             try
             {
-                if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+                string filePath = (rawTargetPath ?? "").Trim().Trim('"');
+                if (string.IsNullOrEmpty(filePath) ||
+                    (!System.IO.File.Exists(filePath) && !System.IO.Directory.Exists(filePath)))
                 {
                     Shutdown();
                     return;
                 }
 
-                string dir = System.IO.Path.GetDirectoryName(filePath) ?? ".";
-                string baseName = System.IO.Path.GetFileNameWithoutExtension(filePath);
-                string ext = System.IO.Path.GetExtension(filePath);
+                bool isDir = System.IO.Directory.Exists(filePath);
+                string dir = isDir ? filePath : (System.IO.Path.GetDirectoryName(filePath) ?? ".");
+                string baseName = isDir
+                    ? new System.IO.DirectoryInfo(filePath).Name
+                    : System.IO.Path.GetFileNameWithoutExtension(filePath);
+                string ext = isDir ? "" : System.IO.Path.GetExtension(filePath);
 
                 switch (action.ToLowerInvariant())
                 {
+                    // Interactive window actions (process stays alive until window closes)
+                    case "upload-file":
+                        keepAliveForWindow = true;
+                        var uploadWin = UploadProgressWindow.StartFileUpload(filePath);
+                        uploadWin.Closed += (_, _) => Shutdown();
+                        return;
+
+                    case "ocr-text":
+                        var ocrBmp = ImageProcessingService.LoadWpfBitmap(filePath);
+                        string recognized = await OcrService.RecognizeAsync(ocrBmp);
+                        if (string.IsNullOrWhiteSpace(recognized))
+                        {
+                            ShowToast(LocalizationService.Get("Capture_OcrEmpty"));
+                            break;
+                        }
+                        CopyTextSafe(recognized);
+                        keepAliveForWindow = true;
+                        var ocrWin = new OcrResultWindow(recognized);
+                        ocrWin.Closed += (_, _) => Shutdown();
+                        ocrWin.Show();
+                        ocrWin.Activate();
+                        return;
+
+                    case "scan-qr":
+                        var qrSrcBmp = ImageProcessingService.LoadWpfBitmap(filePath);
+                        var qrResult = QrCodeService.Decode(qrSrcBmp);
+                        if (qrResult == null || string.IsNullOrWhiteSpace(qrResult.Text))
+                        {
+                            ShowToast(LocalizationService.Get("Qr_NotFound"));
+                            break;
+                        }
+                        CopyTextSafe(qrResult.Text);
+                        keepAliveForWindow = true;
+                        var qrWin = new QrResultWindow(qrResult.Text, qrResult.FormatName, qrSrcBmp);
+                        qrWin.Closed += (_, _) => Shutdown();
+                        qrWin.Show();
+                        qrWin.Activate();
+                        return;
+
+                    case "pin-image":
+                        var pinBmp = ImageProcessingService.LoadWpfBitmap(filePath);
+                        keepAliveForWindow = true;
+                        var pinWin = new PinWindow(pinBmp);
+                        pinWin.Closed += (_, _) => Shutdown();
+                        pinWin.Show();
+                        pinWin.Activate();
+                        return;
+
+                    case "text-to-qr":
+                        string textContent = (await System.IO.File.ReadAllTextAsync(filePath)).Trim();
+                        if (string.IsNullOrWhiteSpace(textContent))
+                        {
+                            ShowToast(LocalizationService.Format("Action_Failed", "File is empty."));
+                            break;
+                        }
+                        if (textContent.Length > 2900)
+                        {
+                            ShowToast(LocalizationService.Format("Action_Failed", "Text too long for QR (max 2900 chars)."));
+                            break;
+                        }
+                        var encodedQr = QrCodeService.Encode(textContent, 512);
+                        keepAliveForWindow = true;
+                        var textQrWin = new QrResultWindow(textContent, "QR_CODE", encodedQr);
+                        textQrWin.Closed += (_, _) => Shutdown();
+                        textQrWin.Show();
+                        textQrWin.Activate();
+                        return;
+
+                    // PDF actions
                     case "pdf-to-png":
                         string pngDir = System.IO.Path.Combine(dir, $"{baseName}_pages");
                         int pages = await PdfToolsService.PdfToImagesAsync(filePath, pngDir, "PNG");
@@ -422,6 +507,25 @@ namespace CryoUtils
                         ShowToast(LocalizationService.Format("Action_Success", $"{baseName}_compressed.pdf ({saved / 1024} KB saved)"));
                         break;
 
+                    case "pdf-grayscale":
+                        string outGrayPdf = System.IO.Path.Combine(dir, $"{baseName}_grayscale.pdf");
+                        await PdfToolsService.ConvertPdfToGrayscaleAsync(filePath, outGrayPdf);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outGrayPdf)));
+                        break;
+
+                    case "pdf-rotate-90":
+                        string outRot90Pdf = System.IO.Path.Combine(dir, $"{baseName}_rot90.pdf");
+                        await PdfToolsService.RotatePdfAsync(filePath, outRot90Pdf, 90);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outRot90Pdf)));
+                        break;
+
+                    case "pdf-rotate-180":
+                        string outRot180Pdf = System.IO.Path.Combine(dir, $"{baseName}_rot180.pdf");
+                        await PdfToolsService.RotatePdfAsync(filePath, outRot180Pdf, 180);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outRot180Pdf)));
+                        break;
+
+                    // Image actions
                     case "img-to-pdf":
                         string outPdf = System.IO.Path.Combine(dir, $"{baseName}.pdf");
                         PdfToolsService.ImagesToPdf(new[] { filePath }, outPdf);
@@ -442,10 +546,58 @@ namespace CryoUtils
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outNoBg)));
                         break;
 
+                    case "trim-alpha":
+                        string outTrim = System.IO.Path.Combine(dir, $"{baseName}_trimmed.png");
+                        var (tw, th) = ImageProcessingService.TrimTransparentMargins(filePath, outTrim);
+                        ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(outTrim)} ({tw}x{th})"));
+                        break;
+
+                    case "flatten-white":
+                        string outFlat = System.IO.Path.Combine(dir, $"{baseName}_flat.jpg");
+                        ImageProcessingService.FlattenWhite(filePath, outFlat);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outFlat)));
+                        break;
+
                     case "strip-exif":
                         string outClean = System.IO.Path.Combine(dir, $"{baseName}_clean{ext}");
                         ImageProcessingService.StripExif(filePath, outClean);
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outClean)));
+                        break;
+
+                    case "resize-50":
+                        string out50 = System.IO.Path.Combine(dir, $"{baseName}_50pct{ext}");
+                        var (w50, h50) = ImageProcessingService.ResizePreset(filePath, out50, "50pct");
+                        ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(out50)} ({w50}x{h50})"));
+                        break;
+
+                    case "resize-1920":
+                        string out1920 = System.IO.Path.Combine(dir, $"{baseName}_1920w{ext}");
+                        var (w19, h19) = ImageProcessingService.ResizePreset(filePath, out1920, "w1920");
+                        ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(out1920)} ({w19}x{h19})"));
+                        break;
+
+                    case "resize-512":
+                        string out512 = System.IO.Path.Combine(dir, $"{baseName}_512px{ext}");
+                        var (w51, h51) = ImageProcessingService.ResizePreset(filePath, out512, "s512");
+                        ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(out512)} ({w51}x{h51})"));
+                        break;
+
+                    case "gif-frames":
+                        string framesDir = System.IO.Path.Combine(dir, $"{baseName}_frames");
+                        int frameCnt = ImageProcessingService.ExtractGifFrames(filePath, framesDir);
+                        ShowToast(LocalizationService.Format("Action_Success", $"{frameCnt} frames -> {baseName}_frames"));
+                        break;
+
+                    case "copy-base64":
+                        string dataUri = ImageProcessingService.ToBase64DataUri(filePath);
+                        CopyTextSafe(dataUri);
+                        ShowToast(LocalizationService.Get("Common_Copied"));
+                        break;
+
+                    case "copy-pixels":
+                        var clipBmp = ImageProcessingService.LoadWpfBitmap(filePath);
+                        CopyImageSafe(clipBmp);
+                        ShowToast(LocalizationService.Get("Capture_Copied"));
                         break;
 
                     case "convert-to-png":
@@ -472,10 +624,42 @@ namespace CryoUtils
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outIco)));
                         break;
 
+                    // Video & Audio actions
+                    case "video-compress":
+                        string outVidComp = System.IO.Path.Combine(dir, $"{baseName}_compressed.mp4");
+                        long vidSaved = await MediaConversionService.CompressVideoForDiscordAsync(filePath, outVidComp);
+                        ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(outVidComp)} ({vidSaved / 1024} KB saved)"));
+                        break;
+
+                    case "video-mute":
+                        string outVidMute = System.IO.Path.Combine(dir, $"{baseName}_muted.mp4");
+                        await MediaConversionService.MuteVideoAsync(filePath, outVidMute);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outVidMute)));
+                        break;
+
+                    case "video-thumbnail":
+                        string outThumb = System.IO.Path.Combine(dir, $"{baseName}_thumb.jpg");
+                        await MediaConversionService.SaveThumbnailAsync(filePath, outThumb);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outThumb)));
+                        break;
+
                     case "video-to-mp3":
-                        string outMp3 = System.IO.Path.Combine(dir, $"{baseName}.mp3");
-                        await MediaConversionService.VideoToAudioAsync(filePath, outMp3);
+                    case "audio-to-mp3":
+                        string outMp3 = SafeOutPath(dir, baseName, ext, ".mp3");
+                        await MediaConversionService.ConvertAudioAsync(filePath, outMp3, "MP3");
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outMp3)));
+                        break;
+
+                    case "audio-to-wav":
+                        string outWav = SafeOutPath(dir, baseName, ext, ".wav");
+                        await MediaConversionService.ConvertAudioAsync(filePath, outWav, "WAV");
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outWav)));
+                        break;
+
+                    case "audio-to-m4a":
+                        string outM4a = SafeOutPath(dir, baseName, ext, ".m4a");
+                        await MediaConversionService.ConvertAudioAsync(filePath, outM4a, "M4A");
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outM4a)));
                         break;
 
                     case "video-to-gif":
@@ -483,20 +667,134 @@ namespace CryoUtils
                         int frames = await MediaConversionService.VideoToGifAsync(filePath, outGif);
                         ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(outGif)} ({frames} frames)"));
                         break;
+
+                    // Developer & Checksums
+                    case "json-pretty":
+                        string outPrettyJson = System.IO.Path.Combine(dir, $"{baseName}.pretty.json");
+                        FileToolsService.FormatJson(filePath, outPrettyJson, indent: true);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outPrettyJson)));
+                        break;
+
+                    case "json-minify":
+                        string outMinJson = System.IO.Path.Combine(dir, $"{baseName}.min.json");
+                        FileToolsService.FormatJson(filePath, outMinJson, indent: false);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outMinJson)));
+                        break;
+
+                    case "xml-pretty":
+                        string outPrettyXml = System.IO.Path.Combine(dir, $"{baseName}.pretty.xml");
+                        FileToolsService.FormatXml(filePath, outPrettyXml);
+                        ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outPrettyXml)));
+                        break;
+
+                    case "hash-sha256":
+                        string sha256 = FileToolsService.ComputeHash(filePath, System.Security.Cryptography.HashAlgorithmName.SHA256);
+                        CopyTextSafe(sha256);
+                        ShowToast($"SHA-256: {sha256[..Math.Min(16, sha256.Length)]}...");
+                        break;
+
+                    case "hash-md5":
+                        string md5 = FileToolsService.ComputeHash(filePath, System.Security.Cryptography.HashAlgorithmName.MD5);
+                        CopyTextSafe(md5);
+                        ShowToast($"MD5: {md5}");
+                        break;
+
+                    // Directory batch tools
+                    case "dir-imgs-pdf":
+                        var dirImgs = FileToolsService.CollectSortedImages(filePath);
+                        if (dirImgs.Count == 0)
+                        {
+                            ShowToast(LocalizationService.Format("Action_Failed", "No images in folder."));
+                            break;
+                        }
+                        string outDirPdf = System.IO.Path.Combine(filePath, $"{baseName}_merged.pdf");
+                        int mergedCount = PdfToolsService.ImagesToPdf(dirImgs, outDirPdf);
+                        ShowToast(LocalizationService.Format("Action_Success", $"{mergedCount} images -> {System.IO.Path.GetFileName(outDirPdf)}"));
+                        break;
+
+                    case "dir-imgs-gif":
+                        string outDirGif = System.IO.Path.Combine(filePath, $"{baseName}.gif");
+                        int gifCount = FileToolsService.FolderImagesToGif(filePath, outDirGif);
+                        ShowToast(gifCount > 0
+                            ? LocalizationService.Format("Action_Success", $"{gifCount} frames -> {System.IO.Path.GetFileName(outDirGif)}")
+                            : LocalizationService.Format("Action_Failed", "No images in folder."));
+                        break;
+
+                    case "dir-compress-imgs":
+                        var (compCount, compSaved) = await FileToolsService.BatchCompressFolderAsync(filePath);
+                        ShowToast(compCount > 0
+                            ? LocalizationService.Format("Action_Success", $"{compCount} images -> _compressed ({compSaved / 1024} KB saved)")
+                            : LocalizationService.Format("Action_Failed", "No images in folder."));
+                        break;
                 }
 
                 await Task.Delay(2600);
             }
             catch (Exception ex)
             {
+                Environment.ExitCode = 1;
                 string logFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "cli.log");
-                System.IO.File.AppendAllText(logFile, $"ERROR: {ex}\n");
+                System.IO.File.AppendAllText(logFile, $"ERROR [{action}]: {ex}\n");
                 ShowToast(LocalizationService.Format("Action_Failed", ex.Message));
-                await Task.Delay(2600);
+                if (!keepAliveForWindow)
+                {
+                    await Task.Delay(2600);
+                }
             }
             finally
             {
-                Shutdown();
+                if (!keepAliveForWindow)
+                {
+                    Shutdown();
+                }
+            }
+        }
+
+        private static string SafeOutPath(string dir, string baseName, string sourceExt, string targetExt)
+        {
+            string name = string.Equals(sourceExt, targetExt, StringComparison.OrdinalIgnoreCase)
+                ? $"{baseName}_converted{targetExt}"
+                : $"{baseName}{targetExt}";
+            return System.IO.Path.Combine(dir, name);
+        }
+
+        private static void CopyTextSafe(string text)
+        {
+            try
+            {
+                Clipboard.SetText(text);
+            }
+            catch
+            {
+                try
+                {
+                    var data = new DataObject();
+                    data.SetText(text);
+                    Clipboard.SetDataObject(data, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void CopyImageSafe(System.Windows.Media.Imaging.BitmapSource bitmap)
+        {
+            try
+            {
+                Clipboard.SetImage(bitmap);
+            }
+            catch
+            {
+                try
+                {
+                    var data = new DataObject();
+                    data.SetImage(bitmap);
+                    Clipboard.SetDataObject(data, true);
+                }
+                catch
+                {
+                }
             }
         }
 

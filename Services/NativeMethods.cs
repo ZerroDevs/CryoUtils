@@ -270,6 +270,9 @@ namespace CryoUtils.Services
             SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
         }
 
+        [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)]
+        public static extern int StrCmpLogicalW(string psz1, string psz2);
+
         [DllImport("shell32.dll")]
         public static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
 
