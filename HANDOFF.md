@@ -42,7 +42,7 @@ Last updated: 2026-11-24
 
 - Version baseline is `0.0.100`; the next patch is `0.0.101`.
 - Release build into a separate verification folder passes with 0 warnings and 0 errors. The normal `bin` build was blocked because a debug `CryoUtils.exe` process (PID 34972) was already running and holding the executable; that process was not killed.
-- `build-installer.ps1` completed successfully: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (53.97 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.65 MB), each with a `.sha256` file.
+- `build-installer.ps1` completed successfully with the new icon: `Installer\Output\CryoUtils-Setup-0.0.100.exe` (54.13 MB) and `release\CryoUtils-0.0.100-win-x64.zip` (76.8 MB), each with a `.sha256` file.
 - Installer and published executable version metadata show `0.0.100`; the portable archive contains `VERSION`, `LICENSE`, and `NOTICE` and no `.pdb` files.
 - The installer was not run on this machine, the GitHub workflow was not executed against GitHub, and the new tray icon was not visually inspected in a running build.
 - The executable icon was extracted from the built `CryoUtils.exe` and inspected at 32 x 32; it matches the new CryoUtils mark.
@@ -57,8 +57,8 @@ Last updated: 2026-11-24
 
 - Release compilation: 0 warnings, 0 errors in `build-check`.
 - Inno Setup compilation succeeded for `CryoUtils-Setup-0.0.100.exe`; Windows version metadata reads `0.0.100`.
-- Setup SHA-256: `17bef86933e2f99f3d05a615857266221387b33c090eaa9abb5bd443db37797f`.
-- Portable zip SHA-256: `65cb1c554755e231787458b444f8fce0c84e191b7fd89273a9b2f874bed48851`.
+- Setup SHA-256: `3d00c4bf271aada160b5e48baf426504395174c308203d7e4583926a6c6568bb`.
+- Portable zip SHA-256: `782a712515e9cbaa35d7f83e27bad4b463e6c038662558589ef34b7879d20cca`.
 - Portable zip: 470 entries; `CryoUtils.exe`, `CryoUtils.dll`, `VERSION`, `LICENSE`, and `NOTICE` present; no `.pdb` entries.
 - OCR workflow, capture, hotkeys, clipboard, compressor, pinner, localization, and themes from the previous verification pass remain unchanged by the packaging work.
 - Startup, dashboard, tray process lifetime. Tray icon visible as `CryoUtils`.
