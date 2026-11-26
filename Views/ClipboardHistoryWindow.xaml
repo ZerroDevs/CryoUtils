@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:CryoUtils.Views"
         Title="{DynamicResource Clip_Title}"
-        Width="600" Height="580"
+        Width="680" Height="680"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -20,11 +20,12 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid>
+            <Grid MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource Clip_Title}" Style="{StaticResource PageTitle}" FontSize="19"/>
                     <TextBlock Text="{DynamicResource Clip_HotkeyHint}" Style="{StaticResource MutedText}" Margin="0,4,0,0" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
@@ -35,11 +36,45 @@
             </Grid>
 
             <Grid Grid.Row="1" Margin="0,14,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
                 <TextBox x:Name="TxtSearch" Style="{StaticResource CryoTextBox}" Height="32" Padding="8,5" TextChanged="TxtSearch_TextChanged" AutomationProperties.Name="{DynamicResource Clip_Search}"/>
                 <TextBlock x:Name="TxtSearchPlaceholder" Text="{DynamicResource Clip_Search}" Foreground="{DynamicResource TextMutedBrush}" FontSize="11.5" Margin="10,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                <ComboBox x:Name="CmbFilter" Grid.Column="1" Width="138" Height="30" Margin="8,0,0,0" Style="{StaticResource CryoComboBox}" SelectionChanged="CmbFilter_SelectionChanged" AutomationProperties.Name="{DynamicResource Clip_Filter}">
+                    <ComboBoxItem Content="{DynamicResource Clip_FilterAll}" Tag="All" IsSelected="True"/>
+                    <ComboBoxItem Content="{DynamicResource Clip_FilterText}" Tag="Text"/>
+                    <ComboBoxItem Content="{DynamicResource Clip_FilterImage}" Tag="Image"/>
+                    <ComboBoxItem Content="{DynamicResource Clip_FilterSnippets}" Tag="Snippets"/>
+                    <ComboBoxItem Content="{DynamicResource Clip_FilterPinned}" Tag="Pinned"/>
+                </ComboBox>
             </Grid>
 
-            <Grid Grid.Row="2">
+            <Border Grid.Row="2" Style="{StaticResource CardBorder}" Padding="10" Margin="0,0,0,10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <TextBlock Text="{DynamicResource Clip_Snippets}" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock Text="{DynamicResource Clip_SnippetHint}" Style="{StaticResource MutedText}" Margin="120,0,0,0" FontSize="10"/>
+                    </Grid>
+                    <Grid Grid.Row="1" Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TxtSnippetName" Style="{StaticResource CryoTextBox}" Height="30" Padding="7,4" AutomationProperties.Name="{DynamicResource Clip_SnippetName}"/>
+                        <TextBox x:Name="TxtSnippetText" Grid.Column="1" Style="{StaticResource CryoTextBox}" Height="30" Padding="7,4" Margin="6,0,6,0" AutomationProperties.Name="{DynamicResource Clip_SnippetText}"/>
+                        <Button Grid.Column="2" Content="{DynamicResource Clip_AddSnippet}" Style="{StaticResource SecondaryButton}" Click="BtnAddSnippet_Click"/>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="3">
                 <ListBox x:Name="ClipList" Style="{StaticResource CryoListView}" MouseDoubleClick="ClipList_MouseDoubleClick">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -87,6 +122,9 @@
                                         <Button Tag="{Binding}" Click="BtnTransformClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Transform}" AutomationProperties.Name="{DynamicResource Clip_Transform}" Margin="0,0,2,0">
                                             <Path Data="M3,6 L11,6 M7,6 L7,16 M13,10 L19,10 M16,10 L16,16" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform"/>
                                         </Button>
+                                        <Button Tag="{Binding}" Click="BtnOcrClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Ocr}" AutomationProperties.Name="{DynamicResource Clip_Ocr}" Margin="0,0,2,0">
+                                            <Path Data="{x:Static views:CryoIcons.Ocr}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform"/>
+                                        </Button>
                                         <Button Tag="{Binding}" Click="BtnCopyClip_Click" Style="{StaticResource IconButton}" Width="28" Height="28" ToolTip="{DynamicResource Clip_Copy}" AutomationProperties.Name="{DynamicResource Clip_Copy}" Margin="0,0,2,0">
                                             <Path Data="{x:Static views:IconData.Copy}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.4" Width="14" Height="14" Stretch="Uniform"/>
                                         </Button>
@@ -106,8 +144,20 @@
                 </StackPanel>
             </Grid>
 
-            <Grid Grid.Row="3" Margin="0,12,0,0">
-                <TextBlock Text="{DynamicResource Clip_MemoryOnly}" Style="{StaticResource MutedText}" VerticalAlignment="Center"/>
+            <Grid Grid.Row="4" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Clip_MemoryOnly}" Style="{StaticResource MutedText}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <CheckBox x:Name="ChkPersistence" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Clip_Persistence}" Checked="Persistence_Changed" Unchecked="Persistence_Changed" Margin="0,0,14,0"/>
+                        <TextBlock Text="{DynamicResource Clip_Expiry}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="CmbExpiry" Width="120" Height="26" Style="{StaticResource CryoComboBox}" SelectionChanged="Expiry_Changed" AutomationProperties.Name="{DynamicResource Clip_Expiry}">
+                            <ComboBoxItem Content="{DynamicResource Clip_ExpiryNever}" Tag="0"/>
+                            <ComboBoxItem Content="{DynamicResource Clip_Expiry15}" Tag="15"/>
+                            <ComboBoxItem Content="{DynamicResource Clip_Expiry60}" Tag="60"/>
+                            <ComboBoxItem Content="{DynamicResource Clip_ExpiryDay}" Tag="1440"/>
+                        </ComboBox>
+                    </StackPanel>
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="{DynamicResource Clip_Clear}" Style="{StaticResource DangerButton}" Click="BtnClear_Click"/>
                 </StackPanel>

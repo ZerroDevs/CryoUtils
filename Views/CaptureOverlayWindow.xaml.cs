@@ -42,6 +42,11 @@ namespace CryoUtils.Views
         private Point _startPhysical;
         private Rect _initialSelection;
         private Annotation? _activeAnnotation;
+        private Annotation? _selectedAnnotation;
+        private bool _movingAnnotation;
+        private Point _annotationStart;
+        private Rect _annotationStartRect;
+        private List<Point> _annotationStartPoints = new();
         private Point _textAnchorPhysical;
         private bool _textCommitting;
         private Rect _toolbarBounds = Rect.Empty;
@@ -116,6 +121,7 @@ namespace CryoUtils.Views
             }
         }
 
+
         protected override void OnClosed(EventArgs e)
         {
             Controller.StateChanged -= OnStateChanged;
@@ -142,6 +148,9 @@ namespace CryoUtils.Views
             AddToolButton(CaptureTool.Line, CryoIcons.Line, "Capture_ToolLine");
             AddToolButton(CaptureTool.Arrow, CryoIcons.Arrow, "Capture_ToolArrow");
             AddToolButton(CaptureTool.Rectangle, CryoIcons.Rectangle, "Capture_ToolRect");
+            AddToolButton(CaptureTool.Ellipse, CryoIcons.Ellipse, "Capture_ToolEllipse");
+            AddToolButton(CaptureTool.Spotlight, CryoIcons.Spotlight, "Capture_ToolSpotlight");
+            AddToolButton(CaptureTool.Redaction, CryoIcons.Redaction, "Capture_ToolRedaction");
             AddToolButton(CaptureTool.Highlighter, CryoIcons.Highlighter, "Capture_ToolHighlighter");
             AddToolButton(CaptureTool.Text, CryoIcons.Text, "Capture_ToolText");
             AddToolButton(CaptureTool.Blur, CryoIcons.Blur, "Capture_ToolBlur");
@@ -152,6 +161,8 @@ namespace CryoUtils.Views
             _redoButton = CreateIconButton(CryoIcons.Redo, "Capture_ToolRedo", () => Controller.Redo(), false);
             AnnotationToolbar.Children.Add(_undoButton);
             AnnotationToolbar.Children.Add(_redoButton);
+            AnnotationToolbar.Children.Add(CreateIconButton(CryoIcons.Crop, "Capture_ToolCrop", () => Controller.CropToSelection(), false));
+            AnnotationToolbar.Children.Add(CreateIconButton(CryoIcons.Rotate, "Capture_ToolRotate", () => Controller.RotateSelection(), false));
 
             AddSeparator();
 
@@ -193,6 +204,7 @@ namespace CryoUtils.Views
             AddActionButton(CryoIcons.Save, "Capture_ToolSave", () => Controller.SaveSelection(quick: false));
             AddActionButton(CryoIcons.CloudUpload, "Capture_ToolUpload", () => Controller.UploadSelectionAsync());
             AddActionButton(CryoIcons.Record, "Capture_ToolRecord", () => Controller.BeginRecording());
+            AddActionButton(CryoIcons.Scroll, "Capture_ToolScroll", () => Controller.StartScrollingCapture());
             AddActionSeparator();
             AddActionButton(CryoIcons.Ocr, "Capture_ToolOcr", () => Controller.OcrSelection());
             AddActionButton(CryoIcons.QrCode, "Capture_ToolQr", () => Controller.QrSelection());
@@ -649,6 +661,7 @@ namespace CryoUtils.Views
             {
                 if (Controller.Selection.HasValue && Controller.Selection.Value.Contains(global))
                 {
+                    _selectedAnnotation = null;
                     BeginAnnotation(global);
                 }
                 else if (!Controller.Selection.HasValue)
@@ -660,6 +673,21 @@ namespace CryoUtils.Views
             }
 
             var selection = Controller.Selection;
+            var hitAnnotation = HitTestAnnotation(global);
+            if (selection.HasValue && selection.Value.Contains(global) && hitAnnotation != null)
+            {
+                _selectedAnnotation = hitAnnotation;
+                _movingAnnotation = true;
+                _annotationStart = global;
+                _annotationStartRect = hitAnnotation.Rect;
+                _annotationStartPoints = new List<Point>(hitAnnotation.Points);
+                Controller.PushUndo();
+                Surface.CaptureMouse();
+                e.Handled = true;
+                return;
+            }
+
+            _selectedAnnotation = null;
             _handle = HitTestHandle(global);
             if (selection.HasValue && _handle >= 0)
             {
@@ -685,6 +713,7 @@ namespace CryoUtils.Views
 
         private void BeginSelection(Point global, bool creating)
         {
+            _selectedAnnotation = null;
             _creating = creating;
             _startPhysical = global;
             _initialSelection = Rect.Empty;
@@ -700,6 +729,9 @@ namespace CryoUtils.Views
                 CaptureTool.Line => AnnotationKind.Line,
                 CaptureTool.Arrow => AnnotationKind.Arrow,
                 CaptureTool.Rectangle => AnnotationKind.Rectangle,
+                CaptureTool.Ellipse => AnnotationKind.Ellipse,
+                CaptureTool.Spotlight => AnnotationKind.Spotlight,
+                CaptureTool.Redaction => AnnotationKind.Redaction,
                 CaptureTool.Highlighter => AnnotationKind.Highlighter,
                 CaptureTool.Blur => AnnotationKind.Blur,
                 _ => AnnotationKind.Pen
@@ -708,16 +740,20 @@ namespace CryoUtils.Views
             var annotation = new Annotation
             {
                 Kind = kind,
-                Color = Controller.CurrentColor,
+                Color = kind == AnnotationKind.Redaction ? "#000000" : Controller.CurrentColor,
                 Thickness = kind == AnnotationKind.Highlighter
                     ? Math.Max(8, Controller.Thickness * 4)
                     : Controller.Thickness,
                 Rect = new Rect(global.X, global.Y, 0, 0)
             };
 
-            if (kind is AnnotationKind.Pen or AnnotationKind.Highlighter)
+            if (kind is AnnotationKind.Pen or AnnotationKind.Highlighter or AnnotationKind.Redaction)
             {
                 annotation.Points.Add(global);
+                if (kind == AnnotationKind.Redaction)
+                {
+                    annotation.Thickness = Math.Max(10, Controller.Thickness * 3);
+                }
             }
             else if (kind is AnnotationKind.Line or AnnotationKind.Arrow)
             {
@@ -770,6 +806,27 @@ namespace CryoUtils.Views
                 moved.Offset(Math.Clamp(dx, minDx, maxDx), Math.Clamp(dy, minDy, maxDy));
                 Controller.SetSelection(moved);
             }
+            else if (_movingAnnotation && _selectedAnnotation != null)
+            {
+                double dx = global.X - _annotationStart.X;
+                double dy = global.Y - _annotationStart.Y;
+                if (_selectedAnnotation.Points.Count > 0)
+                {
+                    _selectedAnnotation.Points.Clear();
+                    _selectedAnnotation.Points.AddRange(
+                        _annotationStartPoints.Select(point => new Point(point.X + dx, point.Y + dy)));
+                }
+                if (_selectedAnnotation.Kind != AnnotationKind.Pen &&
+                    _selectedAnnotation.Kind != AnnotationKind.Highlighter &&
+                    _selectedAnnotation.Kind != AnnotationKind.Line &&
+                    _selectedAnnotation.Kind != AnnotationKind.Arrow)
+                {
+                    var movedRect = _annotationStartRect;
+                    movedRect.Offset(dx, dy);
+                    _selectedAnnotation.Rect = movedRect;
+                }
+                Controller.NotifyChanged();
+            }
             else if (_resizing)
             {
                 Controller.SetSelection(ResizeSelection(_initialSelection, global));
@@ -793,6 +850,7 @@ namespace CryoUtils.Views
             {
                 case AnnotationKind.Pen:
                 case AnnotationKind.Highlighter:
+                case AnnotationKind.Redaction:
                     if (annotation.Points.Count == 0 ||
                         (annotation.Points[^1] - global).Length > 1.4)
                     {
@@ -813,9 +871,11 @@ namespace CryoUtils.Views
                     }
                     break;
                 case AnnotationKind.Rectangle:
+                case AnnotationKind.Ellipse:
+                case AnnotationKind.Spotlight:
                 case AnnotationKind.Blur:
                     var rect = NormalizeRect(_startPhysical, global);
-                    if (shift && annotation.Kind == AnnotationKind.Rectangle)
+                    if (shift && annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse)
                     {
                         double side = Math.Min(Math.Abs(rect.Width), Math.Abs(rect.Height));
                         rect = new Rect(
@@ -854,7 +914,14 @@ namespace CryoUtils.Views
 
             if (_drawing && _activeAnnotation != null)
             {
-                if (_activeAnnotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Blur &&
+                if (_activeAnnotation.Kind is AnnotationKind.Redaction &&
+                    _activeAnnotation.Points.Count < 2)
+                {
+                    Controller.Annotations.Remove(_activeAnnotation);
+                    Controller.NotifyChanged();
+                }
+                else if (_activeAnnotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or
+                    AnnotationKind.Spotlight or AnnotationKind.Blur &&
                     (_activeAnnotation.Rect.Width < 2 || _activeAnnotation.Rect.Height < 2))
                 {
                     Controller.Annotations.Remove(_activeAnnotation);
@@ -864,6 +931,7 @@ namespace CryoUtils.Views
 
             _creating = false;
             _moving = false;
+            _movingAnnotation = false;
             _resizing = false;
             _drawing = false;
             _activeAnnotation = null;
@@ -894,6 +962,75 @@ namespace CryoUtils.Views
             LoupePanel.Visibility = Visibility.Collapsed;
             Surface.CursorPhysical = null;
             Surface.Refresh();
+        }
+
+        private Annotation? HitTestAnnotation(Point point)
+        {
+            for (int index = Controller.Annotations.Count - 1; index >= 0; index--)
+            {
+                var annotation = Controller.Annotations[index];
+                switch (annotation.Kind)
+                {
+                    case AnnotationKind.Step:
+                        double radius = Math.Max(12, annotation.Thickness * 5);
+                        if ((point - annotation.Rect.TopLeft).Length <= radius + 3)
+                        {
+                            return annotation;
+                        }
+                        break;
+                    case AnnotationKind.Line:
+                    case AnnotationKind.Arrow:
+                        if (annotation.Points.Count >= 2 &&
+                            DistanceToSegment(point, annotation.Points[0], annotation.Points[1]) <=
+                            Math.Max(6, annotation.Thickness + 4))
+                        {
+                            return annotation;
+                        }
+                        break;
+                    case AnnotationKind.Pen:
+                    case AnnotationKind.Highlighter:
+                    case AnnotationKind.Redaction:
+                        if (annotation.Points.Any(item =>
+                                (item - point).Length <= Math.Max(7, annotation.Thickness + 5)))
+                        {
+                            return annotation;
+                        }
+                        break;
+                    case AnnotationKind.Text:
+                        var textRect = annotation.Rect;
+                        textRect.Inflate(4, 4);
+                        if (annotation.Rect.Width > 0 && textRect.Contains(point))
+                        {
+                            return annotation;
+                        }
+                        break;
+                    default:
+                        var shapeRect = annotation.Rect;
+                        shapeRect.Inflate(4, 4);
+                        if (annotation.Rect.Width > 0 && shapeRect.Contains(point))
+                        {
+                            return annotation;
+                        }
+                        break;
+                }
+            }
+
+            return null;
+        }
+
+        private static double DistanceToSegment(Point point, Point start, Point end)
+        {
+            var segment = end - start;
+            double lengthSquared = segment.X * segment.X + segment.Y * segment.Y;
+            if (lengthSquared <= 0.001)
+            {
+                return (point - start).Length;
+            }
+
+            var offset = point - start;
+            double t = Math.Clamp((offset.X * segment.X + offset.Y * segment.Y) / lengthSquared, 0, 1);
+            var projection = new Point(start.X + segment.X * t, start.Y + segment.Y * t);
+            return (point - projection).Length;
         }
 
         private void Surface_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -1428,6 +1565,16 @@ namespace CryoUtils.Views
 
             bool control = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
             bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+            if ((e.Key == Key.Delete || e.Key == Key.Back) &&
+                Controller.Tool == CaptureTool.Select &&
+                _selectedAnnotation != null)
+            {
+                Controller.RemoveAnnotation(_selectedAnnotation);
+                _selectedAnnotation = null;
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.Escape)
             {
                 Controller.CloseAll();
@@ -1490,6 +1637,9 @@ namespace CryoUtils.Views
                 Key.L => CaptureTool.Line,
                 Key.A => CaptureTool.Arrow,
                 Key.R => CaptureTool.Rectangle,
+                Key.E => CaptureTool.Ellipse,
+                Key.S => CaptureTool.Spotlight,
+                Key.K => CaptureTool.Redaction,
                 Key.H => CaptureTool.Highlighter,
                 Key.T => CaptureTool.Text,
                 Key.B => CaptureTool.Blur,

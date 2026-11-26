@@ -80,7 +80,7 @@ namespace CryoUtils.Views
             var dialog = new SaveFileDialog
             {
                 Title = LocalizationService.Get("Tools_QrSave"),
-                Filter = "PNG Image (*.png)|*.png|All files (*.*)|*.*",
+                Filter = LocalizationService.Get("Common_PngFilter"),
                 DefaultExt = ".png",
                 AddExtension = true,
                 FileName = $"CryoUtils_QR_{DateTime.Now:yyyyMMdd_HHmmss}.png"
@@ -135,7 +135,7 @@ namespace CryoUtils.Views
             var dialog = new SaveFileDialog
             {
                 Title = LocalizationService.Get("Common_SaveAs"),
-                Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                Filter = LocalizationService.Get("Common_TextFilter"),
                 DefaultExt = ".txt",
                 AddExtension = true,
                 FileName = $"CryoUtils_QR_{DateTime.Now:yyyyMMdd_HHmmss}.txt"

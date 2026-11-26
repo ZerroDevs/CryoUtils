@@ -9,6 +9,14 @@ namespace CryoUtils.Services
     {
         public static void ConvertFormat(string inputPath, string outputPath, string targetFormat)
         {
+            if (string.Equals(
+                    Path.GetFullPath(inputPath),
+                    Path.GetFullPath(outputPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("The conversion output must not overwrite the source image.");
+            }
+
             using var bitmap = DecodeSkBitmap(inputPath);
             string fmt = targetFormat.TrimStart('.').ToUpperInvariant();
             if (fmt == "ICO")

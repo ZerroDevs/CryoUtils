@@ -39,6 +39,9 @@ namespace CryoUtils.Views
             TxtFileSize.Text = estimatedBytes > 0 ? ImageIO.FormatBytes(estimatedBytes) : "";
             TxtUrl.Text = LocalizationService.Get("Upload_Placeholder");
             TxtProgress.Text = LocalizationService.Get("Capture_Uploading");
+            TxtDestination.Text = UploadProviderService.IsLocalProvider
+                ? LocalizationService.Get("Upload_DestinationLocal")
+                : LocalizationService.Get("Upload_Destination");
 
             PositionBottomRight();
         }
@@ -56,7 +59,7 @@ namespace CryoUtils.Views
             var win = new UploadProgressWindow(name, encoded.LongLength, onSuccess, onFailure);
             win.Show();
             _ = win.RunUploadAsync((progress, ct) =>
-                CloudUploadService.UploadImageAsync(bitmap, progress, ct));
+                UploadProviderService.UploadImageAsync(bitmap, progress, ct));
             return win;
         }
 
@@ -70,7 +73,7 @@ namespace CryoUtils.Views
             var win = new UploadProgressWindow(info.Name, size, onSuccess, onFailure);
             win.Show();
             _ = win.RunUploadAsync((progress, ct) =>
-                CloudUploadService.UploadFileAsync(filePath, progress, ct));
+                UploadProviderService.UploadFileAsync(filePath, progress, ct));
             return win;
         }
 

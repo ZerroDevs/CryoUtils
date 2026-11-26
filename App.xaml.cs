@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Specialized;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CryoUtils.Services;
+using CryoUtils.Services.Recording;
 using CryoUtils.Tray;
 using CryoUtils.Views;
 
@@ -17,11 +21,19 @@ namespace CryoUtils
         private MainWindow? _dashboard;
         private ColorPickerWindow? _colorPicker;
         private ClipboardHistoryWindow? _clipboardWindow;
+        private PowerToolsWindow? _workbench;
+        private LiveDrawWindow? _liveDraw;
+        private ScreenRulerWindow? _screenRuler;
+        private FileShelfWindow? _fileShelf;
+        private ImageEditorWindow? _imageEditor;
+        private DeveloperToolboxWindow? _developerToolbox;
         private ToastWindow? _toast;
         private string? _lastLanguage;
+        private bool _lastContextMenuEnabled;
         private bool _captureRestoresDashboard;
         private bool _pickerRestoresDashboard;
         private bool _exiting;
+        private bool _recordingActive;
 
         public App()
         {
@@ -34,7 +46,28 @@ namespace CryoUtils
             DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 
+            // Installer cleanup hook. This must run before any startup/settings side effects.
+            if (e.Args.Any(argument =>
+                    string.Equals(argument, "--uninstall-cleanup", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(argument, "--unregister-context-menu", StringComparison.OrdinalIgnoreCase)))
+            {
+                CryoContextMenuService.UnregisterAll();
+                StartupService.SetEnabled(false);
+                Shutdown();
+                return;
+            }
+
             var settings = SettingsService.Instance.Current;
+            if (e.Args.Any(argument =>
+                    string.Equals(argument, "--safe-mode", StringComparison.OrdinalIgnoreCase)))
+            {
+                settings.PinnedClickThrough = false;
+                settings.PinnedOpacity = 100;
+                settings.ShowPinnedBorder = false;
+                settings.PinnerRestoreEnabled = false;
+                SettingsService.Instance.SaveWithoutNotification();
+                TopmostService.ReleaseSavedTopmosts();
+            }
             _lastLanguage = settings.Language;
             ThemeService.Initialize(settings.Theme);
             LocalizationService.Instance.Apply(settings.Language);
@@ -50,23 +83,35 @@ namespace CryoUtils
                 return;
             }
 
-            if (settings.ContextMenuEnabled)
-            {
-                CryoContextMenuService.SetEnabled(true);
-            }
+            // Always sync so a disabled setting also removes stale Explorer entries.
+            CryoContextMenuService.SetEnabled(settings.ContextMenuEnabled);
+            _lastContextMenuEnabled = settings.ContextMenuEnabled;
 
             GlobalHotkeyService.Instance.HotkeyPressed += OnHotkeyPressed;
             SettingsService.Instance.SettingsChanged += ApplyAllSettings;
 
             ApplyHotkeys();
             ClipboardService.Instance.SetEnabled(settings.ClipboardHistoryEnabled);
+            if (settings.WindowPinnerEnabled)
+            {
+                TopmostService.Instance.RestoreSavedPins();
+            }
             _tray = new TrayIconManager();
+
+            if (settings.ReplayEnabled)
+            {
+                Dispatcher.BeginInvoke(new Action(() => ApplyReplayPreference()));
+            }
 
             bool background = e.Args.Any(argument =>
                 string.Equals(argument, "--background", StringComparison.OrdinalIgnoreCase));
             if (!background && !settings.LaunchInBackground)
             {
                 ShowDashboard();
+            }
+            else
+            {
+                MemoryTrimService.ScheduleTrim(1200);
             }
         }
 
@@ -82,7 +127,15 @@ namespace CryoUtils
             if (_dashboard == null)
             {
                 _dashboard = new MainWindow();
-                _dashboard.Closed += (_, _) => _dashboard = null;
+                _dashboard.Closed += (_, _) =>
+                {
+                    _dashboard = null;
+                    RecentCaptureService.Instance.ReleaseAllTimeCache();
+                    if (!_exiting)
+                    {
+                        MemoryTrimService.ScheduleTrim(400);
+                    }
+                };
             }
 
             _dashboard.ShowTab(tab);
@@ -115,11 +168,19 @@ namespace CryoUtils
             if (delay > 0)
             {
                 PrepareForCapture();
-                var countdown = new CountdownWindow(delay, () =>
+                try
                 {
-                    CaptureController.Instance.Start();
-                });
-                countdown.Show();
+                    var countdown = new CountdownWindow(
+                        delay,
+                        () => CaptureController.Instance.Start(),
+                        FinishCapture);
+                    countdown.Show();
+                }
+                catch (Exception ex)
+                {
+                    FinishCapture();
+                    ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+                }
                 return;
             }
 
@@ -134,6 +195,155 @@ namespace CryoUtils
                 return;
             }
             CaptureController.Instance.StartRecordingMode();
+        }
+
+        public void OpenRecorderSettings()
+        {
+            var window = new RecorderSettingsWindow
+            {
+                Owner = _dashboard != null && _dashboard.IsVisible ? _dashboard : null
+            };
+            window.ShowDialog();
+        }
+
+        public void SetRecordingState(bool active)
+        {
+            _recordingActive = active;
+            _tray?.SetRecordingBadge(active || ReplayService.Instance.IsRunning);
+        }
+
+        public void SyncRecordingBadge()
+        {
+            _tray?.SetRecordingBadge(_recordingActive || ReplayService.Instance.IsRunning);
+        }
+
+        public void ApplyReplayPreference()
+        {
+            var enabled = SettingsService.Instance.Current.ReplayEnabled;
+            if (enabled && !ReplayService.Instance.IsRunning)
+            {
+                if (!ReplayService.Instance.Start())
+                {
+                    ShowToast(LocalizationService.Format(
+                        "Error_Body",
+                        ReplayService.Instance.LastError));
+                }
+                else if (!ReplayService.Instance.IsUsingWgc)
+                {
+                    ShowToast(LocalizationService.Get("Rec_GdiFallback"));
+                }
+                else if ((SettingsService.Instance.Current.RecorderSystemAudio ||
+                          SettingsService.Instance.Current.RecorderMicrophone) &&
+                         !ReplayService.Instance.HasAudio)
+                {
+                    ShowToast(LocalizationService.Get("Rec_AudioUnavailable"));
+                }
+            }
+            else if (!enabled && ReplayService.Instance.IsRunning)
+            {
+                ReplayService.Instance.Stop();
+            }
+
+            SyncRecordingBadge();
+            ApplyHotkeys();
+        }
+
+        public void ToggleReplayBuffer()
+        {
+            if (ReplayService.Instance.IsRunning)
+            {
+                SettingsService.Instance.Current.ReplayEnabled = false;
+                ReplayService.Instance.Stop();
+                SettingsService.Instance.Save();
+            }
+            else
+            {
+                SettingsService.Instance.Current.ReplayEnabled = true;
+                SettingsService.Instance.Save();
+                ApplyReplayPreference();
+            }
+
+            SyncRecordingBadge();
+            ApplyHotkeys();
+        }
+
+        public async void SaveReplay()
+        {
+            try
+            {
+                if (!ReplayService.Instance.IsRunning)
+                {
+                    ShowToast(LocalizationService.Get("Rec_ReplayNotRunning"));
+                    return;
+                }
+
+                var settings = SettingsService.Instance.Current;
+                string path;
+                if (settings.RecorderTrimBeforeSave)
+                {
+                    string temp = Path.Combine(
+                        Path.GetTempPath(),
+                        "CryoUtils",
+                        $"replay_trim_{Guid.NewGuid():N}.mp4");
+                    Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
+                    path = await ReplayService.Instance.SaveLastAsync(
+                        outputPath: temp,
+                        copyToClipboard: false,
+                        addToLibrary: false);
+                    string suggested = Path.Combine(
+                        SettingsService.Instance.EffectiveSaveFolder,
+                        ScreenCaptureService.CreateTimestampedFileName(".mp4"));
+                    var trim = new RecordingTrimWindow(path, suggested)
+                    {
+                        Owner = IsDashboardVisible ? _dashboard : null
+                    };
+                    if (trim.ShowDialog() != true || string.IsNullOrWhiteSpace(trim.SavedPath))
+                    {
+                        TryDeleteFile(temp);
+                        return;
+                    }
+
+                    TryDeleteFile(temp);
+                    path = trim.SavedPath;
+                    await ReplayService.AddToLibraryAsync(path).ConfigureAwait(true);
+                }
+                else
+                {
+                    path = await ReplayService.Instance.SaveLastAsync(
+                        copyToClipboard: false);
+                }
+
+                if (settings.RecorderCopyOnStop)
+                {
+                    try
+                    {
+                        Clipboard.SetFileDropList(new StringCollection { path });
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                ShowToast(LocalizationService.Format("Capture_RecordSaved", path));
+            }
+            catch (Exception ex)
+            {
+                ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch
+            {
+            }
         }
 
         public void OpenColorPicker()
@@ -218,6 +428,156 @@ namespace CryoUtils
             _clipboardWindow.Activate();
         }
 
+        public void ToggleLiveDraw()
+        {
+            if (_liveDraw != null)
+            {
+                _liveDraw.Close();
+                return;
+            }
+
+            _liveDraw = new LiveDrawWindow();
+            _liveDraw.Closed += (_, _) => _liveDraw = null;
+            _liveDraw.Show();
+            _liveDraw.Activate();
+        }
+
+        public void OpenScreenRuler()
+        {
+            if (_screenRuler != null)
+            {
+                _screenRuler.Activate();
+                return;
+            }
+
+            _screenRuler = new ScreenRulerWindow();
+            _screenRuler.Closed += (_, _) => _screenRuler = null;
+            _screenRuler.Show();
+            _screenRuler.Activate();
+        }
+
+        public void OpenFileShelf()
+        {
+            if (_fileShelf != null)
+            {
+                if (!_fileShelf.IsVisible)
+                {
+                    _fileShelf.Show();
+                }
+                _fileShelf.Activate();
+                return;
+            }
+
+            _fileShelf = new FileShelfWindow
+            {
+                Owner = IsDashboardVisible ? _dashboard : null
+            };
+            _fileShelf.Closed += (_, _) => _fileShelf = null;
+            _fileShelf.Show();
+            _fileShelf.Activate();
+        }
+
+        public void OpenImageEditor(string? path = null)
+        {
+            if (_imageEditor != null)
+            {
+                _imageEditor.Activate();
+                return;
+            }
+
+            var editor = new ImageEditorWindow(path)
+            {
+                Owner = IsDashboardVisible ? _dashboard : null
+            };
+            editor.Closed += (_, _) => _imageEditor = null;
+            _imageEditor = editor;
+            editor.Show();
+            editor.Activate();
+        }
+
+        public void OpenDeveloperToolbox()
+        {
+            if (_developerToolbox != null)
+            {
+                if (!_developerToolbox.IsVisible)
+                {
+                    _developerToolbox.Show();
+                }
+                _developerToolbox.Activate();
+                return;
+            }
+
+            _developerToolbox = new DeveloperToolboxWindow
+            {
+                Owner = IsDashboardVisible ? _dashboard : null
+            };
+            _developerToolbox.Closed += (_, _) => _developerToolbox = null;
+            _developerToolbox.Show();
+            _developerToolbox.Activate();
+        }
+
+        public void OpenPrivacy()
+        {
+            OpenWorkbench();
+            _workbench?.SelectTab(2);
+        }
+
+        public async void OpenOcrFile()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = LocalizationService.Get("Workbench_QuickOcr"),
+                Filter = "Images|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.jfif|All files|*.*",
+                CheckFileExists = true
+            };
+            if (dialog.ShowDialog(_dashboard) != true)
+            {
+                return;
+            }
+
+            try
+            {
+                var image = ImageIO.LoadThumbnail(dialog.FileName, 12000);
+                string text = await OcrService.RecognizeAsync(image);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    ShowToast(LocalizationService.Get("Capture_OcrEmpty"));
+                    return;
+                }
+
+                new OcrResultWindow(text).Show();
+            }
+            catch (Exception ex)
+            {
+                ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+            }
+        }
+
+        public void OpenWorkbench()
+        {
+            if (_workbench != null)
+            {
+                if (!_workbench.IsVisible)
+                {
+                    _workbench.Show();
+                }
+                _workbench.Activate();
+                return;
+            }
+
+            _workbench = new PowerToolsWindow();
+            _workbench.Closed += (_, _) =>
+            {
+                _workbench = null;
+                if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
+                }
+            };
+            _workbench.Show();
+            _workbench.Activate();
+        }
+
         public void PrepareForCapture()
         {
             if (IsDashboardVisible)
@@ -236,6 +596,18 @@ namespace CryoUtils
             if (_clipboardWindow != null)
             {
                 _clipboardWindow.Close();
+            }
+            if (_workbench != null)
+            {
+                _workbench.Hide();
+            }
+            if (_liveDraw != null)
+            {
+                _liveDraw.Close();
+            }
+            if (_screenRuler != null)
+            {
+                _screenRuler.Close();
             }
         }
 
@@ -282,16 +654,26 @@ namespace CryoUtils
             var settings = SettingsService.Instance.Current;
             ThemeService.Apply(settings.Theme);
             LocalizationService.Instance.Apply(settings.Language);
-            if (!string.Equals(_lastLanguage, settings.Language, StringComparison.Ordinal))
+            bool languageChanged = !string.Equals(_lastLanguage, settings.Language, StringComparison.Ordinal);
+            if (languageChanged)
             {
                 _lastLanguage = settings.Language;
-                if (settings.ContextMenuEnabled)
-                {
-                    CryoContextMenuService.RegisterAll();
-                }
+            }
+
+            bool contextMenuChanged = settings.ContextMenuEnabled != _lastContextMenuEnabled;
+            if (contextMenuChanged)
+            {
+                _lastContextMenuEnabled = settings.ContextMenuEnabled;
+                CryoContextMenuService.SetEnabled(settings.ContextMenuEnabled);
+            }
+            else if (languageChanged && settings.ContextMenuEnabled)
+            {
+                // The menu is localized, so rebuild it only when the language changes.
+                CryoContextMenuService.RegisterAll();
             }
             StartupService.SetEnabled(settings.StartWithWindows);
             ClipboardService.Instance.SetEnabled(settings.ClipboardHistoryEnabled);
+            ClipboardService.Instance.SetPersistence(settings.ClipboardPersistenceEnabled);
             if (!settings.WindowPinnerEnabled)
             {
                 TopmostService.Instance.Unpin(silent: true);
@@ -300,7 +682,7 @@ namespace CryoUtils
             ApplyHotkeys();
         }
 
-        private void ApplyHotkeys()
+        public void ApplyHotkeys()
         {
             var settings = SettingsService.Instance.Current;
             RegisterHotkey(
@@ -328,6 +710,21 @@ namespace CryoUtils
                 settings.ClipboardHistoryEnabled,
                 settings.ClipboardHotkeyModifiers,
                 settings.ClipboardHotkeyKey);
+            RegisterHotkey(
+                GlobalHotkeyService.WorkbenchHotkeyId,
+                true,
+                settings.WorkbenchHotkeyModifiers,
+                settings.WorkbenchHotkeyKey);
+            RegisterHotkey(
+                GlobalHotkeyService.ReplayHotkeyId,
+                settings.ReplayEnabled,
+                settings.ReplayHotkeyModifiers,
+                settings.ReplayHotkeyKey);
+            RegisterHotkey(
+                GlobalHotkeyService.LiveDrawHotkeyId,
+                true,
+                settings.LiveDrawHotkeyModifiers,
+                settings.LiveDrawHotkeyKey);
         }
 
         private static void RegisterHotkey(
@@ -376,6 +773,15 @@ namespace CryoUtils
                 case GlobalHotkeyService.ClipboardHistoryHotkeyId:
                     OpenClipboardHistory();
                     break;
+                case GlobalHotkeyService.WorkbenchHotkeyId:
+                    OpenWorkbench();
+                    break;
+                case GlobalHotkeyService.ReplayHotkeyId:
+                    SaveReplay();
+                    break;
+                case GlobalHotkeyService.LiveDrawHotkeyId:
+                    ToggleLiveDraw();
+                    break;
             }
         }
 
@@ -387,12 +793,15 @@ namespace CryoUtils
             }
 
             _exiting = true;
+            _recordingActive = false;
+            MemoryTrimService.Cancel();
             SettingsService.Instance.Save();
             _dashboard?.PrepareForShutdown();
             _tray?.Dispose();
             _tray = null;
             GlobalHotkeyService.Instance.Dispose();
             ClipboardService.Instance.Dispose();
+            ReplayService.Instance.Dispose();
             TopmostService.Instance.RestoreForExit();
             ThemeService.Shutdown();
             Shutdown();
@@ -422,9 +831,13 @@ namespace CryoUtils
                 {
                     // Interactive window actions (process stays alive until window closes)
                     case "upload-file":
-                        keepAliveForWindow = true;
+                        if (!UploadConsentService.EnsureUploadAllowed())
+                        {
+                            break;
+                        }
                         var uploadWin = UploadProgressWindow.StartFileUpload(filePath);
                         uploadWin.Closed += (_, _) => Shutdown();
+                        keepAliveForWindow = true;
                         return;
 
                     case "ocr-text":
@@ -436,11 +849,11 @@ namespace CryoUtils
                             break;
                         }
                         CopyTextSafe(recognized);
-                        keepAliveForWindow = true;
                         var ocrWin = new OcrResultWindow(recognized);
                         ocrWin.Closed += (_, _) => Shutdown();
                         ocrWin.Show();
                         ocrWin.Activate();
+                        keepAliveForWindow = true;
                         return;
 
                     case "scan-qr":
@@ -452,40 +865,48 @@ namespace CryoUtils
                             break;
                         }
                         CopyTextSafe(qrResult.Text);
-                        keepAliveForWindow = true;
-                        var qrWin = new QrResultWindow(qrResult.Text, qrResult.FormatName, qrSrcBmp);
+                        BitmapSource cleanQr = qrSrcBmp;
+                        try
+                        {
+                            cleanQr = QrCodeService.Encode(qrResult.Text, 512);
+                        }
+                        catch
+                        {
+                        }
+                        var qrWin = new QrResultWindow(qrResult.Text, qrResult.FormatName, cleanQr);
                         qrWin.Closed += (_, _) => Shutdown();
                         qrWin.Show();
                         qrWin.Activate();
+                        keepAliveForWindow = true;
                         return;
 
                     case "pin-image":
                         var pinBmp = ImageProcessingService.LoadWpfBitmap(filePath);
-                        keepAliveForWindow = true;
                         var pinWin = new PinWindow(pinBmp);
                         pinWin.Closed += (_, _) => Shutdown();
                         pinWin.Show();
                         pinWin.Activate();
+                        keepAliveForWindow = true;
                         return;
 
                     case "text-to-qr":
                         string textContent = (await System.IO.File.ReadAllTextAsync(filePath)).Trim();
                         if (string.IsNullOrWhiteSpace(textContent))
                         {
-                            ShowToast(LocalizationService.Format("Action_Failed", "File is empty."));
+                            ShowToast(LocalizationService.Get("Action_FileEmpty"));
                             break;
                         }
                         if (textContent.Length > 2900)
                         {
-                            ShowToast(LocalizationService.Format("Action_Failed", "Text too long for QR (max 2900 chars)."));
+                            ShowToast(LocalizationService.Get("Action_QrTextTooLong"));
                             break;
                         }
                         var encodedQr = QrCodeService.Encode(textContent, 512);
-                        keepAliveForWindow = true;
                         var textQrWin = new QrResultWindow(textContent, "QR_CODE", encodedQr);
                         textQrWin.Closed += (_, _) => Shutdown();
                         textQrWin.Show();
                         textQrWin.Activate();
+                        keepAliveForWindow = true;
                         return;
 
                     // PDF actions
@@ -601,25 +1022,25 @@ namespace CryoUtils
                         break;
 
                     case "convert-to-png":
-                        string outPng = System.IO.Path.Combine(dir, $"{baseName}.png");
+                        string outPng = SafeOutPath(dir, baseName, ext, ".png");
                         ImageProcessingService.ConvertFormat(filePath, outPng, "PNG");
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outPng)));
                         break;
 
                     case "convert-to-jpg":
-                        string outJpg = System.IO.Path.Combine(dir, $"{baseName}.jpg");
+                        string outJpg = SafeOutPath(dir, baseName, ext, ".jpg");
                         ImageProcessingService.ConvertFormat(filePath, outJpg, "JPG");
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outJpg)));
                         break;
 
                     case "convert-to-webp":
-                        string outWebp = System.IO.Path.Combine(dir, $"{baseName}.webp");
+                        string outWebp = SafeOutPath(dir, baseName, ext, ".webp");
                         ImageProcessingService.ConvertFormat(filePath, outWebp, "WEBP");
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outWebp)));
                         break;
 
                     case "convert-to-ico":
-                        string outIco = System.IO.Path.Combine(dir, $"{baseName}.ico");
+                        string outIco = SafeOutPath(dir, baseName, ext, ".ico");
                         ImageProcessingService.ConvertFormat(filePath, outIco, "ICO");
                         ShowToast(LocalizationService.Format("Action_Success", System.IO.Path.GetFileName(outIco)));
                         break;
@@ -664,7 +1085,26 @@ namespace CryoUtils
 
                     case "video-to-gif":
                         string outGif = System.IO.Path.Combine(dir, $"{baseName}.gif");
-                        int frames = await MediaConversionService.VideoToGifAsync(filePath, outGif);
+                        var videoGifProgress = new OperationProgressWindow(LocalizationService.Get("Progress_VideoGif"));
+                        videoGifProgress.Show();
+                        int frames;
+                        try
+                        {
+                            frames = await MediaConversionService.VideoToGifAsync(
+                                filePath,
+                                outGif,
+                                progress: new Progress<int>(videoGifProgress.Report),
+                                cancellationToken: videoGifProgress.Token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            ShowToast(LocalizationService.Get("Progress_Cancelled"));
+                            break;
+                        }
+                        finally
+                        {
+                            videoGifProgress.Complete();
+                        }
                         ShowToast(LocalizationService.Format("Action_Success", $"{System.IO.Path.GetFileName(outGif)} ({frames} frames)"));
                         break;
 
@@ -704,7 +1144,7 @@ namespace CryoUtils
                         var dirImgs = FileToolsService.CollectSortedImages(filePath);
                         if (dirImgs.Count == 0)
                         {
-                            ShowToast(LocalizationService.Format("Action_Failed", "No images in folder."));
+                            ShowToast(LocalizationService.Get("Action_NoImages"));
                             break;
                         }
                         string outDirPdf = System.IO.Path.Combine(filePath, $"{baseName}_merged.pdf");
@@ -714,17 +1154,39 @@ namespace CryoUtils
 
                     case "dir-imgs-gif":
                         string outDirGif = System.IO.Path.Combine(filePath, $"{baseName}.gif");
-                        int gifCount = FileToolsService.FolderImagesToGif(filePath, outDirGif);
+                        var folderGifProgress = new OperationProgressWindow(LocalizationService.Get("Progress_FolderGif"));
+                        folderGifProgress.Show();
+                        int gifCount;
+                        try
+                        {
+                            var folderProgress = new Progress<int>(folderGifProgress.Report);
+                            gifCount = await Task.Run(
+                                () => FileToolsService.FolderImagesToGif(
+                                    filePath,
+                                    outDirGif,
+                                    progress: folderProgress,
+                                    cancellationToken: folderGifProgress.Token),
+                                folderGifProgress.Token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            ShowToast(LocalizationService.Get("Progress_Cancelled"));
+                            break;
+                        }
+                        finally
+                        {
+                            folderGifProgress.Complete();
+                        }
                         ShowToast(gifCount > 0
                             ? LocalizationService.Format("Action_Success", $"{gifCount} frames -> {System.IO.Path.GetFileName(outDirGif)}")
-                            : LocalizationService.Format("Action_Failed", "No images in folder."));
+                            : LocalizationService.Get("Action_NoImages"));
                         break;
 
                     case "dir-compress-imgs":
                         var (compCount, compSaved) = await FileToolsService.BatchCompressFolderAsync(filePath);
                         ShowToast(compCount > 0
                             ? LocalizationService.Format("Action_Success", $"{compCount} images -> _compressed ({compSaved / 1024} KB saved)")
-                            : LocalizationService.Format("Action_Failed", "No images in folder."));
+                            : LocalizationService.Get("Action_NoImages"));
                         break;
                 }
 
@@ -755,7 +1217,24 @@ namespace CryoUtils
             string name = string.Equals(sourceExt, targetExt, StringComparison.OrdinalIgnoreCase)
                 ? $"{baseName}_converted{targetExt}"
                 : $"{baseName}{targetExt}";
-            return System.IO.Path.Combine(dir, name);
+            string candidate = System.IO.Path.Combine(dir, name);
+            if (!System.IO.File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            string stem = System.IO.Path.GetFileNameWithoutExtension(candidate);
+            string extension = System.IO.Path.GetExtension(candidate);
+            for (int suffix = 2; suffix < 1000; suffix++)
+            {
+                string next = System.IO.Path.Combine(dir, $"{stem}_{suffix}{extension}");
+                if (!System.IO.File.Exists(next))
+                {
+                    return next;
+                }
+            }
+
+            return System.IO.Path.Combine(dir, $"{stem}_{Guid.NewGuid():N}{extension}");
         }
 
         private static void CopyTextSafe(string text)
@@ -814,6 +1293,7 @@ namespace CryoUtils
             DispatcherUnhandledExceptionEventArgs e)
         {
             e.Handled = true;
+            DiagnosticsService.Log("Unhandled dispatcher exception", e.Exception);
             ShowToast(LocalizationService.Format("Error_Body", e.Exception.Message));
         }
 
@@ -821,6 +1301,7 @@ namespace CryoUtils
         {
             if (e.ExceptionObject is Exception exception)
             {
+                DiagnosticsService.Log("Unhandled domain exception", exception);
                 Dispatcher.BeginInvoke(new Action(() =>
                     ShowToast(LocalizationService.Format("Error_Body", exception.Message))));
             }

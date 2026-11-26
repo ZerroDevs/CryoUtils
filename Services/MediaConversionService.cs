@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using Windows.Media.Editing;
@@ -105,6 +106,8 @@ namespace CryoUtils.Services
                 throw new FileNotFoundException("Video file not found", videoPath);
             }
 
+            EnsureDifferentVideoOutput(videoPath, outputPath);
+
             var srcFile = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(videoPath));
             var clip = await MediaClip.CreateFromFileAsync(srcFile);
             var composition = new MediaComposition();
@@ -140,12 +143,68 @@ namespace CryoUtils.Services
             ImageIO.SaveBitmap(frame, outputPath);
         }
 
-        public static async Task<int> VideoToGifAsync(string videoPath, string outputPath, int fps = 12, int maxWidth = 640)
+        public static async Task TrimVideoAsync(
+            string videoPath,
+            string outputPath,
+            double startSeconds,
+            double endSeconds)
         {
             if (!File.Exists(videoPath))
             {
                 throw new FileNotFoundException("Video file not found", videoPath);
             }
+
+            EnsureDifferentVideoOutput(videoPath, outputPath);
+
+            var srcFile = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(videoPath));
+            var clip = await MediaClip.CreateFromFileAsync(srcFile);
+            double duration = clip.OriginalDuration.TotalSeconds;
+            double start = Math.Clamp(startSeconds, 0, Math.Max(0, duration - 0.1));
+            double end = endSeconds <= 0 ? duration : Math.Clamp(endSeconds, start + 0.1, duration);
+            if (end <= start)
+            {
+                throw new ArgumentOutOfRangeException(nameof(endSeconds), "The end time must be after the start time.");
+            }
+
+            clip.TrimTimeFromStart = TimeSpan.FromSeconds(start);
+            clip.TrimTimeFromEnd = TimeSpan.FromSeconds(Math.Max(0, duration - end));
+
+            var composition = new MediaComposition();
+            composition.Clips.Add(clip);
+            string fullOut = Path.GetFullPath(outputPath);
+            string directory = Path.GetDirectoryName(fullOut) ?? ".";
+            Directory.CreateDirectory(directory);
+            var destinationFolder = await StorageFolder.GetFolderFromPathAsync(directory);
+            var destination = await destinationFolder.CreateFileAsync(
+                Path.GetFileName(fullOut),
+                CreationCollisionOption.ReplaceExisting);
+            var profile = composition.CreateDefaultEncodingProfile();
+            var status = await composition.RenderToFileAsync(destination, MediaTrimmingPreference.Precise, profile);
+            if (status != TranscodeFailureReason.None)
+            {
+                try { File.Delete(fullOut); } catch { }
+                throw new InvalidOperationException($"Video trim failed: {status}");
+            }
+        }
+
+        private const int MaxGifFrames = 240;
+
+        public static async Task<int> VideoToGifAsync(
+            string videoPath,
+            string outputPath,
+            int fps = 12,
+            int maxWidth = 640,
+            IProgress<int>? progress = null,
+            CancellationToken cancellationToken = default,
+            double startSeconds = 0,
+            double endSeconds = 0)
+        {
+            if (!File.Exists(videoPath))
+            {
+                throw new FileNotFoundException("Video file not found", videoPath);
+            }
+
+            EnsureDifferentVideoOutput(videoPath, outputPath);
 
             string? dir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(dir))
@@ -159,17 +218,29 @@ namespace CryoUtils.Services
             composition.Clips.Add(clip);
 
             TimeSpan duration = composition.Duration;
-            if (duration.TotalSeconds > 60)
+            double start = Math.Clamp(startSeconds, 0, Math.Max(0, duration.TotalSeconds - 0.05));
+            double end = endSeconds <= 0
+                ? duration.TotalSeconds
+                : Math.Clamp(endSeconds, start + 0.05, duration.TotalSeconds);
+            if (end - start > 60)
             {
-                duration = TimeSpan.FromSeconds(60);
+                end = start + 60;
             }
 
-            double stepSeconds = 1.0 / Math.Clamp(fps, 5, 30);
+            int actualFps = Math.Clamp(fps, 5, 30);
+            double stepSeconds = 1.0 / actualFps;
+            double limitedSeconds = Math.Min(end - start, MaxGifFrames / (double)actualFps);
             var frames = new List<BitmapSource>();
+            progress?.Report(0);
 
-            for (double t = 0; t < duration.TotalSeconds; t += stepSeconds)
+            for (double t = 0; t < limitedSeconds && frames.Count < MaxGifFrames; t += stepSeconds)
             {
-                var time = TimeSpan.FromSeconds(t);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (limitedSeconds > 0)
+                {
+                    progress?.Report((int)Math.Round(t / limitedSeconds * 100));
+                }
+                var time = TimeSpan.FromSeconds(start + t);
                 using var thumbStream = await composition.GetThumbnailAsync(
                     time,
                     maxWidth,
@@ -184,9 +255,7 @@ namespace CryoUtils.Services
 
                 if (decoder.Frames.Count > 0)
                 {
-                    var frame = decoder.Frames[0];
-                    frame.Freeze();
-                    frames.Add(frame);
+                    frames.Add(FitGifFrame(decoder.Frames[0], maxWidth));
                 }
             }
 
@@ -195,8 +264,9 @@ namespace CryoUtils.Services
                 return 0;
             }
 
+            progress?.Report(100);
             using (var fs = File.Create(outputPath))
-            using (var writer = new GifWriter(fs, frames[0].PixelWidth, frames[0].PixelHeight, fps, frames))
+            using (var writer = new GifWriter(fs, frames[0].PixelWidth, frames[0].PixelHeight, actualFps, frames))
             {
                 foreach (var frame in frames)
                 {
@@ -206,6 +276,33 @@ namespace CryoUtils.Services
             }
 
             return frames.Count;
+        }
+
+        private static void EnsureDifferentVideoOutput(string videoPath, string outputPath)
+        {
+            if (string.Equals(
+                    Path.GetFullPath(videoPath),
+                    Path.GetFullPath(outputPath),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("The output path must be different from the source video.");
+            }
+        }
+
+        private static BitmapSource FitGifFrame(BitmapSource frame, int maxWidth)
+        {
+            int side = Math.Min(Math.Max(2, maxWidth), 640);
+            int longest = Math.Max(frame.PixelWidth, frame.PixelHeight);
+            if (longest <= side)
+            {
+                frame.Freeze();
+                return frame;
+            }
+
+            double scale = side / (double)longest;
+            var resized = new TransformedBitmap(frame, new System.Windows.Media.ScaleTransform(scale, scale));
+            resized.Freeze();
+            return resized;
         }
 
         private static async Task TranscodeFileAsync(string inputPath, string outputPath, MediaEncodingProfile profile)

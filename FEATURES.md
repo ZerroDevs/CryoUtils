@@ -23,6 +23,11 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Line with Shift snap | Y | 45 / 90 degree snapping. |
 | Arrow | Y | Scaled arrowhead. |
 | Rectangle with Shift square | Y | Hollow outline. |
+| Ellipse / spotlight | Y | Outline ellipse and dimming spotlight. |
+| Redaction brush | Y | Opaque black freehand stroke, rendered into the export. |
+| Move or delete annotations | Y | Click an existing annotation in the overlay, drag to move, Delete to remove. |
+| Crop / rotate 90° | Y | Reopens the finished result as a new editable capture. |
+| Scrolling capture | U | Automatic frames plus overlap stitching; the control bar hides during each frame; sticky headers can still artifact. |
 | Highlighter | Y | Semi-transparent wide stroke. |
 | Inline text EN/AR | Y | Editable overlay text box with RTL flag. |
 | Irreversible blur / pixelate | Y | Pixelated into the export bitmap. |
@@ -79,6 +84,10 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Confirmation sound | Y | Optional, off by default. |
 | Unpin from dashboard | Y | Tools card. |
 | Restore on exit | Y | `TopmostService.RestoreForExit`. |
+| Multiple pinned windows | Y | Independent pin states; dashboard and Workbench list them. |
+| Per-window opacity / click-through | Y | Workbench Pinner tab; 20–100% opacity. |
+| Exclusion list | Y | Process names skipped by the pinner. |
+| Restore after restart | U | Matches saved title and process; renamed/closed windows do not restore. |
 
 ## 4. Compressor module
 
@@ -103,12 +112,17 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Disabled by default | Y | Opt-in. |
 | Global history hotkey | Y | Ctrl+Shift+H. |
 | Clipboard listener | V | Captured a new text item. |
-| Text and image clips | Y | In-memory list. |
+| Text and image clips | Y | In-memory list by default; text-only DPAPI persistence is opt-in. |
 | Search | Y | Filter in history window. |
 | Copy item back | Y | Text or image. |
 | Remove one / clear all | Y | History window and Tools card. |
 | Sensitive auto-clear | Y | URL, token, password-like heuristic; timer. |
 | History limit | Y | Clamped 10 to 100. |
+| Named snippets | Y | Add, copy, and remove reusable clips. |
+| Text transforms | Y | Upper/lower/title/snake/kebab/camel, URL encode/decode, Base64, JSON. |
+| Transform preview | Y | `ClipboardTransformWindow` before copying. |
+| Image OCR | Y | Runs Windows OCR on an image clip. |
+| Per-item expiry | Y | Optional age-based cleanup for persisted text. |
 | Plain-text paste | Y | Strips formatting, puts text, sends Ctrl+V. |
 | Module off destroys listener | Y | `SetEnabled(false)` disposes the hidden source. |
 
@@ -117,15 +131,30 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Feature | Status | Notes |
 |---|---|---|
 | Custom dark window chrome | Y | Title bar drag and hide/quit buttons. |
-| Tabs: Overview / Capture / Tools / Hotkeys / General / About | Y | Radio navigation. |
+| Tabs: Overview / Screen Capture / Tools & Utilities / Hotkeys / Settings | Y | Radio navigation; About and Updates are integrated into Settings. |
 | Module card grid | Y | Five modules with toggles, hotkey pill, open action. |
 | Active module count | Y | Localized summary. |
 | Recent captures strip | Y | Thumbnails, copy, compress, open folder, delete. |
+| Activity Center | U | Service-fed cards and quick actions above the recent captures strip. |
 | Empty recent state | Y | Visible when no captures. |
 | Quick capture and record actions | Y | Hero and Overview buttons. |
 | Status and version | Y | `v0.0.100` from `VERSION`. |
 | Focus indicators | Y | Cryo styles, keyboard tabs. |
 | Escape hides dashboard | Y | Unless a text box has focus. |
+
+## 6.1 Workspace tools and Activity Center
+
+Status is `U` for these surfaces because they compile and are wired, but the modeless overlays and drag/drop were not exercised in this environment.
+
+| Feature | Status | Notes |
+|---|---|---|
+| Activity Center on Overview | U | Recent captures/uploads, workflow runs/failures, active file jobs, pinned windows, storage/retention, and quick actions. |
+| Live Draw hotkey | U | Configurable hotkey, default `Ctrl+Shift+D`; transparent virtual-screen ink layer without freeze-frame capture. |
+| Live Draw tools | U | Pen, arrow, box, text; fade after 5 seconds or persist; undo, clear, and composited capture. |
+| Screen Ruler | U | Horizontal, vertical, diagonal, and region measurements; angle/readout copy and click-to-place guides. |
+| File Shelf | U | Floating drop target, drag-out, batch compress/convert, PDF merge, path copy, and clear. |
+| Image Editor | U | Opens PNG/JPG/WebP/BMP; annotate, crop, rotate, resize, redact, save/convert, copy. |
+| Developer Toolbox | U | JSON/XML, Base64/URL, SHA-256, GUID, and regex transforms locally. |
 
 ## 7. Tray
 
@@ -134,7 +163,7 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Packaged CryoUtils icon | U | New `CryoUtils-Icon.png` rendered into a multi-size ICO and embedded in the executable/window/installer. A tightly cropped `CryoUtils-Tray.ico` fixes the oversized transparent border, and the tray loads the current 16/20/24/32 px slot size. Tray rendering was previewed at 16/20/24 px but not inspected live in the notification area. |
 | Left-click configurable | Y | Dashboard or capture. |
 | Right-click menu | Y | Capture, record, color picker, dashboard, settings, exit. |
-| Dark menu renderer | Y | Cryo surfaces, teal highlight. |
+| Dark menu renderer | Y | Cryo surfaces, Cryo Blue highlight. |
 | Language-aware menu | Y | Labels and RTL rebuild on a language switch. |
 | Runs with no window | V | Default launch and `--background` produced zero visible windows; tray icon was visible as `CryoUtils`. |
 | Exit cleanup | Y | Unregisters hotkeys and disposes services. |
@@ -152,10 +181,14 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Run in background | Y | On by default; manual launch starts in the tray. |
 | X button hides to tray | Y | Minimize button removed; X and Alt+F4 hide the dashboard. Quit only from the tray menu. |
 | Window position restore | Y | Bounds checked against virtual screen. |
+| Safe capture retention | Y | Only `CryoUtils_*` files; pruned items go to the Recycle Bin; lowering the limit asks first. |
+| Copied/upload archive toggle | Y | `ArchiveCopiedCaptures` controls Ctrl+C and upload auto-archiving; explicit saves still persist. |
+| Cloud upload consent | Y | First upload explains catbox.moe; Settings can disable uploads entirely. |
+| Async all-time gallery | Y | Thumbnails load off the UI thread with cancellation and cache reuse. |
 | Theme Dark / Light / System | V | Live switch tested. |
 | Language English / العربية | V | Live switch tested. |
 | RTL layout | Y | Window flow direction; technical values LTR. |
-| Localization parity | V | 297 keys each, no duplicates, placeholders match. |
+| Localization parity | V | 696 keys each, no duplicates, placeholders match. |
 
 ## 9. Updater
 
@@ -198,4 +231,26 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Contrast | Y | Key text token pairs measured at or above 4.5:1. A full screen-by-screen contrast audit was not run. |
 | Empty / busy / error states | Y | Recent empty, compression busy, error toasts. |
 | No hardcoded visible UI strings | Y | Localization dictionaries; technical tokens remain literal. |
-| Offline privacy | Y | No analytics, no cloud, clipboard memory only, update check optional. |
+| Privacy controls | Y | No analytics; optional GitHub updates; explicit consent and a Settings toggle for Catbox uploads; clipboard memory-only by default with optional DPAPI text persistence. |
+| Service test runner | V | `Tests/CryoUtils.Tests.csproj`: 9 focused checks, 0 failures. |
+
+## 12. Cryo Workbench
+
+| Feature | Status | Notes |
+|---|---|---|
+| Capture library metadata | Y | Source app/window, tags, favorites, search; `capture-library.json`. |
+| Bulk library actions | Y | Open, reveal, favorite, tag, and Recycle Bin deletion. |
+| Post-capture recipes | Y | Runs after Copy/Save; app filter, filename template, resize, save/copy/OCR/upload. |
+| Privacy center | Y | Provider choice, consent status/withdrawal, local-only mode, upload history. |
+| Local upload provider | Y | `%APPDATA%\CryoUtils\uploads`; no network; expiry. |
+| Catbox remote deletion | Y | Explicitly unavailable; UI says so. |
+| File action queue | Y | Convert/compress/recycle, dry run, overwrite policies, cancel/retry. |
+| Recycle confirmation | Y | Real (non-dry-run) queue asks before moving files. |
+| Color studio | Y | Palette extraction, saved contrast pairs, CSS/JSON/Tailwind exports, CVD preview. |
+| PDF page work / OCR | Y | Range extract, merge, split, reorder, rotate, OCR. |
+| PDF password encryption | Y | Not implemented by design; UI states the limitation. |
+| Video trim / GIF range | Y | Media Foundation video trim; GIF start/end frame range. |
+| Clipboard workbench | Y | Snippets, filters, transforms, preview, image OCR. |
+| Optional clipboard persistence | Y | Text-only DPAPI; images never persisted. |
+| Diagnostics | Y | Bounded logs, exception logging, viewer, safe mode; `--safe-mode` CLI. |
+| Workbench UI runtime | U | Built cleanly; no interactive click-through in this environment. |

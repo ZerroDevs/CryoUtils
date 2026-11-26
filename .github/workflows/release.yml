@@ -52,10 +52,10 @@ jobs:
             Write-Host "Tag $tag already exists. This run will not publish a release."
           }
 
-      - name: Set up .NET 8
+      - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore
         shell: pwsh

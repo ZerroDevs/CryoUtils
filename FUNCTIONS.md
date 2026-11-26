@@ -7,7 +7,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | Symbol                          | Location      | Purpose                                                                                                                                                                                                     |
 | ------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `App.CurrentApp`                | `App.xaml.cs` | Static access to the running application.                                                                                                                                                                   |
-| `App.OnStartup`                 | `App.xaml.cs` | Loads settings, applies theme and language, creates tray, registers hotkeys, starts listeners. `--background` always stays in the tray; otherwise `LaunchInBackground` decides whether the dashboard opens. |
+| `App.OnStartup`                 | `App.xaml.cs` | Loads settings, applies theme and language, creates tray, registers hotkeys, starts listeners. `--background` always stays in the tray; `--safe-mode` disables pinner restore and releases saved topmost windows; otherwise `LaunchInBackground` decides whether the dashboard opens. |
 | `App.OnExit`                    | `App.xaml.cs` | Saves window position, unregisters hotkeys, disposes tray and services.                                                                                                                                     |
 | `App.ApplyAllSettings`          | `App.xaml.cs` | Re-applies theme, language, hotkeys, pin border settings, clipboard listener and module registration.                                                                                                       |
 | `App.StartCapture`              | `App.xaml.cs` | Opens capture overlays and hides the dashboard.                                                                                                                                                             |
@@ -34,7 +34,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `SettingsService.WriteAtomicJson`                                                        | same                                 | Shared atomic JSON writer.                                                                                                                                            |
 | `StartupService.IsEnabled`                                                               | `Services/StartupService.cs`         | Reads the HKCU Run value.                                                                                                                                             |
 | `StartupService.SetEnabled`                                                              | same                                 | Writes or deletes the HKCU Run value.                                                                                                                                 |
-| `ScreenCaptureService` (`QuickSave`, `GetSavedCaptureFiles`, `EnforceSavedCaptureLimit`) | `Services/ScreenCaptureService.cs`   | Saves timestamped captures, enumerates saved captures newest-first, and prunes oldest files beyond `AppSettings.SavedCapturesLimit`.                                  |
+| `ScreenCaptureService` (`QuickSave`, `GetSavedCaptureFiles`, `GetManagedCaptureFiles`, `EnforceSavedCaptureLimit`) | `Services/ScreenCaptureService.cs` | Saves unique timestamped captures, enumerates saved captures newest-first, and prunes only `CryoUtils_*` files beyond `AppSettings.SavedCapturesLimit` into the Recycle Bin. |
 | `CryoContextMenuService.IsEnabled`                                                       | `Services/CryoContextMenuService.cs` | Checks whether Windows Explorer cascading context menu integration is enabled in HKCU.                                                                                |
 | `CryoContextMenuService.SetEnabled`                                                      | same                                 | Toggles full registration / unregistration across Images, GIF, PDF, Video, Audio, Data/Text, All Files (`*`), and Folders (`Directory`).                              |
 | `CryoContextMenuService.RegisterAll`                                                     | same                                 | Registers direct cascading submenus with `SubCommands=""`, `CommandFlags=0x20` dividers, nested `Resize >` group, and `CryoUtilsConvert` sibling for >16 image items. |
@@ -88,7 +88,8 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | Symbol                                           | Location                             | Purpose                                                                                    |
 | ------------------------------------------------ | ------------------------------------ | ------------------------------------------------------------------------------------------ |
 | `CaptureController.Instance`                     | `Views/CaptureController.cs`         | Capture session singleton.                                                                 |
-| `CaptureController.UploadSelectionAsync`         | same                                 | Uploads selection to Catbox and copies direct link to clipboard.                           |
+| `CaptureController.UploadSelectionAsync`         | same                                 | Checks upload settings/consent, optionally archives the selection, uploads it to Catbox, and copies the direct link. |
+| `UploadConsentService.EnsureUploadAllowed`       | `Services/UploadConsentService.cs`   | Enforces the enable toggle and one-time catbox.moe consent prompt.                         |
 | `CloudUploadService.UploadImageAsync`            | `Services/CloudUploadService.cs`     | Anonymous multipart/form-data upload returning direct link.                                |
 | `CryoContextMenuService.SetEnabled`              | `Services/CryoContextMenuService.cs` | Registers/unregisters HKCU cascading context menu entries for PDF, image, and video files. |
 | `PdfToolsService.PdfToImagesAsync`               | `Services/PdfToolsService.cs`        | Native Windows.Data.Pdf page renderer to high-res PNG/JPG images.                          |
@@ -143,6 +144,18 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `RecorderService.PngFrames`                             | same                          | Access to captured frame bytes.                                |
 | `RecorderService.IsRecording`, `IsPaused`, `IsEncoding` | same                          | Live state.                                                    |
 | `RecorderService.Dispose`                               | same                          | Stops timers and releases the capture thread.                  |
+| `RecordingOptions.FromSettings`                         | `Services/Recording/RecordingOptions.cs` | Normalizes FPS, size, quality/bitrate, audio, effects, and replay settings. |
+| `ReplayMath`                                            | same                          | Retention count, estimated disk use, 2x free-space preflight, and clip start. |
+| `MfEncoder`                                             | `Services/Recording/MfEncoder.cs` | Live H.264/AAC SinkWriter with hardware/software fallback and silent-audio fill. |
+| `WgcCaptureEngine` / `GdiCaptureEngine`                 | `Services/Recording/CaptureEngine.cs` | WGC/D3D11 monitor capture cropped to the selection; 30 FPS GDI fallback. |
+| `D3D11Readback`                                         | `Services/Recording/D3D11Readback.cs` | GPU-to-staging BGRA readback for WGC frames; SoftwareBitmap fallback. |
+| `FrameComposer`                                         | `Services/Recording/FrameComposer.cs` | Scale/crop plus cursor highlight, click pulses, and webcam bubble. |
+| `WasapiCaptureService` / `AudioMixer`                   | `Services/Recording/WasapiCaptureService.cs`, `AudioMixer.cs` | Loopback/microphone capture at 48 kHz stereo and clipping-safe mixing. |
+| `RecordingSession`                                      | `Services/Recording/RecordingSession.cs` | Normal MP4 capture, pause/resume, finalize, and error state. |
+| `ReplaySegmentRing`                                     | `Services/Recording/ReplaySegmentRing.cs` | Keyframe-aligned disk segments, retention, current-segment seal, and pinning. |
+| `ReplayRemuxer`                                         | `Services/Recording/ReplayRemuxer.cs` | Compressed sample remux; `MediaComposition` re-encode fallback. |
+| `ReplayService`                                         | `Services/Recording/ReplayService.cs` | Always-on buffer lifecycle, disk preflight, hotkey save, and capture-library entry. |
+| `RecordingTrimWindow` / `RecorderSettingsWindow`        | `Views/`                       | Trim-before-save and recorder/replay settings UI.              |
 
 ## QR Code and Color Contrast
 
@@ -161,7 +174,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 
 | Symbol                               | Location                          | Purpose                                                                                                            |
 | ------------------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `ColorPickerWindow`                  | `Views/ColorPickerWindow.xaml(.cs)` | Stationary draggable inspector with per-monitor frozen desktop eyedropper backdrop (`StartSamplingAsync` / `StopSampling`), 15x15 magnifier, HEX/RGB/HSL row copy + `CmbFormat` dropdown, WCAG contrast lock, and re-pick button. |
+| `ColorPickerWindow`                  | `Views/ColorPickerWindow.xaml(.cs)` | Stationary draggable inspector with per-monitor frozen desktop eyedropper backdrop (`StartSamplingAsync` / `StopSampling`), 15x15 magnifier, HEX/RGB/HSL row copy, WCAG contrast lock, and re-pick button. |
 | `TopmostService.ToggleFocusedWindow` | `Services/TopmostService.cs`      | Toggles `WS_EX_TOPMOST` on the foreground window with title/class validation.                                      |
 | `TopmostService.Unpin`               | same                              | Removes topmost, restores styles, hides border, forces screen redraw.                                              |
 | `TopmostService.ForceClearAll`       | same                              | Emergency recovery tool: unpins, destroys border, and clears whole-screen artifacts.                               |
@@ -189,6 +202,30 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `UpdaterService.RestoreBackup`       | same                              | Restore the previous executable.                                                                                   |
 | `UpdaterService.DeleteBackup`        | same                              | Remove rollback backup.                                                                                            |
 | `UpdaterService.OpenReleasePage`     | same                              | Open the release page or the releases index.                                                                       |
+| `LiveDrawWindow`                     | `Views/LiveDrawWindow.xaml(.cs)`  | Transparent desktop ink overlay; pen/arrow/box/text, fade or persist, undo/clear, and composited annotated-screen PNG. |
+| `LiveInkSurface`                     | `Views/LiveInkSurface.cs`         | Draws committed and preview ink items in overlay and capture compositing coordinates.                               |
+| `ScreenRulerWindow` / `RulerSurface` | `Views/ScreenRulerWindow.xaml(.cs)`, `Views/RulerSurface.cs` | Physical-pixel horizontal/vertical/diagonal/region measurement, alignment guides, and readout copy. |
+| `FileShelfWindow`                    | `Views/FileShelfWindow.xaml(.cs)` | Floating file/folder drop target with drag-out, batch file actions, PDF merge, and path copy.                        |
+| `ImageEditorWindow` / `ImageResizeWindow` | `Views/ImageEditorWindow.xaml(.cs)`, `Views/ImageResizeWindow.xaml(.cs)` | Existing-image annotation, crop, rotate, resize, redaction, convert, save, and copy.          |
+| `DeveloperToolboxWindow`             | `Views/DeveloperToolboxWindow.xaml(.cs)` | Local JSON/XML formatting, Base64/URL transforms, SHA-256, GUID, and regex testing.                         |
+
+## Workbench services and tests
+
+| Symbol | Location | Purpose |
+|---|---|---|
+| `CaptureLibraryService.Record` | `Services/CaptureLibraryService.cs` | Stores source app/window, tags and favorites when a capture is saved. |
+| `CaptureLibraryService.Search` / `DeleteToRecycleBin` | same | Filters metadata and moves selected capture files to the Recycle Bin. |
+| `WorkflowService.RunPostCaptureAsync` | `Services/WorkflowService.cs` | Matches and executes Copy/Save recipes with filename templates and optional resize. |
+| `UploadProviderService.UploadImageAsync` | `Services/UploadHistoryService.cs` | Routes an upload to Catbox or the local folder provider. |
+| `UploadHistoryService.Add` / `ExpireLocalUploads` | `Services/UploadHistoryService.cs` | Persists links and removes expired local files. |
+| `FileActionQueueService.RunAsync` | `Services/FileActionQueueService.cs` | Runs pending/retry/dry-run jobs with overwrite policy and cancellation. |
+| `FileToolsService.CreateUniquePath` | `Services/FileToolsService.cs` | Avoids overwriting outputs while preserving the extension. |
+| `ColorStudioService.ExtractPalette` / `ExportCss` / `Simulate` | `Services/ColorStudioService.cs` | Palette, token exports, and color-vision simulation. |
+| `ScrollingCaptureService.StitchVertical` / `PlaceControlBar` | `Services/ScrollingCaptureService.cs` | Detects row overlap, stitches frames, and places the scroll control bar; `ScrollingCaptureWindow` collects the frames. |
+| `PdfToolsService.ParsePageRange` / `ExtractPdfPagesAsync` / `MergePdfsAsync` / `OcrPdfAsync` | `Services/PdfToolsService.cs` | PDF page selection and page-range operations. |
+| `DiagnosticsService.Write` / `Exception` | `Services/DiagnosticsService.cs` | Bounded log writes and unhandled-exception records. |
+| `TopmostService.ReleaseSavedTopmosts` | `Services/TopmostService.cs` | Safe-mode release of matching saved topmost windows and the session file. |
+| `Tests/Program.cs` | `Tests/Program.cs` | Dependency-free assertions for pure services (9 checks). |
 
 ## Hotkeys and native interop
 
@@ -220,13 +257,16 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 | `CaptureSurface.cs` | Shared physical selection, annotation list, hit testing, cursor state, redraw. |
 | `HotkeyCaptureWindow.xaml` | Modal key capture with modifier display and validation. |
 | `OcrResultWindow.xaml` | Auto-height, top-aligned rich OCR editor; code/wrap toggles, syntax colors, line/character metadata, color swatches, Open/Save as, drag/drop for Markdown and all text types. |
-| `ClipboardHistoryWindow.xaml` | Searchable list, copy, remove, clear, sensitive note. |
+| `ClipboardHistoryWindow.xaml` | Searchable list, named snippets, copy/remove/clear, image OCR, transforms, optional encrypted persistence and expiry. |
+| `ClipboardTransformWindow.xaml` | Preview a selected text transform before copying. |
+| `PowerToolsWindow.xaml` | Cryo Workbench: Library, Recipes, Privacy, File Actions, Colors, Pinner, PDF/Media, Diagnostics. |
 | `QrResultWindow` | `Views/QrResultWindow.xaml(.cs)` | Borderless Cryo-Family popup (`TitleBar_MouseLeftButtonDown` drag + close) showing decoded QR payload, format, clickable QR thumbnail, copy text, save text, and save QR image. |
 | `PinWindow.xaml` | Frameless always-on-top image, drag, wheel zoom, Ctrl+wheel opacity, right-click menu. |
 | `UploadProgressWindow.xaml` | Non-topmost, taskbar-minimizable cloud upload progress popup with real-time byte percentage, cancel on close, auto-copy link on completion, and inline Copy icon button. |
+| `OperationProgressWindow.xaml` | Reusable cancelable progress popup used by video-to-GIF and folder-to-GIF conversions. |
 | `ToastWindow.xaml` | Non-intrusive toast, bottom-right, click-through. |
 | `TrayIconManager.cs` | Packaged CryoUtils icon with custom `DarkMenuRenderer`, rounded pill hover, custom anti-aliased chevrons, floor width constraints, full RTL support, capture, delayed capture submenu, record, color picker, QR suite submenu, clipboard history, dynamic pin/unpin/reset items, dashboard, settings, and exit. |
-| `RecentCaptureService.cs` | Manages `Items` (`Session`) and `AllTimeItems` (`EffectiveSaveFolder`), lazy disk thumbnails, inline delete confirmation, `ReloadAllTime()`, `NotifyFilesDeleted()`, and dimension/filesize formatting. |
+| `RecentCaptureService.cs` | Manages `Items` (`Session`) and `AllTimeItems` (`EffectiveSaveFolder`), background disk thumbnail loading with cancellation (`ReloadAllTimeAsync()`), inline delete confirmation, `NotifyFilesDeleted()`, and dimension/filesize formatting. |
 | `CryoIcon` / `IconData` | Vector geometry resources used by XAML (`Home`, `Keyboard`, `Info`, `Edit`, `Tools`, `Record`, `Menu`, `Minimize`, `Check`, `Folder`, `Trash`, `Capture`, `Droplet`, `Pin`, `Compress`, `Clipboard`, `Settings`, `Close`, `Power`, `QrCode`, `Contrast`, `CloudUpload`). |
 
 ## Reuse rules
@@ -237,7 +277,7 @@ Reuse these before creating a duplicate. All services are singletons unless mark
 - Use `ThemeService.GetBrush` and DynamicResource tokens only. Do not hardcode colors.
 - Use `LocalizationService.Get` and `Format` for every visible string.
 - Use `TextAnalysisService` for OCR code detection, syntax tokenization and color-code parsing instead of duplicating regexes in a window.
-- Use `SettingsService` for persistence; do not write a second JSON store.
+- Use `SettingsService` for settings; dedicated services own their documented metadata stores (`capture-library.json`, `workflows.json`, `upload-history.json`) instead of overloading settings.
 - Use `GlobalHotkeyService` for every global shortcut; do not create a second hotkey window.
 - Use `RecordingBarWindow` and `RecorderService` for every recording path.
 - Use `ClipboardService` for history, plain paste and clip restoration.

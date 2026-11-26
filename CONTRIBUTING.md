@@ -9,9 +9,9 @@ CryoUtils is a lightweight Windows capture, OCR, and desktop utility suite creat
 ## Guiding Principles
 
 1. **Standard-user operation**: CryoUtils is `asInvoker`. Do not add an administrator requirement, a service, a driver, or a machine-wide installer action without a clear security and UX reason.
-2. **Local and private by default**: Do not add telemetry, analytics, advertising, accounts, or hidden network calls. The only normal network path is the GitHub update check and download.
+2. **Local and private by default**: Do not add telemetry, analytics, advertising, accounts, or hidden network calls. The only normal network paths are the GitHub update check/download and explicit, consented Catbox uploads.
 3. **Lightweight**: Avoid unnecessary dependencies and background workers. Capture and tool windows should close cleanly and release their resources.
-4. **CryoUtils visual language**: Keep the flat dark surfaces, crisp borders, teal accent, small radii, and readable typography. Light and System themes must remain consistent. Do not hardcode colors that should be theme tokens.
+4. **CryoUtils visual language**: Keep the flat dark surfaces, crisp borders, Cryo Blue accent, small radii, and readable typography. Light and System themes must remain consistent. Do not hardcode colors that should be theme tokens.
 5. **Complete localization**: Every user-facing string belongs in both `Resources/Strings.en.xaml` and `Resources/Strings.ar.xaml`. Arabic layouts mirror, while shortcuts, paths, versions, and technical values stay LTR.
 6. **Do not break capture correctness**: Capture coordinates are physical pixels. Export from the frozen source frame plus annotations, never from the dimmed overlay.
 
@@ -22,7 +22,7 @@ CryoUtils is a lightweight Windows capture, OCR, and desktop utility suite creat
 ### Prerequisites
 
 - Windows 10 version 2004 (build 19041) or later, or Windows 11, x64.
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), version `8.0.300` or newer recommended.
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), version `10.0.100` or newer recommended.
 - Visual Studio 2022 with the .NET desktop development workload, VS Code with C# Dev Kit, or JetBrains Rider.
 - Optional: [Inno Setup 6.3 or newer](https://jrsoftware.org/isdl.php) for installer builds. `build-installer.ps1` can install it through winget when needed.
 
@@ -48,7 +48,7 @@ dotnet build CryoUtils.csproj -c Release
 The project targets:
 
 ```text
-net8.0-windows10.0.19041.0
+net10.0-windows10.0.19041.0
 ```
 
 It uses WPF and Windows Forms for the tray icon and native file/color dialogs. `<ImplicitUsings>disable</ImplicitUsings>` is intentional; keep explicit usings and qualify ambiguous types such as `Color`, `Point`, `Brush`, and `MessageBox`.
@@ -57,13 +57,13 @@ It uses WPF and Windows Forms for the tray icon and native file/color dialogs. `
 
 ```powershell
 dotnet build CryoUtils.csproj -c Debug
-.\bin\Debug\net8.0-windows10.0.19041.0\CryoUtils.exe
+.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe
 ```
 
 Use `--background` to start in the tray without opening the dashboard:
 
 ```powershell
-.\bin\Debug\net8.0-windows10.0.19041.0\CryoUtils.exe --background
+.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe --background
 ```
 
 ### Build the Installer and Portable Archive

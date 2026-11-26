@@ -53,6 +53,16 @@ namespace CryoUtils.Views
             {
                 _closing = true;
                 StopSampling();
+                foreach (var timer in _copyFeedbackTimers.Values)
+                {
+                    timer.Stop();
+                }
+                _copyFeedbackTimers.Clear();
+                if (MagnifierImage != null)
+                {
+                    MagnifierImage.Source = null;
+                }
+                MemoryTrimService.ScheduleTrim(400);
             };
         }
 
@@ -237,6 +247,29 @@ namespace CryoUtils.Views
                 }
             }
             _backdrops.Clear();
+
+            // Detach the tiny magnifier crop so the full virtual-desktop bitmap & pixel buffer can be freed immediately.
+            if (!_closing && MagnifierImage?.Source is CroppedBitmap crop)
+            {
+                try
+                {
+                    int w = Math.Max(1, crop.PixelWidth);
+                    int h = Math.Max(1, crop.PixelHeight);
+                    int stride = w * 4;
+                    var bytes = new byte[stride * h];
+                    crop.CopyPixels(bytes, stride, 0);
+                    var detached = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bytes, stride);
+                    detached.Freeze();
+                    MagnifierImage.Source = detached;
+                }
+                catch
+                {
+                    MagnifierImage.Source = null;
+                }
+            }
+            _desktopBitmap = null;
+            _desktopPixels = null;
+
             if (!_closing)
             {
                 UpdateSamplingStateUi();

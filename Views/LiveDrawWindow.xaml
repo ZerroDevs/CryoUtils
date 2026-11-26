@@ -1,0 +1,68 @@
+<Window x:Class="CryoUtils.Views.LiveDrawWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:CryoUtils.Views"
+        Title="{DynamicResource LiveDraw_Title}"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="#01000000"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Topmost="True"
+        WindowStartupLocation="Manual"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        FontFamily="{StaticResource SegoeUIVariableText}"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid x:Name="Root"
+          Background="#01000000"
+          MouseLeftButtonDown="Root_MouseLeftButtonDown"
+          MouseMove="Root_MouseMove"
+          MouseLeftButtonUp="Root_MouseLeftButtonUp">
+        <views:LiveInkSurface x:Name="Ink" IsHitTestVisible="False"/>
+
+        <Border x:Name="Toolbar"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,16,0,0"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderStrongBrush}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{DynamicResource LiveDraw_Title}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="6,0,12,0"/>
+                <Button x:Name="BtnPen" Tag="Pen" Content="{DynamicResource LiveDraw_Pen}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0"/>
+                <Button x:Name="BtnArrow" Tag="Arrow" Content="{DynamicResource LiveDraw_Arrow}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0"/>
+                <Button x:Name="BtnRectangle" Tag="Rectangle" Content="{DynamicResource LiveDraw_Box}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0"/>
+                <Button x:Name="BtnText" Tag="Text" Content="{DynamicResource LiveDraw_Text}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,10,0"/>
+                <CheckBox x:Name="ChkFade" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource LiveDraw_Fade}" VerticalAlignment="Center" IsChecked="True" Margin="0,0,10,0"/>
+                <Button Content="{DynamicResource LiveDraw_Undo}" Style="{StaticResource SecondaryButton}" Click="BtnUndo_Click" Margin="0,0,4,0"/>
+                <Button Content="{DynamicResource LiveDraw_Clear}" Style="{StaticResource SecondaryButton}" Click="BtnClear_Click" Margin="0,0,4,0"/>
+                <Button Content="{DynamicResource LiveDraw_Capture}" Style="{StaticResource PrimaryButton}" Click="BtnCapture_Click" Margin="0,0,4,0"/>
+                <Button Content="{DynamicResource Common_Close}" Style="{StaticResource SecondaryButton}" Click="BtnClose_Click"/>
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="Hint"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,24"
+                Background="{DynamicResource OverlayBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderStrongBrush}"
+                BorderThickness="1"
+                CornerRadius="3"
+                Padding="10,5">
+            <TextBlock Text="{DynamicResource LiveDraw_Hint}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       FontSize="11"/>
+        </Border>
+
+        <Canvas x:Name="TextLayer"/>
+    </Grid>
+</Window>

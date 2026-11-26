@@ -4,7 +4,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-blue" alt="Windows 10 / 11">
-  <img src="https://img.shields.io/badge/.NET-8.0%20WPF%20%2B%20WinForms-purple" alt=".NET 8.0 WPF + WinForms">
+  <img src="https://img.shields.io/badge/.NET-10.0%20WPF%20%2B%20WinForms-purple" alt=".NET 10.0 WPF + WinForms">
   <img src="https://img.shields.io/badge/License-Apache--2.0-blue" alt="Apache-2.0">
 </p>
 
@@ -12,7 +12,7 @@
   <strong>A native Windows capture, OCR, and desktop utility suite by ZeroNuxi under ZerroDevs.</strong>
 </p>
 
-CryoUtils keeps screenshot capture, annotation, OCR, color picking, image compression, clipboard history, and window pinning in one small tray application. Capture a region or a window, mark it up, copy or save it, pull text out of it locally, or record it as a GIF or MP4. It runs as a standard user, keeps its data on the machine, and has no account, telemetry, or background service.
+CryoUtils keeps screenshot capture, annotation, OCR, color picking, image compression, clipboard history, and window pinning in one small tray application. Capture a region or a window, mark it up, copy or save it, pull text out of it locally, or record it as a GIF or MP4. The Cryo Workbench adds a capture library, recipes, file actions, privacy controls, color tools, PDF/media jobs, and diagnostics without a second app. It runs as a standard user, keeps its data on the machine except for explicitly consented uploads, and has no account, telemetry, or background service.
 
 The current baseline is `0.0.100`. The application runs locally from the tray and does not require administrator elevation.
 
@@ -24,6 +24,8 @@ The current baseline is `0.0.100`. The application runs locally from the tray an
 - [OCR](#ocr)
 - [Color picker](#color-picker)
 - [Image compressor](#image-compressor)
+- [Cryo Workbench](#cryo-workbench)
+- [Workspace tools and Activity Center](#workspace-tools-and-activity-center)
 - [Clipboard history](#clipboard-history)
 - [Window pinner](#window-pinner)
 - [Tray, startup, and appearance](#tray-startup-and-appearance)
@@ -46,15 +48,15 @@ The current baseline is `0.0.100`. The application runs locally from the tray an
 | Item | Details |
 | --- | --- |
 | Platform | Windows 10 version 2004 (build 19041) or Windows 11, x64 |
-| Runtime | .NET 8 with WPF and Windows Forms |
+| Runtime | .NET 10 with WPF and Windows Forms |
 | Privileges | Standard user (`asInvoker`); no UAC and no service |
 | Capture | Multi-monitor freeze frame, region or window selection, annotations |
 | Output | PNG, JPG, WebP, GIF, and MP4 |
 | OCR | Local Windows OCR with editable results, code mode, color swatches, and text-file open/save |
-| Tools | Color picker, compressor, clipboard history, window pinner |
+| Tools | Cryo Workbench (library, recipes, privacy, files, colors, PDF/media, logs), Activity Center, Live Draw, Screen Ruler, File Shelf, Image Editor, Developer Toolbox, color picker, compressor, clipboard history, window pinner |
 | Appearance | Dark (default), Light, or System; English and Arabic with RTL |
-| Storage | `%APPDATA%\CryoUtils\settings.json` plus user-chosen output files |
-| Network use | GitHub Releases update checks and downloads only |
+| Storage | `%APPDATA%\CryoUtils\settings.json` plus saved and auto-archived captures |
+| Network use | GitHub Releases update checks/downloads, plus explicitly consented uploads to catbox.moe; an optional local-folder provider uses no network |
 | Installer | Per-user Inno Setup installer; no elevation |
 | License | Apache License 2.0 |
 
@@ -62,9 +64,9 @@ The current baseline is `0.0.100`. The application runs locally from the tray an
 
 ### Dashboard
 
-The dashboard is a compact WPF window with six tabs: **Overview**, **Capture**, **Tools**, **Hotkeys**, **General**, and **About**. It shows module cards, current versions, recent captures, quick actions, and the state of the tray modules.
+The dashboard is a compact WPF window with five tabs: **Overview**, **Screen Capture**, **Tools & Utilities**, **Hotkeys**, and **Settings** (with About and Updates integrated). It shows module cards, current versions, recent captures, quick actions, and the state of the tray modules.
 
-The dashboard uses the shared CryoUtils surface language: flat cards, one-pixel borders, a teal accent, and small radii. It follows the selected theme and language at runtime.
+The dashboard uses the shared CryoUtils surface language: flat cards, one-pixel borders, the Cryo Blue accent, and small radii. It follows the selected theme and language at runtime.
 
 ### Capture and annotations
 
@@ -74,13 +76,21 @@ Capture opens one overlay per monitor over a frozen desktop snapshot. The curren
 
 - Drag selection with a live size badge, moving, eight resize handles, and double-click window selection.
 - `Ctrl+A` for the full monitor, `Esc` to close, and the existing capture shortcuts.
-- Pen, line, arrow, rectangle, highlighter, text, step-number, and irreversible blur/pixelate annotations.
+- Pen, line, arrow, rectangle, ellipse, highlighter, text, step-number, spotlight, redaction brush, and irreversible blur/pixelate annotations.
+- Existing annotations can be selected, moved, or deleted from the overlay; **Crop** and **Rotate 90°** finish the selection into a new editable capture.
 - Color swatches, a custom color picker, and thickness control.
 - An optional pixel magnifier with a color readout, off by default and enabled in the Capture settings.
 - The action rail automatically moves around the tool rail, so small or narrow selections do not stack the controls.
 - Undo and redo.
-- Copy, save, print, pin to screen, and OCR actions.
-- Recording a selected region as GIF or MP4, with FPS and duration controls.
+- Copy, save, print, pin to screen, OCR, scan QR, and upload actions.
+- Recording a selected region as GIF or MP4, with FPS and duration controls. MP4 now records through the Windows-native live pipeline (Windows.Graphics.Capture, Direct3D 11, Media Foundation) instead of buffering PNG frames; GIF stays on the original encoder.
+- Opening **Recorder settings** from the Capture card or Tools tab to choose MP4 resolution (Source/720p/1080p/1440p/2160p), 30 FPS or 60 FPS target, quality or a custom bitrate, duration, system audio, microphone, cursor highlight, click effects, webcam bubble, and trim-before-save.
+- Pausing/resuming an MP4 recording with paused time removed from the final timestamps, then optionally trimming before saving.
+- **Instant Replay**: enable a 15 second–10 minute disk-backed buffer for a chosen monitor. The replay hotkey (default `Ctrl+Shift+R`) saves the last N seconds as MP4 without re-encoding; the tray menu can start/stop the buffer or save a replay, and the tray icon shows a red badge while recording or buffering.
+- Scrolling capture collects frames while the target window scrolls, detects row overlap, and saves a stitched image.
+- Optional delayed capture with a countdown that restores the dashboard when canceled.
+
+The Overview tab can show either this session's captures or the current save folder's all-time capture library.
 
 Saving uses a save dialog or the configured quick-save folder. The default output folder is `Pictures\CryoUtils`.
 
@@ -101,7 +111,7 @@ OCR availability depends on the Windows language packs. English and Arabic are d
 
 ### Color picker
 
-The color picker freezes the desktop, shows a magnifier grid, and reports the selected color as HEX, RGB, and HSL. Clicking copies the selected format; the choice is saved. Recent colors appear in the dashboard Tools tab.
+The color picker freezes the desktop, shows a magnifier grid, and reports the selected color as HEX, RGB, and HSL. Click a screen pixel to copy the active format, or use the per-format copy rows. Recent colors appear in the dashboard Tools tab.
 
 The default hotkey is `Ctrl+Shift+C`. The module can be disabled from the dashboard, which unregisters its hotkey.
 
@@ -114,15 +124,42 @@ The compressor accepts PNG, JPG/JPEG, WebP, and GIF files by drag/drop or file b
 - Before/after sizes, saved percentage, and a preview.
 - Save as, copy file, and a keep-original fallback when re-encoding would be larger.
 
+### Cryo Workbench
+
+**Cryo Workbench** (`Tools > Cryo Workbench`, tray menu, or the configurable `Ctrl+Shift+W` hotkey) is one window with tabs for the larger jobs. Each tab reads and writes local data unless it performs an explicitly requested upload.
+
+- **Library**: indexes saved captures in the configured save folder, records the source application and window, and supports search, tags, favorites, multi-select, open, reveal, and Recycle Bin deletion. Metadata lives in `capture-library.json`; captures are never copied into a second library folder.
+- **Recipes**: post-capture recipes run after **Copy** or **Save**. A recipe can match the source application, use a filename template, optionally resize, and then save, copy, OCR to the clipboard, or upload. Workflows are stored separately in `workflows.json`.
+- **Privacy**: choose Catbox or a local uploads folder, turn external uploads off, review and withdraw consent, view upload history, open or delete local uploads, and expire local uploads after a configured number of hours. Upload history and local-expiry metadata live in `upload-history.json`. Catbox has no supported remote-delete API, so the UI does not pretend to delete a Catbox file.
+- **File actions**: queue image conversion, compression, or recycling with dry-run previews, independent output folders, overwrite policies, cancellation, retry, and before/after previews. Recycle always goes through the Recycle Bin and asks before a real batch. Jobs run locally and do not require an internet connection.
+- **Colors**: extract palettes from a captured image or the screen, save contrast pairs, export CSS, JSON, or Tailwind tokens, and preview deuteranopia, protanopia, and tritanopia simulations. Simulation is a visual aid, not a certification.
+- **Pinner**: list every pinned window, adjust opacity and click-through per window, manage an exclusion list, and attempt a best-effort restore after restart by matching the saved title and process. Restore cannot survive a title change or a process that is no longer running.
+- **PDF/media**: extract, merge, split, reorder, rotate, or OCR PDF pages; trim a video; and create a GIF from a selected frame range. PDF password protection and encryption are intentionally not implemented; the UI says so instead of writing a file that looks encrypted but is not.
+- **Diagnostics**: a bounded local log, unhandled-exception recording, a log viewer, and a safe mode that disables risky pinner behavior. Safe mode can also be requested at launch with `CryoUtils.exe --safe-mode`, which clears the saved pin session and restores saved topmost windows before the app starts normally.
+
+### Workspace tools and Activity Center
+
+The **Overview** tab now opens with an **Activity Center**. It lists recent captures and uploads, workflow runs (including failures), active file-action jobs, pinned windows, storage and retention totals, and quick actions for capture, OCR, clipboard history, and privacy/upload settings. Refresh is manual or automatic when the underlying services change; the center does not copy or upload capture data.
+
+The **Tools & Utilities** tab adds a **Workspace tools** card:
+
+- **Live Draw** (`Ctrl+Shift+D` by default) opens a transparent, topmost ink layer over the whole virtual desktop without freezing the screen first. Pen, arrow, box, and text tools draw over any app; ink can fade after five seconds or stay until cleared. **Capture annotated screen** hides the overlay, captures the desktop, composites the ink, and saves a PNG through the normal capture library. Esc closes and Ctrl+Z undoes.
+- **Screen Ruler** measures horizontal, vertical, diagonal, or rectangular regions in physical pixels, shows distance and angle, supports click-to-place alignment guides, and copies the current readout. It never takes a screenshot.
+- **File Shelf** is a floating drop target for images, PDFs, videos, and folders. Items can be dragged back to another app, batch-compressed or converted through the existing file-action queue, merged to PDF, removed, or copied as paths.
+- **Image Editor** opens an existing PNG/JPG/WebP/BMP file and supports pen, arrow, box, redaction, and text annotations, crop, rotate, resize, save-as/convert, and copy to clipboard.
+- **Developer Toolbox** formats JSON and XML, Base64/URL encodes and decodes, computes SHA-256, generates GUIDs, and tests regular expressions locally.
+
 ### Clipboard history
 
-Clipboard history is opt-in and memory-only. When enabled, it records text and image clips, supports search, restores an item to the clipboard, and can remove one item or clear the list. A heuristic marks password, token, API key, and similar text as sensitive and can schedule automatic removal.
+Clipboard history is opt-in. When enabled, it records text and image clips, supports search, restores an item to the clipboard, and can remove one item or clear the list. A heuristic marks password, token, API key, and similar text as sensitive and can schedule automatic removal. Named snippets, pinned clip values, text transforms, image OCR, and URL/Base64/JSON helpers are available from the clipboard window.
+
+Memory-only is the default. Optional **encrypted persistence** stores text clips with Windows DPAPI for the current user; images are never persisted. Persistence and per-item expiry are explicit opt-ins, and disabling the module clears the live list.
 
 The module is disabled by default. Disabling it stops the clipboard listener and clears the in-memory list. A separate plain-text paste hotkey strips formatting and sends `Ctrl+V` to the focused application.
 
 ### Window pinner
 
-The window pinner toggles `WS_EX_TOPMOST` on the focused window through the default `Ctrl+Win+T` hotkey or the dashboard Tools card. An optional click-through border tracks the pinned window, with an optional confirmation sound.
+The window pinner toggles `WS_EX_TOPMOST` on the focused window through the default `Ctrl+Win+T` hotkey or the dashboard Tools card. Multiple windows can be pinned at once. Each pinned window has independent opacity and click-through state, and the optional border tracks the most recently pinned window. An exclusion list prevents named applications from being pinned, and a best-effort restore re-pins matching windows after restart. The confirmation sound is optional.
 
 ### Tray, startup, and appearance
 
@@ -184,7 +221,7 @@ The first launch starts in the tray when **Run in background** is enabled (the d
 ### Prerequisites
 
 - Windows 10/11 x64.
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 - Optional, for installers: [Inno Setup 6.3 or newer](https://jrsoftware.org/isdl.php). `build-installer.ps1` can install it through winget if it is missing.
 
 ### Build
@@ -197,14 +234,14 @@ dotnet build CryoUtils.csproj -c Release
 The debug executable is written to:
 
 ```text
-bin\Debug\net8.0-windows10.0.19041.0\CryoUtils.exe
+bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe
 ```
 
 Run a local debug build directly, or start it in the tray:
 
 ```powershell
-.\bin\Debug\net8.0-windows10.0.19041.0\CryoUtils.exe
-.\bin\Debug\net8.0-windows10.0.19041.0\CryoUtils.exe --background
+.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe
+.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe --background
 ```
 
 ### Build the installer and portable zip
@@ -238,7 +275,13 @@ Signing is optional. When `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_
 
 ## Testing and diagnostics
 
-CryoUtils does not currently include a built-in automated test harness or a `/test` command. Before a pull request or release, build the Release configuration and exercise the affected path manually:
+CryoUtils includes a small dependency-free test runner for pure services (contrast math, clipboard transforms, hashing, JSON/XML formatting, unique filenames, PDF page ranges, color-vision simulation, capture-control-bar layout, and palette exports):
+
+```powershell
+dotnet run --project Tests/CryoUtils.Tests.csproj -c Release
+```
+
+Before a pull request or release, also build the app and exercise the affected interactive path manually:
 
 ```powershell
 dotnet build CryoUtils.csproj -c Release
@@ -246,20 +289,28 @@ dotnet build CryoUtils.csproj -c Release
 
 Useful checks include startup and tray lifetime, capture selection and copy, annotation export, OCR on an installed language pack, GIF/MP4 output, compressor formats, clipboard capture, pinned-window borders, English/Arabic switching, and theme switching.
 
-Crash paths preserve the session and show a localized error toast; settings writes are atomic and failures do not stop the running session. There is no diagnostic dump command in this repository.
+Crash paths are written to the bounded diagnostic log and can be viewed in **Workbench > Diagnostics**; settings writes are atomic and failures do not stop the running session. Launch `CryoUtils.exe --safe-mode` when a pinned window or overlay needs recovery.
 
 ## Data, privacy, and local files
 
-CryoUtils does not include telemetry, analytics, advertising, accounts, or a remote service.
+CryoUtils does not include telemetry, analytics, advertising, or accounts. It is local-first, with two explicit network paths: optional GitHub update checks/downloads and opt-in cloud uploads.
 
 Local files:
 
 - `%APPDATA%\CryoUtils\settings.json`: settings, window position, recent colors, and update preferences.
+- `%APPDATA%\CryoUtils\capture-library.json`: capture source metadata, tags, and favorites. The capture files themselves stay in the configured save folder.
+- `%APPDATA%\CryoUtils\workflows.json`: post-capture recipes.
+- `%APPDATA%\CryoUtils\upload-history.json`: upload links and local-upload expiry metadata.
+- `%APPDATA%\CryoUtils\clipboard.bin`: only when encrypted clipboard persistence is explicitly enabled; DPAPI-protected text, never images.
+- `%APPDATA%\CryoUtils\logs\`: bounded diagnostic logs.
+- `%APPDATA%\CryoUtils\uploads\`: local upload-provider files, when that provider is selected.
 - `%LOCALAPPDATA%\CryoUtils\Rollback\`: optional rollback executable and version file created before an update.
 - `%TEMP%\CryoUtils\update\`: downloaded updater files.
 - The configured save folder, defaulting to `Pictures\CryoUtils`: images and recordings you choose to save.
 
-Recent capture thumbnails and clipboard history are held in memory only and are cleared when the process exits or the corresponding module is disabled.
+Session capture thumbnails are held in memory. Clipboard history is memory-only by default; encrypted persistence is opt-in and can be disabled, which removes the persistence file. Explicit saves, quick saves, QR captures, and copies/uploads archived by the **Archive copied and uploaded selections** setting persist in the save folder.
+
+The saved-capture limit only manages files whose names start with `CryoUtils_`; unrelated files in the same folder are never touched. Pruned captures go to the Recycle Bin, and lowering the limit asks for confirmation before anything is moved.
 
 Update checks contact:
 
@@ -269,6 +320,12 @@ https://api.github.com/repos/ZerroDevs/CryoUtils/releases/latest
 
 The request is a standard GitHub API call and does not include screenshots, OCR text, settings, or usage data.
 
+### Cloud uploads
+
+Upload is never automatic. The first external upload requires an explicit consent prompt, and external uploads can be turned off completely in **Screen Capture** settings or from **Workbench > Privacy**. Accepted external uploads send the selected image or file to **catbox.moe**, a third-party public host, and return a direct link. The upload window labels the destination, and the consent prompt explains that anyone with the link can access the file. Do not upload private or sensitive content.
+
+Choose the **local folder** provider to keep uploads on this computer. Local uploads never touch the network; they land in `%APPDATA%\CryoUtils\uploads`, appear in Privacy history, and can be deleted or expire automatically. Catbox does not expose a supported remote-delete endpoint, so a Catbox link cannot be revoked from CryoUtils.
+
 ## Architecture
 
 CryoUtils is one WPF process with a tray lifetime and short-lived capture windows. The application root is `App.xaml.cs`; `SettingsService`, `ThemeService`, `LocalizationService`, and `GlobalHotkeyService` are the shared application services.
@@ -277,11 +334,13 @@ CryoUtils is one WPF process with a tray lifetime and short-lived capture window
 CryoUtils.exe
 ├── App.xaml.cs                     startup, tray lifecycle, capture, settings, updates
 ├── Views/
-│   ├── MainWindow                  dashboard and six panels
+│   ├── MainWindow                  dashboard and five panels
 │   ├── CaptureOverlayWindow        per-monitor capture surface
 │   ├── OcrResultWindow             editable OCR results and text tools
 │   ├── ColorPickerWindow           magnifier and color formats
 │   ├── ClipboardHistoryWindow      searchable clipboard list
+│   ├── ClipboardTransformWindow    text transform preview
+│   ├── PowerToolsWindow            Cryo Workbench tabs
 │   ├── RecordingBarWindow          GIF/MP4 recording controls
 │   └── PinWindow / PinnedBorder    pinned images and topmost window border
 ├── Services/
@@ -291,7 +350,13 @@ CryoUtils.exe
 │   ├── OcrService                  Windows.Media.Ocr
 │   ├── TextAnalysisService         code detection and color-code parsing
 │   ├── CompressionService          image compression and preview
-│   ├── ClipboardService            opt-in in-memory clipboard history
+│   ├── ClipboardService            opt-in clipboard history, DPAPI persistence
+│   ├── CaptureLibraryService       capture metadata, search, tags, favorites
+│   ├── WorkflowService             post-capture recipes
+│   ├── FileActionQueueService      dry-run file jobs with overwrite policies
+│   ├── ColorStudioService          palettes, contrast pairs, exports
+│   ├── UploadProviderService       Catbox or local upload provider
+│   ├── DiagnosticsService          bounded logs and safe mode
 │   ├── TopmostService              window pinning
 │   ├── UpdaterService              GitHub release checks and restart flow
 │   └── Settings / Theme / Startup  local preferences and presentation
@@ -311,7 +376,7 @@ Key choices:
 ## Project layout
 
 ```text
-CryoUtils.csproj                  .NET 8 WPF/WinForms project and metadata
+CryoUtils.csproj                  .NET 10 WPF/WinForms project and metadata
 VERSION                           release version consumed by MSBuild and the installer
 LICENSE                           Apache License 2.0
 NOTICE                            attribution and redistribution notice
@@ -325,6 +390,7 @@ Tray/                             system tray icon and menu
 Views/                            dashboard, overlays, result and tool windows
 Resources/                       XAML controls and English/Arabic dictionaries
 Images/                           application icon
+Tests/                            dependency-free service tests
 ```
 
 ## Limitations
@@ -333,8 +399,16 @@ Images/                           application icon
 - **OCR language packs vary.** Windows OCR can only recognize languages installed for OCR; a missing pack causes a localized OCR failure.
 - **PrintScreen is often reserved.** Use the suggested `Ctrl+Shift+S` fallback or another combination when registration fails.
 - **Mixed-DPI capture has not been fully exercised.** The test environment uses two 1920 x 1080 monitors at 100% scaling.
-- **Recorded GIF/MP4 files have not been visually played back** in this environment; the encoders were verified by output.
-- **No built-in automated test suite.** Verification is currently build plus manual exercise.
+- **Recorded GIF/MP4 files have not been visually played back** in this environment; the encoders were verified by file output and the replay remux path was exercised in the service harness.
+- **MP4 audio needs the Windows AAC encoder and an available device.** The app falls back to a silent/video-only file and reports the condition instead of failing the recording when AAC or the device is unavailable.
+- **60 FPS is a target, not a guarantee.** Fresh 10-second 1080p WGC/D3D11 runs on the reference PC measured 59.5–60.0 FPS for capture/readback and 59.6–59.7 FPS for the complete recorder in the steady 8-second window; the latest run was 477 frames / 8.00 seconds = 59.6 FPS (595 frames / 10.09 seconds including start-up). The Media Foundation H.264 encoder alone handled about 240 FPS. WGC/D3D readback, scaling, effects, display refresh, and encoder load vary by machine; check frame drops before relying on 60 FPS at high resolutions.
+- **Instant Replay may start up to one segment (about 4 seconds) before the requested cutoff.** Segment boundaries are kept on keyframes so saving can remux rather than re-encode.
+- **Limited automated coverage.** Pure services have a small test runner; WPF surfaces, registry integration, DPAPI, pinner restore, PDF, video, and Media Foundation still need manual verification.
+- **PDF encryption is not implemented.** The PDF tab supports page work and OCR but not password protection; it says so instead of producing a misleading file.
+- **Scrolling capture is best effort.** Row-overlap stitching handles ordinary scrolling, but sticky headers, parallax, and smooth-scroll animation can still produce artifacts. The control bar hides itself while a frame is taken, so it is not baked into the stitch. The stitched image is capped at 16,000 px.
+- **Pinner restore is best effort.** It matches saved titles and process names; a renamed tab, closed application, or changed process will not restore.
+- **Recipes are post-capture.** They run after **Copy** or **Save**, not merely after a selection is drawn, so annotation can finish before a file is produced.
+- **Workbench UI is not covered by automated tests.** The Release build and service tests pass, but the Workbench tabs, clipboard persistence, pinner, PDF, and video paths were not clicked through in this environment.
 - **Update integrity is manual.** The in-app updater downloads the release setup over HTTPS but does not enforce the published checksum or a signature. Verify downloads manually when needed.
 - **Portable updates install per-user.** A portable copy does not update its own folder in place; the update button starts the per-user setup.
 - **Markdown is source text.** The OCR result window opens and edits Markdown but does not render it.
@@ -349,7 +423,7 @@ Images/                           application icon
 | OCR reports no text | Check that the selected region contains readable text and the required Windows OCR language pack is installed. |
 | OCR window looks like an old fixed-height dialog | Rebuild/run the current `0.0.100` build; the current window auto-sizes to its content. |
 | GIF or MP4 is empty | Keep the recording above one frame and confirm the selected region is non-zero. |
-| Clipboard history is empty | Enable the clipboard module; history is memory-only and clears when the module is disabled. |
+| Clipboard history is empty | Enable the clipboard module. History is memory-only unless encrypted persistence is enabled in the clipboard window. |
 | Tray icon is hidden | Open the Windows notification-area overflow and enable the CryoUtils icon. |
 | Dashboard does not open on launch | **Run in background** is on by default; open it from the tray or turn that setting off. |
 | Update check fails | Confirm access to GitHub Releases and try the manual Release page. |

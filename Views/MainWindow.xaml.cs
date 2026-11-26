@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,6 +16,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CryoUtils.Models;
 using CryoUtils.Services;
+using CryoUtils.Services.Recording;
 using Microsoft.Win32;
 using MessageBox = System.Windows.MessageBox;
 using IOPath = System.IO.Path;
@@ -32,6 +34,7 @@ namespace CryoUtils.Views
         private string? _compressSourcePath;
         private CompressionResult? _compressResult;
         private UpdateInfo? _availableUpdate;
+        private DispatcherTimer? _replayTimer;
 
         public MainWindow()
         {
@@ -48,10 +51,41 @@ namespace CryoUtils.Views
             ClipboardService.Instance.Changed += RefreshClipboardState;
             LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
             ThemeService.ThemeChanged += OnThemeChanged;
+            ReplayService.Instance.StateChanged += RefreshReplayCard;
+            SettingsService.Instance.SettingsChanged += OnSettingsChanged;
+            WorkflowService.Instance.RunsChanged += RefreshActivityCenter;
+            CaptureLibraryService.Instance.Changed += RefreshActivityCenter;
+            FileActionQueueService.Instance.Changed += RefreshActivityCenter;
+            UploadHistoryService.Instance.Changed += RefreshActivityCenter;
+            TopmostService.Instance.StateChanged += RefreshActivityCenter;
+            _replayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+            _replayTimer.Tick += (_, _) =>
+            {
+                if (IsVisible && ReplayService.Instance.IsRunning)
+                {
+                    RefreshReplayCard();
+                }
+                else
+                {
+                    _replayTimer?.Stop();
+                }
+            };
+            IsVisibleChanged += (_, _) => SyncReplayTimer();
+            Deactivated += (_, _) => MemoryTrimService.ScheduleTrim(1000);
 
             ReloadUi();
             _initializing = false;
             Loaded += MainWindow_Loaded;
+            SourceInitialized += (_, _) =>
+            {
+                if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource source &&
+                    source.CompositionTarget != null)
+                {
+                    // Keep dashboard rendering software-only so opening/idling it never spins up GPU contexts,
+                    // while leaving full-screen capture overlays hardware-accelerated.
+                    source.CompositionTarget.RenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+                }
+            };
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -61,7 +95,11 @@ namespace CryoUtils.Views
             RefreshPinnedState();
             RefreshClipboardState();
             UpdateHotkeyStatus();
+            RefreshReplayCard();
+            SyncReplayTimer();
+            RefreshActivityCenter();
             MaybeAutoCheckUpdates();
+            MemoryTrimService.ScheduleTrim(1000);
         }
 
         private void RestoreWindowPosition()
@@ -105,12 +143,16 @@ namespace CryoUtils.Views
                 ChkAutoCopy.IsChecked = settings.AutoCopyCapture;
                 ChkCaptureSound.IsChecked = settings.CaptureSound;
                 ChkShowLoupe.IsChecked = settings.ShowCaptureLoupe;
+                ChkArchiveCopied.IsChecked = settings.ArchiveCopiedCaptures;
+                ChkCloudUpload.IsChecked = settings.CloudUploadEnabled;
                 SelectTag(CmbImageFormat, settings.ImageFormat);
                 SelectTag(CmbCaptureDelay, settings.CaptureDelaySeconds.ToString());
                 SelectTag(CmbFps, settings.GifFps.ToString());
                 SelectTag(CmbRecFormat, settings.RecorderFormat);
                 SelectTag(CmbMaxSeconds, settings.MaxRecordingSeconds.ToString());
                 ChkCopyOnStop.IsChecked = settings.RecorderCopyOnStop;
+                RefreshRecorderSummary();
+                RefreshReplayCard();
 
                 SldThickness.Value = Math.Clamp(settings.AnnotationThickness, 1, 20);
                 TxtThickness.Text = ((int)SldThickness.Value).ToString(CultureInfo.InvariantCulture);
@@ -169,6 +211,8 @@ namespace CryoUtils.Views
             TxtAboutVersion.Text = LocalizationService.Format("About_Version", version);
             RefreshHotkeyRows();
             RefreshRecentColors();
+            ApplyRecentExpanded(SettingsService.Instance.Current.RecentCapturesExpanded, reload: false);
+            ApplyActivityCenterExpanded(SettingsService.Instance.Current.ActivityCenterExpanded, refresh: false);
             ApplyRecentScope();
             RefreshPinnedState();
             RefreshClipboardState();
@@ -280,20 +324,16 @@ namespace CryoUtils.Views
             }
             ResetQuitConfirmState();
             SaveWindowPosition();
-            Hide();
+            Close();
         }
 
         private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             ResetQuitConfirmState();
-            if (_allowClose)
+            if (!_allowClose)
             {
-                return;
+                SaveWindowPosition();
             }
-
-            e.Cancel = true;
-            SaveWindowPosition();
-            Hide();
         }
 
         public void PrepareForShutdown()
@@ -312,7 +352,8 @@ namespace CryoUtils.Views
             }
             if (e.Key == Key.Escape && !(Keyboard.FocusedElement is TextBox))
             {
-                Hide();
+                SaveWindowPosition();
+                Close();
                 e.Handled = true;
             }
         }
@@ -357,6 +398,11 @@ namespace CryoUtils.Views
             if (!_initializing && _currentTab == "Overview")
             {
                 ApplyRecentScope();
+                RefreshActivityCenter();
+            }
+            if (_currentTab == "Tools")
+            {
+                RefreshReplayCard();
             }
 
             MainContentScroll?.ScrollToTop();
@@ -485,11 +531,13 @@ namespace CryoUtils.Views
             settings.AutoCopyCapture = ChkAutoCopy.IsChecked == true;
             settings.CaptureSound = ChkCaptureSound.IsChecked == true;
             settings.ShowCaptureLoupe = ChkShowLoupe.IsChecked == true;
+            settings.ArchiveCopiedCaptures = ChkArchiveCopied.IsChecked == true;
+            settings.CloudUploadEnabled = ChkCloudUpload.IsChecked == true;
             settings.ImageFormat = SelectedTag(CmbImageFormat) ?? "PNG";
             settings.CaptureDelaySeconds = int.TryParse(SelectedTag(CmbCaptureDelay), out int delay) ? delay : 0;
-            settings.GifFps = int.TryParse(SelectedTag(CmbFps), out int fps) ? fps : 15;
+            settings.GifFps = Math.Clamp(int.TryParse(SelectedTag(CmbFps), out int fps) ? fps : 15, 5, 30);
             settings.RecorderFormat = SelectedTag(CmbRecFormat) ?? "GIF";
-            settings.MaxRecordingSeconds = int.TryParse(SelectedTag(CmbMaxSeconds), out int seconds) ? seconds : 30;
+            settings.MaxRecordingSeconds = int.TryParse(SelectedTag(CmbMaxSeconds), out int seconds) ? seconds : 300;
             settings.RecorderCopyOnStop = ChkCopyOnStop.IsChecked == true;
             settings.StartWithWindows = ChkStartWithWindows.IsChecked == true;
             settings.LaunchInBackground = ChkLaunchBackground.IsChecked == true;
@@ -502,7 +550,7 @@ namespace CryoUtils.Views
             settings.SaveRollbackOnUpdate = ChkSaveRollback.IsChecked == true;
             settings.CompressorPreset = SelectedTag(CmbPreset) ?? settings.CompressorPreset;
 
-            CryoContextMenuService.SetEnabled(settings.ContextMenuEnabled);
+            // App.ApplyAllSettings synchronizes Explorer registration exactly once.
             StartupService.SetEnabled(settings.StartWithWindows);
             SettingsService.Instance.Save();
             UpdateCompressionAvailability();
@@ -637,12 +685,34 @@ namespace CryoUtils.Views
                 return;
             }
 
+            int previousLimit = SettingsService.Instance.Current.SavedCapturesLimit;
             if (!int.TryParse(TxtSavedLimit.Text, out int limit))
             {
                 limit = 50;
             }
             limit = Math.Clamp(limit, 0, 10000);
             TxtSavedLimit.Text = limit.ToString(CultureInfo.InvariantCulture);
+
+            if (limit > 0)
+            {
+                int deleteCount = Math.Max(0, ScreenCaptureService.GetManagedCaptureFiles().Count - limit);
+                if (deleteCount > 0)
+                {
+                    var choice = MessageBox.Show(
+                        this,
+                        LocalizationService.Format("SavedLimit_ConfirmFmt", deleteCount),
+                        LocalizationService.Get("General_SavedLimit"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning,
+                        MessageBoxResult.No);
+                    if (choice != MessageBoxResult.Yes)
+                    {
+                        TxtSavedLimit.Text = previousLimit.ToString(CultureInfo.InvariantCulture);
+                        return;
+                    }
+                }
+            }
+
             SettingsService.Instance.Current.SavedCapturesLimit = limit;
             SettingsService.Instance.SaveWithoutNotification();
             ScreenCaptureService.EnforceSavedCaptureLimit();
@@ -720,6 +790,39 @@ namespace CryoUtils.Views
                     settings.ClipboardHotkeyModifiers = modifiers;
                     settings.ClipboardHotkeyKey = key;
                 });
+
+            AddHotkeyRow(
+                LocalizationService.Get("Hotkeys_Workbench"),
+                LocalizationService.Get("PowerTools_Subtitle"),
+                settings.WorkbenchHotkeyModifiers,
+                settings.WorkbenchHotkeyKey,
+                (modifiers, key) =>
+                {
+                    settings.WorkbenchHotkeyModifiers = modifiers;
+                    settings.WorkbenchHotkeyKey = key;
+                });
+
+            AddHotkeyRow(
+                LocalizationService.Get("Hotkeys_LiveDraw"),
+                LocalizationService.Get("Tools_LiveDrawDesc"),
+                settings.LiveDrawHotkeyModifiers,
+                settings.LiveDrawHotkeyKey,
+                (modifiers, key) =>
+                {
+                    settings.LiveDrawHotkeyModifiers = modifiers;
+                    settings.LiveDrawHotkeyKey = key;
+                });
+
+            AddHotkeyRow(
+                LocalizationService.Get("Hotkeys_Replay"),
+                LocalizationService.Get("Rec_ReplayHotkeyHint"),
+                settings.ReplayHotkeyModifiers,
+                settings.ReplayHotkeyKey,
+                (modifiers, key) =>
+                {
+                    settings.ReplayHotkeyModifiers = modifiers;
+                    settings.ReplayHotkeyKey = key;
+                });
         }
 
         private void AddHotkeyRow(
@@ -794,6 +897,7 @@ namespace CryoUtils.Views
 
                 apply(dialog.ModifiersToken, dialog.KeyToken);
                 SettingsService.Instance.Save();
+                (Application.Current as App)?.ApplyHotkeys();
                 RefreshHotkeyRows();
                 UpdateHotkeyStatus();
             };
@@ -818,6 +922,12 @@ namespace CryoUtils.Views
             settings.PlainPasteHotkeyKey = defaults.PlainPasteHotkeyKey;
             settings.ClipboardHotkeyModifiers = defaults.ClipboardHotkeyModifiers;
             settings.ClipboardHotkeyKey = defaults.ClipboardHotkeyKey;
+            settings.WorkbenchHotkeyModifiers = defaults.WorkbenchHotkeyModifiers;
+            settings.WorkbenchHotkeyKey = defaults.WorkbenchHotkeyKey;
+            settings.LiveDrawHotkeyModifiers = defaults.LiveDrawHotkeyModifiers;
+            settings.LiveDrawHotkeyKey = defaults.LiveDrawHotkeyKey;
+            settings.ReplayHotkeyModifiers = defaults.ReplayHotkeyModifiers;
+            settings.ReplayHotkeyKey = defaults.ReplayHotkeyKey;
             settings.PrintScreenFallbackSuggested = false;
             SettingsService.Instance.Save();
             RefreshHotkeyRows();
@@ -862,6 +972,8 @@ namespace CryoUtils.Views
             ApplyRecentScope();
         }
 
+        private CancellationTokenSource? _recentReloadCts;
+
         private void ApplyRecentScope()
         {
             bool allTime = string.Equals(
@@ -869,10 +981,18 @@ namespace CryoUtils.Views
                 "AllTime",
                 StringComparison.OrdinalIgnoreCase);
 
+            _recentReloadCts?.Cancel();
+            _recentReloadCts = null;
+
             if (allTime)
             {
-                RecentCaptureService.Instance.ReloadAllTime();
                 RecentItems.ItemsSource = RecentCaptureService.Instance.AllTimeItems;
+                if (SettingsService.Instance.Current.RecentCapturesExpanded)
+                {
+                    var cts = new CancellationTokenSource();
+                    _recentReloadCts = cts;
+                    _ = LoadAllTimeAsync(cts);
+                }
             }
             else
             {
@@ -882,6 +1002,95 @@ namespace CryoUtils.Views
             RefreshRecentStrip();
         }
 
+        private void BtnRecentToggle_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            ToggleRecentExpanded();
+        }
+
+        private void RecentCapturesHeader_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            // Ignore clicks that originated inside the scope ComboBox or Open folder / Toggle buttons.
+            if (IsInteractiveHeaderChild(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
+
+            ToggleRecentExpanded();
+        }
+
+        private void ToggleRecentExpanded()
+        {
+            bool next = !SettingsService.Instance.Current.RecentCapturesExpanded;
+            SettingsService.Instance.Current.RecentCapturesExpanded = next;
+            SettingsService.Instance.SaveWithoutNotification();
+            ApplyRecentExpanded(next, reload: true);
+        }
+
+        private void ApplyRecentExpanded(bool expanded, bool reload)
+        {
+            if (RecentCapturesBody != null)
+            {
+                RecentCapturesBody.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (PathRecentChevron != null)
+            {
+                PathRecentChevron.Data = expanded ? IconData.ChevronDown : IconData.ChevronRight;
+            }
+            if (BtnRecentToggle != null)
+            {
+                BtnRecentToggle.ToolTip = LocalizationService.Get(expanded ? "Common_Collapse" : "Common_Expand");
+            }
+            if (expanded && reload)
+            {
+                ApplyRecentScope();
+            }
+            else if (!expanded)
+            {
+                _recentReloadCts?.Cancel();
+                _recentReloadCts = null;
+            }
+        }
+
+        private static bool IsInteractiveHeaderChild(DependencyObject? source)
+        {
+            var current = source;
+            while (current != null)
+            {
+                if (current is ButtonBase or ComboBox or ComboBoxItem)
+                {
+                    return true;
+                }
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return false;
+        }
+
+        private async Task LoadAllTimeAsync(CancellationTokenSource cts)
+        {
+            try
+            {
+                await RecentCaptureService.Instance.ReloadAllTimeAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+            }
+            finally
+            {
+                if (ReferenceEquals(_recentReloadCts, cts))
+                {
+                    _recentReloadCts = null;
+                    RefreshRecentStrip();
+                    MemoryTrimService.ScheduleTrim(600);
+                }
+                cts.Dispose();
+            }
+        }
+
         private void RecentItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
         {
             Dispatcher.BeginInvoke(new Action(RefreshRecentStrip));
@@ -889,9 +1098,34 @@ namespace CryoUtils.Views
 
         private void RefreshRecentStrip()
         {
-            bool hasItems = (RecentItems.ItemsSource as System.Collections.ICollection)?.Count > 0;
+            int count = (RecentItems.ItemsSource as System.Collections.ICollection)?.Count ?? 0;
+            if (TxtRecentCount != null)
+            {
+                TxtRecentCount.Text = count.ToString(CultureInfo.InvariantCulture);
+            }
+            bool hasItems = count > 0;
             RecentEmpty.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
             RecentScroll.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void OpenRecording_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not RecentCapture capture ||
+                string.IsNullOrEmpty(capture.Path) || !File.Exists(capture.Path))
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_FolderMissing"));
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo(capture.Path) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                (Application.Current as App)?.ShowToast(
+                    LocalizationService.Format("Error_Body", ex.Message));
+            }
         }
 
         private void RecentThumbnail_Click(object sender, MouseButtonEventArgs e)
@@ -1060,7 +1294,8 @@ namespace CryoUtils.Views
             if (!capture.IsConfirmingDelete)
             {
                 // First click: activate confirmation mode on this card
-                foreach (var item in RecentCaptureService.Instance.Items)
+                foreach (var item in RecentCaptureService.Instance.Items.Concat(
+                             RecentCaptureService.Instance.AllTimeItems))
                 {
                     if (item != capture && item.IsConfirmingDelete)
                     {
@@ -1434,6 +1669,11 @@ namespace CryoUtils.Views
             }
         }
 
+        private void BtnPowerTools_Click(object sender, RoutedEventArgs e)
+        {
+            App.CurrentApp?.OpenWorkbench();
+        }
+
         private void BtnUnpin_Click(object sender, RoutedEventArgs e)
         {
             TopmostService.Instance.Unpin();
@@ -1589,9 +1829,9 @@ namespace CryoUtils.Views
             var dialog = new SaveFileDialog
             {
                 Title = LocalizationService.Get("Tools_QrSave"),
-                Filter = "PNG Image (*.png)|*.png",
+                Filter = LocalizationService.Get("Common_PngFilter"),
                 DefaultExt = ".png",
-                FileName = $"QRCode_{DateTime.Now:yyyyMMdd_HHmmss}.png"
+                FileName = $"CryoUtils_QRCode_{DateTime.Now:yyyyMMdd_HHmmss}.png"
             };
             if (dialog.ShowDialog(this) == true)
             {
@@ -1694,6 +1934,113 @@ namespace CryoUtils.Views
             App.CurrentApp?.StartRecording();
         }
 
+        private void BtnRecorderSettings_Click(object sender, RoutedEventArgs e)
+        {
+            App.CurrentApp?.OpenRecorderSettings();
+            RefreshRecorderSummary();
+            RefreshReplayCard();
+        }
+
+        private void BtnReplayToggle_Click(object sender, RoutedEventArgs e)
+        {
+            App.CurrentApp?.ToggleReplayBuffer();
+            RefreshReplayCard();
+        }
+
+        private void BtnReplaySave_Click(object sender, RoutedEventArgs e)
+        {
+            App.CurrentApp?.SaveReplay();
+        }
+
+        private void RefreshRecorderSummary()
+        {
+            if (TxtRecorderSummary == null)
+            {
+                return;
+            }
+
+            var settings = SettingsService.Instance.Current;
+            if (string.Equals(settings.RecorderFormat, "GIF", StringComparison.OrdinalIgnoreCase))
+            {
+                TxtRecorderSummary.Text = LocalizationService.Format(
+                    "Rec_SummaryGif",
+                    Math.Clamp(settings.GifFps, 5, 30),
+                    settings.MaxRecordingSeconds);
+                return;
+            }
+
+            TxtRecorderSummary.Text = LocalizationService.Format(
+                "Rec_SummaryMp4",
+                settings.RecorderResolution,
+                settings.RecorderFps,
+                settings.RecorderQuality,
+                settings.RecorderBitrateMbps > 0
+                    ? $"{settings.RecorderBitrateMbps} Mbps"
+                    : LocalizationService.Get("Rec_BitrateAuto"));
+        }
+
+        private void OnSettingsChanged()
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(OnSettingsChanged));
+                return;
+            }
+            if (_loading)
+            {
+                return;
+            }
+
+            RefreshRecorderSummary();
+            RefreshReplayCard();
+            RefreshRecentStrip();
+        }
+
+        private void SyncReplayTimer()
+        {
+            if (_replayTimer == null)
+            {
+                return;
+            }
+
+            if (IsVisible && ReplayService.Instance.IsRunning)
+            {
+                if (!_replayTimer.IsEnabled)
+                {
+                    _replayTimer.Start();
+                }
+            }
+            else if (_replayTimer.IsEnabled)
+            {
+                _replayTimer.Stop();
+            }
+        }
+
+        private void RefreshReplayCard()
+        {
+            if (BtnReplayToggle == null)
+            {
+                return;
+            }
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(RefreshReplayCard));
+                return;
+            }
+
+            var replay = ReplayService.Instance;
+            BtnReplayToggle.Content = LocalizationService.Get(
+                replay.IsRunning ? "Rec_ReplayStop" : "Rec_ReplayStart");
+            BtnReplaySave.IsEnabled = replay.IsRunning;
+            TxtReplayStatus.Text = replay.IsRunning
+                ? LocalizationService.Format(
+                    "Rec_ReplayRunning",
+                    $"{replay.BufferedSeconds / 60:00}:{replay.BufferedSeconds % 60:00}",
+                    ImageIO.FormatBytes(replay.BufferedBytes))
+                : LocalizationService.Get("Rec_ReplayOff");
+            SyncReplayTimer();
+        }
+
         private void BtnQuickCapture_Click(object sender, RoutedEventArgs e)
         {
             App.CurrentApp?.StartCapture();
@@ -1722,6 +2069,307 @@ namespace CryoUtils.Views
         private void BtnGoQr_Click(object sender, RoutedEventArgs e)
         {
             ShowTab("Tools");
+        }
+
+        private void BtnActivityRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            RefreshActivityCenter();
+        }
+
+        private void BtnActivityToggle_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            ToggleActivityCenterExpanded();
+        }
+
+        private void ActivityCenterHeader_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (IsInteractiveHeaderChild(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
+
+            ToggleActivityCenterExpanded();
+        }
+
+        private void ToggleActivityCenterExpanded()
+        {
+            bool next = !SettingsService.Instance.Current.ActivityCenterExpanded;
+            SettingsService.Instance.Current.ActivityCenterExpanded = next;
+            SettingsService.Instance.SaveWithoutNotification();
+            ApplyActivityCenterExpanded(next, refresh: true);
+        }
+
+        private void ApplyActivityCenterExpanded(bool expanded, bool refresh)
+        {
+            if (ActivityCenterBody != null)
+            {
+                ActivityCenterBody.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (BtnActivityRefresh != null)
+            {
+                BtnActivityRefresh.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (PathActivityChevron != null)
+            {
+                PathActivityChevron.Data = expanded ? IconData.ChevronDown : IconData.ChevronRight;
+            }
+            if (BtnActivityToggle != null)
+            {
+                BtnActivityToggle.ToolTip = LocalizationService.Get(expanded ? "Common_Collapse" : "Common_Expand");
+            }
+
+            if (expanded && refresh)
+            {
+                RefreshActivityCenter();
+            }
+            else if (!expanded && ActivitySectionsPanel != null)
+            {
+                ActivitySectionsPanel.Children.Clear();
+            }
+        }
+
+        private void BtnActivityOcr_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.OpenOcrFile();
+
+        private void BtnActivityPrivacy_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.OpenPrivacy();
+
+        private void BtnLiveDraw_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.ToggleLiveDraw();
+
+        private void BtnScreenRuler_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.OpenScreenRuler();
+
+        private void BtnFileShelf_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.OpenFileShelf();
+
+        private void BtnImageEditor_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.OpenImageEditor();
+
+        private void BtnDeveloperToolbox_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.OpenDeveloperToolbox();
+
+        private void BtnPrivacy_Click(object sender, RoutedEventArgs e) =>
+            App.CurrentApp?.OpenPrivacy();
+
+        private void RefreshActivityCenter()
+        {
+            if (ActivitySectionsPanel == null)
+            {
+                return;
+            }
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(RefreshActivityCenter));
+                return;
+            }
+
+            if (!SettingsService.Instance.Current.ActivityCenterExpanded)
+            {
+                ActivitySectionsPanel.Children.Clear();
+                return;
+            }
+
+            ActivitySectionsPanel.Children.Clear();
+
+            var captures = CaptureLibraryService.Instance.Load()
+                .Take(3)
+                .Select(item => $"{item.FileName} · {item.MetaDisplay}")
+                .ToList();
+            AddActivitySection("Workbench_RecentCaptures", captures, "Workbench_NoCaptures");
+
+            var uploads = UploadHistoryService.Instance.Records
+                .Take(3)
+                .Select(record => $"{record.FileName} · {record.MetaDisplay}")
+                .ToList();
+            AddActivitySection("Workbench_RecentUploads", uploads, "Workbench_NoUploads");
+
+            var runs = WorkflowService.Instance.Runs
+                .Take(4)
+                .Select(run => run.DisplayLine)
+                .ToList();
+            AddActivitySection("Workbench_WorkflowRuns", runs, "Workbench_NoRuns");
+
+            var jobs = FileActionQueueService.Instance.Jobs
+                .Where(job => job.Status is FileActionStatus.Pending or FileActionStatus.Running)
+                .Take(4)
+                .Select(job => job.DisplayLine)
+                .ToList();
+            AddActivitySection("Workbench_FileJobs", jobs, "Workbench_NoJobs");
+
+            var pins = TopmostService.Instance.PinnedWindows
+                .Take(4)
+                .Select(pin => $"{pin.Title} · {pin.ProcessName} · {pin.Opacity}%")
+                .ToList();
+            AddActivitySection("Workbench_Pinned", pins, "Workbench_NoPins");
+
+            string folder = SettingsService.Instance.EffectiveSaveFolder;
+            long captureBytes = FolderBytes(folder, null);
+            int captureCount = FolderFileCount(folder, null);
+            long uploadBytes = FolderBytes(UploadHistoryService.Instance.LocalFolder, null);
+            long replayBytes = FolderBytes(
+                IOPath.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "CryoUtils",
+                    "ReplayBuffer"),
+                "*.mp4");
+            AddActivitySection(
+                "Workbench_Storage",
+                new[]
+                {
+                    LocalizationService.Format(
+                        "Workbench_StorageCaptures",
+                        ImageIO.FormatBytes(captureBytes),
+                        captureCount),
+                    LocalizationService.Format(
+                        "Workbench_StorageUploads",
+                        ImageIO.FormatBytes(uploadBytes)),
+                    LocalizationService.Format(
+                        "Workbench_StorageReplay",
+                        ImageIO.FormatBytes(replayBytes)),
+                    LocalizationService.Format(
+                        "Workbench_Retention",
+                        Math.Clamp(SettingsService.Instance.Current.SavedCapturesLimit, 0, 10000),
+                        captureCount)
+                },
+                "Workbench_StorageUnavailable");
+
+            AddQuickActionsSection();
+
+            double cardWidth = ActivitySectionsPanel.Children.Count <= 3 ? 360 : 270;
+            foreach (var child in ActivitySectionsPanel.Children)
+            {
+                if (child is Border card)
+                {
+                    card.Width = cardWidth;
+                }
+            }
+        }
+
+        private void AddActivitySection(string titleKey, IReadOnlyList<string> lines, string emptyKey)
+        {
+            if (lines.Count == 0 && !string.Equals(titleKey, "Workbench_Storage", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var stack = new StackPanel();
+            stack.Children.Add(new TextBlock
+            {
+                Text = LocalizationService.Get(titleKey),
+                Style = (Style)FindResource("SectionTitle")
+            });
+
+            if (lines.Count == 0)
+            {
+                stack.Children.Add(new TextBlock
+                {
+                    Text = LocalizationService.Get(emptyKey),
+                    Style = (Style)FindResource("MutedText"),
+                    Margin = new Thickness(0, 6, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+            else
+            {
+                foreach (string line in lines)
+                {
+                    stack.Children.Add(new TextBlock
+                    {
+                        Text = line,
+                        Foreground = ThemeService.GetBrush("TextSecondaryBrush"),
+                        FontSize = 11,
+                        Margin = new Thickness(0, 5, 0, 0),
+                        TextWrapping = TextWrapping.Wrap,
+                        MaxHeight = 34,
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    });
+                }
+            }
+
+            var border = new Border
+            {
+                Style = (Style)FindResource("InsetBorder"),
+                Width = 260,
+                Margin = new Thickness(0, 0, 10, 10),
+                Padding = new Thickness(10, 9, 10, 9),
+                Child = stack
+            };
+            ActivitySectionsPanel.Children.Add(border);
+        }
+
+        private void AddQuickActionsSection()
+        {
+            var stack = new StackPanel();
+            stack.Children.Add(new TextBlock
+            {
+                Text = LocalizationService.Get("Workbench_QuickActions"),
+                Style = (Style)FindResource("SectionTitle")
+            });
+            var wrap = new WrapPanel { Margin = new Thickness(0, 7, 0, 0) };
+            wrap.Children.Add(ActivityButton("Main_CaptureNow", BtnQuickCapture_Click));
+            wrap.Children.Add(ActivityButton("Workbench_QuickOcr", BtnActivityOcr_Click));
+            wrap.Children.Add(ActivityButton("Workbench_QuickClipboard", BtnQuickClipboard_Click));
+            wrap.Children.Add(ActivityButton("Workbench_Privacy", BtnActivityPrivacy_Click));
+            stack.Children.Add(wrap);
+
+            var border = new Border
+            {
+                Style = (Style)FindResource("InsetBorder"),
+                Width = 260,
+                Margin = new Thickness(0, 0, 10, 10),
+                Padding = new Thickness(10, 9, 10, 9),
+                Child = stack
+            };
+            ActivitySectionsPanel.Children.Add(border);
+        }
+
+        private Button ActivityButton(string contentKey, RoutedEventHandler handler)
+        {
+            var button = new Button
+            {
+                Content = LocalizationService.Get(contentKey),
+                Style = (Style)FindResource("SecondaryButton"),
+                Margin = new Thickness(0, 0, 5, 5),
+                Padding = new Thickness(8, 3, 8, 3),
+                Height = 26
+            };
+            button.Click += handler;
+            return button;
+        }
+
+        private static long FolderBytes(string folder, string? pattern)
+        {
+            try
+            {
+                if (!Directory.Exists(folder))
+                {
+                    return 0;
+                }
+                return Directory.EnumerateFiles(folder, pattern ?? "*", SearchOption.TopDirectoryOnly)
+                    .Select(path => new FileInfo(path))
+                    .Sum(info => info.Length);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static int FolderFileCount(string folder, string? pattern)
+        {
+            try
+            {
+                return Directory.Exists(folder)
+                    ? Directory.EnumerateFiles(folder, pattern ?? "*", SearchOption.TopDirectoryOnly).Count()
+                    : 0;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         // ============================ Data ============================
@@ -1913,6 +2561,7 @@ namespace CryoUtils.Views
                 BtnCheckUpdates.IsEnabled = true;
                 _searchingUpdates = false;
                 RefreshRollbackUi();
+                MemoryTrimService.ScheduleTrim(600);
             }
         }
 
@@ -2088,6 +2737,26 @@ namespace CryoUtils.Views
             ClipboardService.Instance.Changed -= RefreshClipboardState;
             LocalizationService.Instance.LanguageChanged -= OnLanguageChanged;
             ThemeService.ThemeChanged -= OnThemeChanged;
+            ReplayService.Instance.StateChanged -= RefreshReplayCard;
+            SettingsService.Instance.SettingsChanged -= OnSettingsChanged;
+            WorkflowService.Instance.RunsChanged -= RefreshActivityCenter;
+            CaptureLibraryService.Instance.Changed -= RefreshActivityCenter;
+            FileActionQueueService.Instance.Changed -= RefreshActivityCenter;
+            UploadHistoryService.Instance.Changed -= RefreshActivityCenter;
+            TopmostService.Instance.StateChanged -= RefreshActivityCenter;
+            _recentReloadCts?.Cancel();
+            _recentReloadCts = null;
+            _replayTimer?.Stop();
+            _replayTimer = null;
+            _quitConfirmTimer?.Stop();
+            _quitConfirmTimer = null;
+            _deleteResetTimer?.Stop();
+            _deleteResetTimer = null;
+            if (RecentItems != null) RecentItems.ItemsSource = null;
+            ActivitySectionsPanel?.Children.Clear();
+            if (ImgCompressedPreview != null) ImgCompressedPreview.Source = null;
+            if (ImgQrPreview != null) ImgQrPreview.Source = null;
+            _compressResult = null;
             base.OnClosed(e);
         }
     }

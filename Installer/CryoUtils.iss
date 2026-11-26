@@ -56,6 +56,9 @@ Name: "{autodesktop}\CryoUtils"; Filename: "{app}\CryoUtils.exe"; Tasks: desktop
 [Run]
 Filename: "{app}\CryoUtils.exe"; Description: "{cm:LaunchProgram,CryoUtils}"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{app}\CryoUtils.exe"; Parameters: "--uninstall-cleanup"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "RemoveCryoContextMenu"
+
 [Code]
 procedure StopCryoUtils;
 var

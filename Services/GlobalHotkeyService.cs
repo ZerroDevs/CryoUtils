@@ -17,6 +17,9 @@ namespace CryoUtils.Services
         public const int WindowPinnerHotkeyId = 9203;
         public const int PlainPasteHotkeyId = 9204;
         public const int ClipboardHistoryHotkeyId = 9205;
+        public const int WorkbenchHotkeyId = 9206;
+        public const int ReplayHotkeyId = 9207;
+        public const int LiveDrawHotkeyId = 9208;
 
         private readonly Dictionary<int, Registration> _registrations = new();
         private HwndSource? _source;

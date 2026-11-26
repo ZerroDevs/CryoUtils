@@ -138,6 +138,12 @@
                            FontFamily="{StaticResource CryoMono}"
                            FontSize="10.5"
                            FlowDirection="LeftToRight"
+                           Margin="0,0,0,4"/>
+
+                <TextBlock x:Name="TxtDestination"
+                           Text="{DynamicResource Upload_Destination}"
+                           Style="{StaticResource MutedText}"
+                           FontSize="10"
                            Margin="0,0,0,10"/>
 
                 <!-- URL box + Copy icon button -->

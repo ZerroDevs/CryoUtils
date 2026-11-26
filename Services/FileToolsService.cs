@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using System.Xml.Linq;
@@ -13,6 +14,8 @@ namespace CryoUtils.Services
 {
     public static class FileToolsService
     {
+        private const int MaxGifFrames = 240;
+
         private static readonly HashSet<string> SupportedImageExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".jfif"
@@ -70,6 +73,28 @@ namespace CryoUtils.Services
             return Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
         }
 
+        public static string CreateUniquePath(string path)
+        {
+            if (!File.Exists(path))
+            {
+                return path;
+            }
+
+            string directory = Path.GetDirectoryName(path) ?? ".";
+            string stem = Path.GetFileNameWithoutExtension(path);
+            string extension = Path.GetExtension(path);
+            for (int suffix = 2; suffix < 1000; suffix++)
+            {
+                string candidate = Path.Combine(directory, $"{stem}_{suffix}{extension}");
+                if (!File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return Path.Combine(directory, $"{stem}_{Guid.NewGuid():N}{extension}");
+        }
+
         public static List<string> CollectSortedImages(string folderPath)
         {
             if (!Directory.Exists(folderPath))
@@ -85,7 +110,13 @@ namespace CryoUtils.Services
             return files;
         }
 
-        public static int FolderImagesToGif(string folderPath, string outputPath, int fps = 4, int maxWidth = 960)
+        public static int FolderImagesToGif(
+            string folderPath,
+            string outputPath,
+            int fps = 4,
+            int maxWidth = 640,
+            IProgress<int>? progress = null,
+            CancellationToken cancellationToken = default)
         {
             var images = CollectSortedImages(folderPath);
             if (images.Count == 0)
@@ -94,13 +125,23 @@ namespace CryoUtils.Services
             }
 
             using var first = SKBitmap.Decode(images[0]) ?? throw new InvalidOperationException("Could not decode first image.");
-            double scale = first.Width > maxWidth ? maxWidth / (double)first.Width : 1.0;
+            double scale = Math.Min(
+                1.0,
+                Math.Min(maxWidth / (double)first.Width, maxWidth / (double)first.Height));
             int targetW = Math.Max(2, (int)Math.Round(first.Width * scale));
             int targetH = Math.Max(2, (int)Math.Round(first.Height * scale));
 
             var frames = new List<BitmapSource>();
+            int total = Math.Min(images.Count, MaxGifFrames);
+            progress?.Report(0);
             foreach (var imgPath in images)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (frames.Count >= MaxGifFrames)
+                {
+                    break;
+                }
+
                 using var src = SKBitmap.Decode(imgPath);
                 if (src == null)
                 {
@@ -122,6 +163,10 @@ namespace CryoUtils.Services
                 using var skImg = SKImage.FromBitmap(fitted);
                 using var png = skImg.Encode(SKEncodedImageFormat.Png, 100);
                 frames.Add(ImageIO.DecodeBytes(png.ToArray()));
+                if (total > 0)
+                {
+                    progress?.Report((int)Math.Round(frames.Count * 100.0 / total));
+                }
             }
 
             if (frames.Count == 0)
@@ -129,6 +174,8 @@ namespace CryoUtils.Services
                 return 0;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report(100);
             EnsureParentDir(outputPath);
             using (var fs = File.Create(outputPath))
             using (var writer = new GifWriter(fs, targetW, targetH, Math.Clamp(fps, 1, 20), frames))

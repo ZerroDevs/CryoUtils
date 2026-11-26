@@ -56,6 +56,15 @@ namespace CryoUtils.Services
                 case AnnotationKind.Rectangle:
                     DrawRectangle(dc, annotation, brush);
                     break;
+                case AnnotationKind.Ellipse:
+                    DrawEllipse(dc, annotation, brush);
+                    break;
+                case AnnotationKind.Spotlight:
+                    DrawSpotlight(dc, annotation, sourceBitmap);
+                    break;
+                case AnnotationKind.Redaction:
+                    DrawRedaction(dc, annotation, brush);
+                    break;
                 case AnnotationKind.Text:
                     DrawText(dc, annotation, brush);
                     break;
@@ -164,6 +173,66 @@ namespace CryoUtils.Services
 
             var pen = new Pen(brush, Math.Max(1, annotation.Thickness));
             dc.DrawRectangle(null, pen, rect);
+        }
+
+        private static void DrawEllipse(DrawingContext dc, Annotation annotation, Brush brush)
+        {
+            if (annotation.Rect.Width <= 0 || annotation.Rect.Height <= 0)
+            {
+                return;
+            }
+
+            var pen = new Pen(brush, Math.Max(1, annotation.Thickness));
+            dc.DrawEllipse(
+                null,
+                pen,
+                new Point(annotation.Rect.Left + annotation.Rect.Width / 2, annotation.Rect.Top + annotation.Rect.Height / 2),
+                annotation.Rect.Width / 2,
+                annotation.Rect.Height / 2);
+        }
+
+        private static void DrawSpotlight(DrawingContext dc, Annotation annotation, BitmapSource sourceBitmap)
+        {
+            if (annotation.Rect.Width < 2 || annotation.Rect.Height < 2)
+            {
+                return;
+            }
+
+            var outer = new RectangleGeometry(new Rect(0, 0, sourceBitmap.PixelWidth, sourceBitmap.PixelHeight));
+            var hole = new EllipseGeometry(
+                new Point(annotation.Rect.Left + annotation.Rect.Width / 2, annotation.Rect.Top + annotation.Rect.Height / 2),
+                Math.Max(2, annotation.Rect.Width / 2),
+                Math.Max(2, annotation.Rect.Height / 2));
+            var dim = new CombinedGeometry(GeometryCombineMode.Exclude, outer, hole);
+            dim.Freeze();
+            var dimBrush = new SolidColorBrush(Color.FromArgb(175, 0, 0, 0));
+            dimBrush.Freeze();
+            dc.DrawGeometry(dimBrush, null, dim);
+        }
+
+        private static void DrawRedaction(DrawingContext dc, Annotation annotation, Brush brush)
+        {
+            if (annotation.Points.Count > 1)
+            {
+                var pen = new Pen(brush, Math.Max(8, annotation.Thickness))
+                {
+                    StartLineCap = PenLineCap.Round,
+                    EndLineCap = PenLineCap.Round,
+                    LineJoin = PenLineJoin.Round
+                };
+                for (int index = 1; index < annotation.Points.Count; index++)
+                {
+                    dc.DrawLine(pen, annotation.Points[index - 1], annotation.Points[index]);
+                }
+                return;
+            }
+
+            if (annotation.Rect.Width < 2 || annotation.Rect.Height < 2)
+            {
+                return;
+            }
+
+            dc.DrawRectangle(brush, null, annotation.Rect);
         }
 
         private static void DrawText(DrawingContext dc, Annotation annotation, Brush brush)

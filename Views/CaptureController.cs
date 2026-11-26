@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -28,6 +29,8 @@ namespace CryoUtils.Views
         public List<Annotation> Annotations { get; } = new();
         public CaptureTool Tool { get; private set; } = CaptureTool.Select;
         public string CurrentColor { get; private set; } = AppSettings.DefaultAnnotationColor;
+        public string SourceApp { get; private set; } = "";
+        public string SourceWindow { get; private set; } = "";
         public double Thickness { get; private set; } = 3;
         public int NextStep { get; set; } = 1;
         public MonitorInfo? ActiveMonitor { get; set; }
@@ -84,6 +87,10 @@ namespace CryoUtils.Views
             _starting = true;
             try
             {
+                if (string.IsNullOrEmpty(SourceApp) && string.IsNullOrEmpty(SourceWindow))
+                {
+                    CaptureSourceInfo();
+                }
                 var app = Application.Current as App;
                 app?.PrepareForCapture();
                 await System.Threading.Tasks.Task.Delay(150);
@@ -202,6 +209,7 @@ namespace CryoUtils.Views
             _starting = true;
             try
             {
+                CaptureSourceInfo();
                 var app = Application.Current as App;
                 app?.PrepareForCapture();
                 await System.Threading.Tasks.Task.Delay(150);
@@ -370,6 +378,70 @@ namespace CryoUtils.Views
         public bool CanUndo => _undo.Count > 0;
         public bool CanRedo => _redo.Count > 0;
 
+        public void RemoveAnnotation(Annotation annotation)
+        {
+            if (!Annotations.Contains(annotation))
+            {
+                return;
+            }
+
+            PushUndo();
+            Annotations.Remove(annotation);
+            NotifyChanged();
+        }
+
+        public void CropToSelection()
+        {
+            var bitmap = RenderSelection();
+            if (bitmap == null)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            CloseAll(restoreDashboard: false);
+            StartForImage(bitmap);
+        }
+
+        public void RotateSelection()
+        {
+            var bitmap = RenderSelection();
+            if (bitmap == null)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            var rotated = new TransformedBitmap(bitmap, new RotateTransform(90));
+            rotated.Freeze();
+            CloseAll(restoreDashboard: false);
+            StartForImage(rotated);
+        }
+
+        public void StartScrollingCapture()
+        {
+            if (!Selection.HasValue)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            var physical = GetSelectionPhysical();
+            var region = new NativeMethods.RECT
+            {
+                Left = physical.X,
+                Top = physical.Y,
+                Right = physical.X + physical.Width,
+                Bottom = physical.Y + physical.Height
+            };
+            string sourceApp = SourceApp;
+            string sourceWindow = SourceWindow;
+            CloseAll(restoreDashboard: false);
+            var window = new ScrollingCaptureWindow(region, sourceApp, sourceWindow);
+            window.Show();
+            window.Activate();
+        }
+
         public Int32Rect GetSelectionPhysical()
         {
             if (!Selection.HasValue)
@@ -429,13 +501,23 @@ namespace CryoUtils.Views
             return target;
         }
 
-        private static string? TryQuickSaveCapture(BitmapSource bitmap, string? overrideExtension = null)
+        private string? TryQuickSaveCapture(BitmapSource bitmap, string? overrideExtension = null)
         {
             try
             {
                 string extension = overrideExtension
                     ?? ImageIO.ExtensionForFormat(SettingsService.Instance.Current.ImageFormat);
-                return ScreenCaptureService.QuickSave(bitmap, extension);
+                string? path = ScreenCaptureService.QuickSave(bitmap, extension);
+                if (!string.IsNullOrEmpty(path))
+                {
+                    CaptureLibraryService.Instance.Record(
+                        path,
+                        SourceApp,
+                        SourceWindow,
+                        bitmap.PixelWidth,
+                        bitmap.PixelHeight);
+                }
+                return path;
             }
             catch
             {
@@ -443,8 +525,36 @@ namespace CryoUtils.Views
             }
         }
 
+        private void CaptureSourceInfo()
+        {
+            try
+            {
+                IntPtr foreground = NativeMethods.GetForegroundWindow();
+                SourceWindow = ScreenCaptureService.GetWindowTitle(foreground);
+                NativeMethods.GetWindowThreadProcessId(foreground, out uint processId);
+                if (processId == 0)
+                {
+                    SourceApp = "";
+                    return;
+                }
+
+                using var process = Process.GetProcessById((int)processId);
+                SourceApp = process.ProcessName;
+            }
+            catch
+            {
+                SourceApp = "";
+                SourceWindow = "";
+            }
+        }
+
         public void UploadSelectionAsync()
         {
+            if (!UploadConsentService.EnsureUploadAllowed(ActiveOverlay))
+            {
+                return;
+            }
+
             var bitmap = RenderSelection();
             if (bitmap == null)
             {
@@ -452,7 +562,9 @@ namespace CryoUtils.Views
                 return;
             }
 
-            string? savedPath = TryQuickSaveCapture(bitmap);
+            string? savedPath = SettingsService.Instance.Current.ArchiveCopiedCaptures
+                ? TryQuickSaveCapture(bitmap)
+                : null;
             string? displayName = string.IsNullOrEmpty(savedPath) ? null : System.IO.Path.GetFileName(savedPath);
 
             CloseAll();
@@ -499,7 +611,9 @@ namespace CryoUtils.Views
                 }
             }
 
-            string? savedPath = TryQuickSaveCapture(bitmap);
+            string? savedPath = SettingsService.Instance.Current.ArchiveCopiedCaptures
+                ? TryQuickSaveCapture(bitmap)
+                : null;
             RecentCaptureService.Instance.Add(bitmap, savedPath, LocalizationService.Get("Nav_Capture"));
             if (SettingsService.Instance.Current.CaptureSound)
             {
@@ -507,6 +621,11 @@ namespace CryoUtils.Views
             }
             CloseAll();
             (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_Copied"));
+            _ = WorkflowService.Instance.RunPostCaptureAsync(
+                bitmap,
+                SourceApp,
+                SourceWindow,
+                skipSaveAction: savedPath != null);
         }
 
         public void SaveSelection(bool quick)
@@ -549,6 +668,12 @@ namespace CryoUtils.Views
                 }
             }
 
+            CaptureLibraryService.Instance.Record(
+                path,
+                SourceApp,
+                SourceWindow,
+                bitmap.PixelWidth,
+                bitmap.PixelHeight);
             RecentCaptureService.Instance.Add(bitmap, path, LocalizationService.Get("Recent_OpenFolder"));
             if (SettingsService.Instance.Current.CaptureSound)
             {
@@ -556,6 +681,11 @@ namespace CryoUtils.Views
             }
             CloseAll();
             (Application.Current as App)?.ShowToast(LocalizationService.Format("Capture_Saved", path));
+            _ = WorkflowService.Instance.RunPostCaptureAsync(
+                bitmap,
+                SourceApp,
+                SourceWindow,
+                skipSaveAction: true);
         }
 
         public void PinSelection()
@@ -633,7 +763,16 @@ namespace CryoUtils.Views
                     NativeMethods.MessageBeep(0x40);
                 }
 
-                var window = new QrResultWindow(result.Text, result.FormatName, bitmap);
+                BitmapSource cleanQr = bitmap;
+                try
+                {
+                    cleanQr = QrCodeService.Encode(result.Text, 512);
+                }
+                catch
+                {
+                }
+
+                var window = new QrResultWindow(result.Text, result.FormatName, cleanQr);
                 window.Show();
                 window.Activate();
             }
@@ -725,6 +864,7 @@ namespace CryoUtils.Views
                 app?.FinishCapture();
             }
             NotifyChanged();
+            MemoryTrimService.ScheduleTrim(800);
         }
 
         public void RemoveOverlay(CaptureOverlayWindow overlay)

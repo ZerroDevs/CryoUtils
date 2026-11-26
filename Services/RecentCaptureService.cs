@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -21,6 +23,20 @@ namespace CryoUtils.Services
         public DateTime CreatedAt { get; init; } = DateTime.Now;
         public string Source { get; init; } = "";
         public long FileSize { get; init; }
+        public int PixelWidth { get; init; }
+        public int PixelHeight { get; init; }
+
+        public bool IsVideo => HasExtension(".mp4");
+        public bool IsRecording => IsVideo || HasExtension(".gif");
+        public bool HasKindLabel => IsRecording;
+
+        public string KindLabel => IsVideo
+            ? "MP4"
+            : HasExtension(".gif")
+                ? "GIF"
+                : "";
+
+        public string CreatedDisplay => CreatedAt.ToString("MMM d · HH:mm");
 
         public string DisplayName => !string.IsNullOrEmpty(Path)
             ? System.IO.Path.GetFileName(Path)
@@ -33,6 +49,10 @@ namespace CryoUtils.Services
                 if (FileSize > 0)
                 {
                     return ImageIO.FormatBytes(FileSize);
+                }
+                if (PixelWidth > 0 && PixelHeight > 0)
+                {
+                    return $"{PixelWidth} × {PixelHeight}";
                 }
                 if (Image != null)
                 {
@@ -79,6 +99,10 @@ namespace CryoUtils.Services
             ? LocalizationService.Get("Recent_ConfirmDelete")
             : LocalizationService.Get("Recent_Delete");
 
+        private bool HasExtension(string extension) =>
+            !string.IsNullOrEmpty(Path) &&
+            string.Equals(System.IO.Path.GetExtension(Path), extension, StringComparison.OrdinalIgnoreCase);
+
         private void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
@@ -94,14 +118,20 @@ namespace CryoUtils.Services
         {
             var thumb = CreateThumbnail(image);
             long size = TryGetFileSize(path);
+            bool savedOnDisk = !string.IsNullOrEmpty(path) && File.Exists(path);
+            // Only keep the full-resolution BitmapSource in RAM when no saved file backs it on disk.
+            BitmapSource? retainedImage = savedOnDisk ? null : image;
 
             var entry = new RecentCapture
             {
-                Image = image,
+                Image = retainedImage,
                 Thumbnail = thumb,
                 Path = path,
+                CreatedAt = DateTime.Now,
                 Source = source,
-                FileSize = size
+                FileSize = size,
+                PixelWidth = image.PixelWidth,
+                PixelHeight = image.PixelHeight
             };
 
             Items.Insert(0, entry);
@@ -110,21 +140,23 @@ namespace CryoUtils.Services
                 Items.RemoveAt(Items.Count - 1);
             }
 
-            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            if (savedOnDisk)
             {
                 AllTimeItems.Insert(0, new RecentCapture
                 {
-                    Image = image,
+                    Image = null,
                     Thumbnail = thumb,
                     Path = path,
                     CreatedAt = entry.CreatedAt,
                     Source = source,
-                    FileSize = size
+                    FileSize = size,
+                    PixelWidth = image.PixelWidth,
+                    PixelHeight = image.PixelHeight
                 });
             }
         }
 
-        public void ReloadAllTime()
+        public async Task ReloadAllTimeAsync(CancellationToken cancellationToken = default)
         {
             var existingByPath = new Dictionary<string, RecentCapture>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in Items.Concat(AllTimeItems))
@@ -140,27 +172,17 @@ namespace CryoUtils.Services
 
             foreach (var file in files)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (existingByPath.TryGetValue(file.FullName, out var cached) && cached.FileSize == file.Length)
                 {
                     next.Add(cached);
                     continue;
                 }
 
-                BitmapSource? thumb = null;
-                try
-                {
-                    if (file.Extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase))
-                    {
-                        thumb = ImageIO.CreateVideoThumbnailPlaceholder();
-                    }
-                    else
-                    {
-                        thumb = ImageIO.LoadThumbnail(file.FullName, 180);
-                    }
-                }
-                catch
-                {
-                }
+                var fileToLoad = file;
+                var thumb = await Task.Run(() => LoadThumbnail(fileToLoad), cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
 
                 if (thumb == null)
                 {
@@ -178,10 +200,36 @@ namespace CryoUtils.Services
                 });
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             AllTimeItems.Clear();
             foreach (var item in next)
             {
                 AllTimeItems.Add(item);
+            }
+        }
+
+        public void ReleaseAllTimeCache()
+        {
+            if (AllTimeItems.Count > 0)
+            {
+                AllTimeItems.Clear();
+            }
+        }
+
+        private static BitmapSource? LoadThumbnail(FileInfo file)
+        {
+            try
+            {
+                if (file.Extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ImageIO.CreateVideoThumbnailPlaceholder();
+                }
+
+                return ImageIO.LoadThumbnail(file.FullName, 180);
+            }
+            catch
+            {
+                return null;
             }
         }
 

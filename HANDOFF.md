@@ -1,13 +1,43 @@
 # CryoUtils Handoff
 
-Last updated: 2026-11-24
+Last updated: 2026-11-25
 
-## Latest turn — ColorPicker Rework, ScrollWheel Fixes & Real App Icons
+## Latest turn — Cryo Workbench Expansion
+
+- **Unified Workbench (`Views/PowerToolsWindow.xaml(.cs)`, `Views/MainWindow.xaml(.cs)`)**: Added one tabbed window for Library, Recipes, Privacy, File Actions, Colors, Pinner, PDF/Media, and Diagnostics, with a dashboard Tools entry point.
+- **Capture Library 2.0 (`Services/CaptureLibraryService.cs`, `Views/CaptureController.cs`)**: Saved captures now record source application/window, tags, and favorites in `capture-library.json`; search, multi-select, open/reveal, and Recycle Bin deletion are available from the Workbench. The library references the configured save folder and does not duplicate captures.
+- **Workflow recipes (`Services/WorkflowService.cs`)**: Persisted recipes run after **Copy** or **Save**, can match the source application, support filename templates, optional resize, and Save/Copy/OCR/Upload actions. They are not triggered merely by drawing a selection.
+- **Privacy Center (`Services/UploadHistoryService.cs`, `Services/UploadProviderService.cs`, `Services/UploadConsentService.cs`)**: Catbox or local-folder provider, consent status and withdrawal, local-only mode, upload history, local expiry/deletion, and an explicit warning that Catbox has no supported remote deletion.
+- **File Action Center (`Services/FileActionQueueService.cs`, `Services/FileToolsService.cs`)**: Dry-run previews, image convert/compress/recycle jobs, per-job overwrite policy, cancellation, retry, and a confirmation before a real recycle batch. Dry-run jobs now actually compute their planned outputs.
+- **Annotation 2.0 (`Views/CaptureOverlayWindow.xaml.cs`, `Models/Annotation.cs`, `Services/AnnotationRenderer.cs`)**: Ellipse, spotlight, opaque redaction brush, selecting/moving/deleting existing annotations, crop-to-selection, rotate 90°, and automatic scrolling capture with overlap stitching and a placed control bar.
+- **Clipboard workbench (`Views/ClipboardHistoryWindow.xaml(.cs)`, `Views/ClipboardTransformWindow.xaml(.cs)`, `Services/ClipboardService.cs`)**: Named snippets, search/filter, text transforms with preview, image OCR, optional DPAPI text persistence, and per-item expiry. Images are never persisted.
+- **Color studio (`Services/ColorStudioService.cs`)**: Palette extraction from images/screen, saved contrast pairs, CSS/JSON/Tailwind exports, and color-vision simulation.
+- **Pinner upgrades (`Services/TopmostService.cs`, `Services/NativeMethods.cs`)**: Multiple pins with per-window opacity/click-through, exclusions, best-effort restore by title/process, and `--safe-mode` release of the saved topmost session.
+- **PDF/media (`Services/PdfToolsService.cs`, `Services/MediaConversionService.cs`)**: Page range extraction, merge, split, reorder, rotate, OCR, video trim, and GIF frame ranges. PDF password encryption is intentionally not implemented and is documented in the UI.
+- **Diagnostics (`Services/DiagnosticsService.cs`)**: Bounded local logs, unhandled-exception recording, Workbench log viewer, and safe mode.
+- **Tests and docs**: Added `Tests/CryoUtils.Tests.csproj` with nine dependency-free checks (contrast, clipboard transforms, SHA-256, JSON/XML, unique filenames, PDF ranges, color-vision simulation, control-bar layout, palette exports). README/CONTEXT/FEATURES/FUNCTIONS updated; EN/AR parity is **696 keys each**.
+- **Verification**: `dotnet run --project Tests/CryoUtils.Tests.csproj -c Release` passed 9/9; `dotnet build CryoUtils.csproj -c Release -o build-check` passed with 0 warnings and 0 errors. Workbench UI, registry, DPAPI, pinner restore, PDF, and Media Foundation paths were not clicked through in this environment.
+
+## Previous turn — Safety, Privacy, Registry, and History Hardening
+
+- **Saved-capture safety (`Services/ScreenCaptureService.cs`, `Views/MainWindow.xaml.cs`)**: The retention limit now considers only `CryoUtils_*` files, sends pruned captures to the Windows Recycle Bin via `SHFileOperation`, asks before a manual limit reduction moves anything, and uses unique timestamp suffixes to prevent same-second quick-save overwrites.
+- **No in-place conversions (`App.xaml.cs`, `Services/ImageProcessingService.cs`)**: Context-menu image conversions use `SafeOutPath`; same-extension conversions write `_converted` outputs, and the image service refuses an output path equal to its input.
+- **Explicit upload privacy (`Services/UploadConsentService.cs`, `Views/MainWindow.xaml`, `Views/CaptureController.cs`, `App.xaml.cs`)**: Cloud uploads have a Settings enable toggle and one-time consent prompt identifying catbox.moe, a destination label in the upload window, and a localized disabled state. Docs now describe the external network path accurately.
+- **Archive setting (`Models/AppSettings.cs`, `Views/CaptureController.cs`)**: Copy and upload auto-archiving is controlled by **Archive copied and uploaded selections** (default on); explicit saves and QR captures still persist.
+- **Delayed-capture cancel (`App.xaml.cs`, `Views/CountdownWindow.xaml.cs`)**: Cancel, Esc, and window close now restore the dashboard via `FinishCapture()`; countdown construction failures also restore it.
+- **Registry lifecycle (`App.xaml.cs`, `Views/MainWindow.xaml.cs`, `Installer/CryoUtils.iss`)**: Startup, import/reset, language changes, and the context-menu toggle share one `ApplyAllSettings` sync path, eliminating repeated registration on every setting change; uninstall runs `CryoUtils.exe --uninstall-cleanup` to remove the Explorer menu and startup entry.
+- **Memory, progress, and CLI hardening (`Services/MediaConversionService.cs`, `Services/FileToolsService.cs`, `Views/OperationProgressWindow.xaml`, `App.xaml.cs`)**: GIF creation caps at 240 frames and 640 px, reports progress, and supports cancellation for both video-to-GIF and folder-to-GIF through a reusable operation-progress window. CLI window actions set their keep-alive flag only after the window is shown.
+- **Async all-time history (`Services/RecentCaptureService.cs`, `Views/MainWindow.xaml.cs`)**: Thumbnail loading and decoding moved off the UI thread with cancellation, size-keyed cache reuse, and UI-thread collection updates.
+- **UI/data polish**: All-time delete confirmation resets both scopes; clipboard trimming honors the hard cap even when every item is pinned; scanned QR results regenerate a clean QR thumbnail; tray renderer and video placeholder use Cryo Blue.
+- **Docs and localization**: README/CONTEXT/FEATURES/FUNCTIONS/CONTRIBUTING updated for five tabs, Cryo Blue, external upload privacy, safe retention, and async history. Current EN/AR parity is **696 keys each**.
+- **Verification**: Release build passes with 0 warnings and 0 errors. Live UI, registry, upload, OCR, and Media Foundation paths were not exercised in this turn.
+
+## Previous turn — ColorPicker Rework, ScrollWheel Fixes & Real App Icons
 
 - **Reworked Precision Colour Picker (`Views/ColorPickerWindow.xaml`, `Views/ColorPickerWindow.xaml.cs`)**:
   - Removed cursor-chasing `SetWindowPos` loop that prevented users from clicking buttons or opening the `HEX`/`RGB`/`HSL` format dropdown.
   - Built a stationary, draggable inspector anchored cleanly near the work-area edge opposite the initial cursor (`PositionNearWorkAreaEdge`) combined with per-monitor frozen virtual-desktop eyedropper backdrops (`StartSamplingAsync` / `StopSampling`).
-  - Moving over the desktop previews crisp 15x15 `NearestNeighbor` magnified pixels and physical `(X, Y)` coordinates; hovering the inspector or opening `CmbFormat` pauses sampling so controls never overwrite the active color.
+  - Moving over the desktop previews crisp 15x15 `NearestNeighbor` magnified pixels and physical `(X, Y)` coordinates; hovering the inspector or using the format-copy controls pauses sampling so controls never overwrite the active color.
   - Clicking a screen pixel picks and copies it to clipboard (`HEX`/`RGB`/`HSL` or WCAG Contrast summary), registers in Recent Colours, shows a toast, and closes only the screen backdrop so users can copy other formats (`BtnCopySelected`, per-row `BtnCopyRow_Click`), lock Contrast base (`BtnLockContrast` / `Space`), or click `Pick from screen` (`BtnPick`) again.
 - **Dashboard Scrolling & Hit-Testing (`Resources/Controls.xaml`, `Views/MainWindow.xaml`, `Views/MainWindow.xaml.cs`)**:
   - Added `CryoScrollRepeatButton` template, `MinHeight`/`MinWidth="24"` on `CryoScrollBarThumb`, Horizontal `Orientation` support, and `Background="Transparent"` / `PanningMode="None"` on `CryoScrollViewer` and all dashboard panels to prevent layered-window hit-test pass-through.
@@ -335,7 +365,7 @@ Last updated: 2026-11-24
 - Reworked capture chrome placement so the action rail chooses a free slot around the tool rail; small and narrow selections no longer put the two bars on top of each other.
 - Added `ShowCaptureLoupe` (default `false`) with a Capture-tab checkbox and localized description. The pixel/color magnifier is now opt-in; when on, it avoids both rails and hides if no free slot exists.
 - Verified overlay geometry in a WPF harness for tall-narrow, edge, and tiny selections at 500 x 500 and 1920 x 1080; tool/action rectangles did not overlap.
-- Release build after the change: 0 warnings, 0 errors. EN/AR parity is now 297 keys each.
+- Release build after the change: 0 warnings, 0 errors. EN/AR parity passed (current parity: 696 keys each).
 
 ## Previous turn — OCR line breaks and syntax coloring
 
@@ -436,7 +466,7 @@ Last updated: 2026-11-24
 - OCR result: one line metadata reads `One line, 37 characters`; code metadata reads line and character counts.
 - OCR result rich editor: a three-line Python sample rendered all three lines with colored keywords/functions, strings and numbers; editing a line re-colored it and preserved the caret.
 - OCR result loads `.md` as wrapped prose, `.cs` in mono code mode with horizontal scrolling, and Arabic text with RTL flow.
-- Localization dictionaries: 297 keys each after adding the opt-in magnifier description, with no duplicate keys or placeholder mismatches.
+- Localization dictionaries passed parity after adding the opt-in magnifier description, with no duplicate keys or placeholder mismatches (current parity: 696 keys each).
 - The computer has two monitors, both 1920 x 1080 at 96 DPI (100% scaling).
 
 ## Pending or unverified

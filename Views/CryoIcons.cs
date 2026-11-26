@@ -12,6 +12,12 @@ namespace CryoUtils.Views
         public const string Line = "M3,17 L17,3";
         public const string Arrow = "M3,17 L17,3 M8.2,3 L17,3 L17,11.8";
         public const string Rectangle = "M3,4 L17,4 L17,16 L3,16 Z";
+        public const string Ellipse = "M10,3 A7,7 0 1 1 10,17 A7,7 0 1 1 10,3 Z";
+        public const string Spotlight = "M10,3 A5,5 0 1 1 10,13 A5,5 0 1 1 10,3 Z M10,1 L10,3 M10,13 L10,15 M3,8 L1,8 M19,8 L17,8";
+        public const string Redaction = "M3,5 L17,5 L17,15 L3,15 Z M6,8 L14,8 M6,11 L14,11 M6,13 L11,13";
+        public const string Crop = "M5,2 L5,14 L17,14 M2,5 L14,5 L14,17";
+        public const string Rotate = "M4,7 A6,6 0 1 1 4,13 M4,4 L4,8 L8,8";
+        public const string Scroll = "M5,3 L15,3 L15,17 L5,17 Z M8,7 L12,7 M8,10 L12,10 M8,13 L12,13 M10,17 L10,19 M8,19 L12,19";
         public const string Highlighter = "M4,13 L9.2,3 L14,5.3 L8.8,15.3 Z M3,17 L13,17";
         public const string Text = "M3,5 L17,5 M10,5 L10,17 M7,17 L13,17";
         public const string Blur = "M4,4 L8,4 L8,8 L4,8 Z M10,4 L14,4 L14,8 L10,8 Z M4,10 L8,10 L8,14 L4,14 Z M10,10 L14,10 L14,14 L10,14 Z";
@@ -20,6 +26,7 @@ namespace CryoUtils.Views
         public const string Copy = "M7,3 L16,3 L16,13 L9,13 M4,6 L4,18 L12,18 L12,13";
         public const string Save = "M4,3 L14.5,3 L17,5.5 L17,17 L3,17 L3,3 Z M6,3 L6,8 L13,8 L13,3 M6,13 L14,13 L14,17 L6,17 Z";
         public const string Record = "M10,3.5 A6.5,6.5 0 1 0 10,16.5 A6.5,6.5 0 1 0 10,3.5 Z M10,7 A3,3 0 1 0 10,13 A3,3 0 1 0 10,7 Z";
+        public const string Play = "M7,4 L16,10 L7,16 Z";
         public const string Ocr = "M4,7 L4,4 L7,4 M13,4 L16,4 L16,7 M16,13 L16,16 L13,16 M7,16 L4,16 L4,13 M7,10 L13,10 M7,7 L13,7 M7,13 L11,13";
         public const string Pin = "M8,3 L12,3 L11.2,8 L14,11 L6,11 L8.8,8 Z M10,11 L10,17";
         public const string Print = "M5,7 L5,3 L15,3 L15,7 M4,7 L16,7 L16,13 L13,13 M7,13 L4,13 L4,17 L16,17 L16,13 L13,13 M7,13 L13,13 L13,17 L7,17 Z";
@@ -44,6 +51,8 @@ namespace CryoUtils.Views
         public const string Power = "M10,2.5 L10,9.5 M5.8,5.5 A6.5,6.5 0 1 0 14.2,5.5";
         public const string Minimize = "M4,14 L16,14";
         public const string CloudUpload = "M4,15 A4,4 0 0 1 4,8 A5.5,5.5 0 0 1 14.5,5.5 A4.5,4.5 0 0 1 18,12 A3.5,3.5 0 0 1 16.5,18 L5,18 M11,10 L11,16 M8,12 L11,9 L14,12";
+        public const string ChevronDown = "M5,7.5 L10,12.5 L15,7.5";
+        public const string ChevronRight = "M7.5,5 L12.5,10 L7.5,15";
 
         public static Geometry GeometryFor(string data, bool filled = false)
         {

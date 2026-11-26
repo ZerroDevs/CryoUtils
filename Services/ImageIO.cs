@@ -25,6 +25,9 @@ namespace CryoUtils.Services
                 case ".gif":
                     encoder = new GifBitmapEncoder();
                     break;
+                case ".bmp":
+                    encoder = new BmpBitmapEncoder();
+                    break;
                 default:
                     encoder = new PngBitmapEncoder();
                     break;
@@ -123,6 +126,28 @@ namespace CryoUtils.Services
 
         public static BitmapSource LoadThumbnail(string path, int maxWidth = 180)
         {
+            string ext = Path.GetExtension(path);
+            if (!string.Equals(ext, ".webp", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                    bitmap.DecodePixelWidth = Math.Max(1, maxWidth);
+                    bitmap.StreamSource = stream;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    return bitmap;
+                }
+                catch
+                {
+                    // Fall back to SkiaSharp below if WIC cannot decode the file.
+                }
+            }
+
             byte[] bytes = File.ReadAllBytes(path);
             using var skBitmap = SKBitmap.Decode(bytes) ?? throw new InvalidOperationException("Unsupported image.");
             if (skBitmap.Width <= maxWidth)
@@ -146,7 +171,7 @@ namespace CryoUtils.Services
                 canvas.Clear(new SKColor(18, 22, 24));
                 using var paint = new SKPaint
                 {
-                    Color = new SKColor(47, 211, 189),
+                    Color = new SKColor(43, 136, 216),
                     IsAntialias = true,
                     Style = SKPaintStyle.Fill
                 };

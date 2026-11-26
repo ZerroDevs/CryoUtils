@@ -1,0 +1,187 @@
+<Window x:Class="CryoUtils.Views.RecorderSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Rec_SettingsTitle}"
+        Width="620" Height="650"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        FontFamily="{StaticResource SegoeUIVariableText}"
+        Icon="pack://application:,,,/Images/CryoUtils.ico">
+
+    <Border Background="{DynamicResource WindowBackgroundBrush}"
+            BorderBrush="{DynamicResource WindowBorderBrush}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="38"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Background="{DynamicResource TitleBarBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <TextBlock Text="{DynamicResource Rec_SettingsTitle}"
+                           Foreground="{DynamicResource TextTitleBrush}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="14,0"/>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1" Style="{StaticResource CryoScrollViewer}" Padding="18,14,18,8">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource Rec_SettingsHint}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <TextBlock Text="{DynamicResource Rec_GifNote}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+                    <TextBlock Text="{DynamicResource Rec_VideoSection}" Style="{StaticResource SectionTitle}" Margin="0,0,0,8"/>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Rec_Format}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="CmbFormat" Style="{StaticResource CryoComboBox}" FlowDirection="LeftToRight">
+                                <ComboBoxItem Content="GIF" Tag="GIF"/>
+                                <ComboBoxItem Content="MP4" Tag="MP4"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{DynamicResource Rec_Fps}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="CmbFps" Style="{StaticResource CryoComboBox}" FlowDirection="LeftToRight">
+                                <ComboBoxItem Content="30" Tag="30"/>
+                                <ComboBoxItem Content="{DynamicResource Rec_Fps60Target}" Tag="60"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{DynamicResource Rec_FpsHint}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Rec_Resolution}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="CmbResolution" Style="{StaticResource CryoComboBox}" FlowDirection="LeftToRight">
+                                <ComboBoxItem Content="Source" Tag="Source"/>
+                                <ComboBoxItem Content="720p" Tag="720p"/>
+                                <ComboBoxItem Content="1080p" Tag="1080p"/>
+                                <ComboBoxItem Content="1440p" Tag="1440p"/>
+                                <ComboBoxItem Content="2160p" Tag="2160p"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{DynamicResource Rec_Quality}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="CmbQuality" Style="{StaticResource CryoComboBox}" FlowDirection="LeftToRight">
+                                <ComboBoxItem Content="Low" Tag="Low"/>
+                                <ComboBoxItem Content="Medium" Tag="Medium"/>
+                                <ComboBoxItem Content="High" Tag="High"/>
+                                <ComboBoxItem Content="Custom" Tag="Custom"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock Text="{DynamicResource Rec_Bitrate}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtBitrateValue" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10.5"/>
+                    </Grid>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="104"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider x:Name="SldBitrate" Style="{StaticResource CryoSlider}" Minimum="0" Maximum="60" Value="0" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="SldBitrate_ValueChanged"/>
+                        <ComboBox x:Name="CmbBitrateMode" Grid.Column="2" Style="{StaticResource CryoComboBox}" FlowDirection="LeftToRight" SelectionChanged="CmbBitrateMode_SelectionChanged">
+                            <ComboBoxItem Content="{DynamicResource Rec_BitrateAuto}" Tag="Auto"/>
+                            <ComboBoxItem Content="{DynamicResource Rec_BitrateCustom}" Tag="Custom"/>
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="140"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Rec_MaxLength}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="CmbMaxLength" Style="{StaticResource CryoComboBox}">
+                                <ComboBoxItem Content="1 min" Tag="60"/>
+                                <ComboBoxItem Content="5 min" Tag="300"/>
+                                <ComboBoxItem Content="10 min" Tag="600"/>
+                                <ComboBoxItem Content="30 min" Tag="1800"/>
+                                <ComboBoxItem Content="60 min" Tag="3600"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <CheckBox x:Name="ChkTrim" Grid.Column="2" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Rec_TrimBeforeSave}" VerticalAlignment="Bottom" Margin="0,0,0,6"/>
+                    </Grid>
+
+                    <TextBlock Text="{DynamicResource Rec_AudioSection}" Style="{StaticResource SectionTitle}" Margin="0,0,0,6"/>
+                    <CheckBox x:Name="ChkSystemAudio" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Rec_SystemAudio}" Checked="Options_Changed" Unchecked="Options_Changed"/>
+                    <TextBlock Text="{DynamicResource Rec_SystemAudioDevice}" Style="{StaticResource FieldLabel}" Margin="22,4,0,2"/>
+                    <ComboBox x:Name="CmbSystemAudioDevice" Style="{StaticResource CryoComboBox}" Margin="22,0,0,0" FlowDirection="LeftToRight" AutomationProperties.Name="{DynamicResource Rec_SystemAudioDevice}"/>
+                    <CheckBox x:Name="ChkMicrophone" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Rec_Microphone}" Margin="0,9,0,0" Checked="Options_Changed" Unchecked="Options_Changed"/>
+                    <TextBlock Text="{DynamicResource Rec_MicrophoneDevice}" Style="{StaticResource FieldLabel}" Margin="22,4,0,2"/>
+                    <ComboBox x:Name="CmbMicrophoneDevice" Style="{StaticResource CryoComboBox}" Margin="22,0,0,0" FlowDirection="LeftToRight" AutomationProperties.Name="{DynamicResource Rec_MicrophoneDevice}"/>
+                    <CheckBox x:Name="ChkCursor" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Rec_Cursor}" Margin="0,7,0,0"/>
+                    <CheckBox x:Name="ChkClicks" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Rec_Clicks}" Margin="0,7,0,0"/>
+                    <CheckBox x:Name="ChkWebcam" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Rec_Webcam}" Margin="0,7,0,0"/>
+
+                    <TextBlock Text="{DynamicResource Rec_ReplaySection}" Style="{StaticResource SectionTitle}" Margin="0,16,0,6"/>
+                    <CheckBox x:Name="ChkReplay" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Rec_ReplayEnable}" Checked="ChkReplay_Changed" Unchecked="ChkReplay_Changed"/>
+                    <Grid Margin="0,8,0,8">
+                        <TextBlock Text="{DynamicResource Rec_ReplayLength}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtReplayLength" HorizontalAlignment="Right" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10.5"/>
+                    </Grid>
+                    <Slider x:Name="SldReplayLength" Style="{StaticResource CryoSlider}" Minimum="15" Maximum="600" Value="30" IsSnapToTickEnabled="True" TickFrequency="5" ValueChanged="SldReplayLength_ValueChanged"/>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Rec_ReplayMonitor}" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox x:Name="CmbReplayMonitor" Style="{StaticResource CryoComboBox}">
+                                <ComboBoxItem Content="{DynamicResource Rec_MonitorPrimary}" Tag="Primary"/>
+                                <ComboBoxItem Content="{DynamicResource Rec_MonitorCursor}" Tag="Cursor"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{DynamicResource Rec_ReplayHotkey}" Style="{StaticResource FieldLabel}"/>
+                            <Button x:Name="BtnReplayHotkey" Style="{StaticResource SecondaryButton}" Click="BtnReplayHotkey_Click" HorizontalContentAlignment="Left"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="120"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{DynamicResource Rec_ReplayDisk}" Style="{StaticResource FieldLabel}" VerticalAlignment="Center"/>
+                        <TextBox x:Name="TxtDiskBudget" Grid.Column="2" Style="{StaticResource CryoTextBox}" FlowDirection="LeftToRight" TextAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="2" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="18,10">
+                <Grid>
+                    <TextBlock x:Name="TxtStatus" Style="{StaticResource MutedText}" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="{DynamicResource Common_Cancel}" Style="{StaticResource SecondaryButton}" Click="BtnCancel_Click" Margin="0,0,8,0"/>
+                        <Button Content="{DynamicResource Common_Save}" Style="{StaticResource PrimaryButton}" Click="BtnSave_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

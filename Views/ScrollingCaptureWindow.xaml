@@ -1,0 +1,34 @@
+<Window x:Class="CryoUtils.Views.ScrollingCaptureWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource ScrollCapture_Title}"
+        Width="470" Height="154"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        WindowStartupLocation="Manual"
+        FontFamily="{StaticResource SegoeUIVariableText}">
+    <Border Background="{DynamicResource WindowBackgroundBrush}" BorderBrush="{DynamicResource WindowBorderBrush}" BorderThickness="1" CornerRadius="4">
+        <Grid Margin="14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid>
+                <TextBlock Text="{DynamicResource ScrollCapture_Title}" Style="{StaticResource SectionTitle}"/>
+                <TextBlock x:Name="TxtCount" HorizontalAlignment="Right" Style="{StaticResource MutedText}" FlowDirection="LeftToRight"/>
+            </Grid>
+            <TextBlock Grid.Row="1" Text="{DynamicResource ScrollCapture_Hint}" Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,6,0,8"/>
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="{DynamicResource ScrollCapture_CaptureNow}" Style="{StaticResource SecondaryButton}" Click="BtnCapture_Click" Margin="0,0,6,0"/>
+                <Button Content="{DynamicResource ScrollCapture_Finish}" Style="{StaticResource PrimaryButton}" Click="BtnFinish_Click" Margin="0,0,6,0"/>
+                <Button Content="{DynamicResource Common_Cancel}" Style="{StaticResource SecondaryButton}" Click="BtnCancel_Click"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

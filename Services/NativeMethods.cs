@@ -110,6 +110,11 @@ namespace CryoUtils.Services
         [DllImport("user32.dll")]
         public static extern IntPtr GetForegroundWindow();
 
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
+
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
 
@@ -275,6 +280,52 @@ namespace CryoUtils.Services
 
         [DllImport("shell32.dll")]
         public static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct SHFILEOPSTRUCT
+        {
+            public IntPtr hwnd;
+            public uint wFunc;
+            [MarshalAs(UnmanagedType.LPWStr)] public string pFrom;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? pTo;
+            public ushort fFlags;
+            [MarshalAs(UnmanagedType.Bool)] public bool fAnyOperationsAborted;
+            public IntPtr hNameMappings;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? lpszProgressTitle;
+        }
+
+        public const uint FO_DELETE = 3;
+        public const ushort FOF_SILENT = 0x0004;
+        public const ushort FOF_NOCONFIRMATION = 0x0010;
+        public const ushort FOF_ALLOWUNDO = 0x0040;
+        public const ushort FOF_NOERRORUI = 0x0400;
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        public static extern int SHFileOperation(ref SHFILEOPSTRUCT lpFileOp);
+
+        public static bool MoveToRecycleBin(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
+            {
+                return false;
+            }
+
+            var operation = new SHFILEOPSTRUCT
+            {
+                wFunc = FO_DELETE,
+                pFrom = path + "\0",
+                fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI
+            };
+
+            try
+            {
+                return SHFileOperation(ref operation) == 0 && !operation.fAnyOperationsAborted;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         public static void NotifyShellAssociationChanged()
         {

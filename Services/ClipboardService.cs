@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Interop;
@@ -19,25 +22,55 @@ namespace CryoUtils.Services
         KebabCase,
         Trim,
         UrlEncode,
-        UrlDecode
+        UrlDecode,
+        Base64Encode,
+        Base64Decode,
+        JsonFormat,
+        JsonMinify
     }
 
     public sealed class ClipItem
     {
+        public string Id { get; init; } = Guid.NewGuid().ToString("N");
         public string? Text { get; init; }
         public BitmapSource? Image { get; init; }
         public DateTime CreatedAt { get; init; } = DateTime.Now;
+        public DateTime? ExpiresAt { get; set; }
         public bool Sensitive { get; init; }
         public bool IsPinned { get; set; }
+        public bool IsSnippet { get; init; }
+        public string Name { get; init; } = "";
         public int CharacterCount => Text?.Length ?? 0;
 
-        public string DisplayText => string.IsNullOrEmpty(Text)
-            ? LocalizationService.Get("Clip_ImageClip")
-            : Text!.Replace("\r", " ").Replace("\n", " ").Trim();
+        public string DisplayText => IsSnippet
+            ? $"{Name}  ·  {Truncate(Text ?? "", 120)}"
+            : string.IsNullOrEmpty(Text)
+                ? LocalizationService.Get("Clip_ImageClip")
+                : Text!.Replace("\r", " ").Replace("\n", " ").Trim();
 
-        public string Meta => Text == null
-            ? $"{Image?.PixelWidth ?? 0} x {Image?.PixelHeight ?? 0}  {CreatedAt:HH:mm}"
-            : LocalizationService.Format("Clip_Length", Text.Length) + $"  {CreatedAt:HH:mm}";
+        public string Meta
+        {
+            get
+            {
+                string baseMeta = Text == null
+                    ? $"{Image?.PixelWidth ?? 0} x {Image?.PixelHeight ?? 0}  {CreatedAt:HH:mm}"
+                    : LocalizationService.Format("Clip_Length", Text.Length) + $"  {CreatedAt:HH:mm}";
+                if (IsSnippet)
+                {
+                    baseMeta = LocalizationService.Get("Clip_Snippet") + "  " + baseMeta;
+                }
+                if (ExpiresAt.HasValue)
+                {
+                    baseMeta += "  " + LocalizationService.Format(
+                        "Clip_ExpiresFmt",
+                        ExpiresAt.Value.ToString("HH:mm"));
+                }
+                return baseMeta;
+            }
+        }
+
+        private static string Truncate(string text, int length) =>
+            text.Length <= length ? text.Replace("\r", " ").Replace("\n", " ") : text[..length];
     }
 
     public sealed class ClipboardService : IDisposable
@@ -54,12 +87,23 @@ namespace CryoUtils.Services
         private bool _enabled;
         private bool _ignoreNext;
         private string _lastText = "";
+        private bool _persistenceEnabled;
+        private DispatcherTimer? _expiryTimer;
+
+        private static readonly string DataFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CryoUtils");
+        private static readonly string PersistenceFile = Path.Combine(DataFolder, "clipboard.bin");
+        private static readonly JsonSerializerOptions PersistenceJson = new() { WriteIndented = false };
 
         public ObservableCollection<ClipItem> Items => _items;
         public event Action? Changed;
 
         private ClipboardService()
         {
+            if (SettingsService.Instance.Current.ClipboardPersistenceEnabled)
+            {
+                SetPersistence(true);
+            }
         }
 
         public void SetEnabled(bool enabled)
@@ -168,14 +212,19 @@ namespace CryoUtils.Services
             {
                 _items.Remove(existing);
                 _items.Insert(0, existing);
+                ApplyExpiration(existing);
+                SavePersistent();
                 Changed?.Invoke();
                 return;
             }
 
             bool sensitive = SensitivePattern.IsMatch(text);
             var item = new ClipItem { Text = text, Sensitive = sensitive };
+            ApplyExpiration(item);
             _items.Insert(0, item);
             Trim();
+            SavePersistent();
+            EnsureExpiryTimer();
             Changed?.Invoke();
             if (sensitive && SettingsService.Instance.Current.ClipboardAutoClearSensitive)
             {
@@ -185,9 +234,19 @@ namespace CryoUtils.Services
 
         private void AddImage(BitmapSource image)
         {
-            _items.Insert(0, new ClipItem { Image = image });
+            var item = new ClipItem { Image = image };
+            ApplyExpiration(item);
+            _items.Insert(0, item);
             Trim();
+            SavePersistent();
+            EnsureExpiryTimer();
             Changed?.Invoke();
+        }
+
+        private static void ApplyExpiration(ClipItem item)
+        {
+            int minutes = SettingsService.Instance.Current.ClipboardExpirationMinutes;
+            item.ExpiresAt = minutes > 0 ? DateTime.Now.AddMinutes(minutes) : null;
         }
 
         private void Trim()
@@ -198,7 +257,7 @@ namespace CryoUtils.Services
                 int removeIndex = -1;
                 for (int i = _items.Count - 1; i >= 0; i--)
                 {
-                    if (!_items[i].IsPinned)
+                    if (!_items[i].IsPinned && !_items[i].IsSnippet)
                     {
                         removeIndex = i;
                         break;
@@ -211,7 +270,16 @@ namespace CryoUtils.Services
                 }
                 else
                 {
-                    break;
+                    // Keep snippets when possible; the configured limit remains a hard cap.
+                    for (int i = _items.Count - 1; i >= 0; i--)
+                    {
+                        if (!_items[i].IsSnippet)
+                        {
+                            removeIndex = i;
+                            break;
+                        }
+                    }
+                    _items.RemoveAt(removeIndex >= 0 ? removeIndex : _items.Count - 1);
                 }
             }
         }
@@ -219,7 +287,43 @@ namespace CryoUtils.Services
         public void TogglePin(ClipItem item)
         {
             item.IsPinned = !item.IsPinned;
+            SavePersistent();
             Changed?.Invoke();
+        }
+
+        public void AddSnippet(string name, string text)
+        {
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            var existing = _items.FirstOrDefault(item =>
+                item.IsSnippet &&
+                string.Equals(item.Name, name.Trim(), StringComparison.CurrentCultureIgnoreCase));
+            if (existing != null)
+            {
+                _items.Remove(existing);
+            }
+
+            _items.Insert(0, new ClipItem
+            {
+                Text = text,
+                Name = name.Trim(),
+                IsSnippet = true,
+                IsPinned = true
+            });
+            Trim();
+            SavePersistent();
+            Changed?.Invoke();
+        }
+
+        public void RemoveSnippet(ClipItem item)
+        {
+            if (item.IsSnippet)
+            {
+                Remove(item);
+            }
         }
 
         public static string TransformText(string text, TextTransformType transform)
@@ -235,6 +339,10 @@ namespace CryoUtils.Services
                 TextTransformType.Trim => TransformText(text, "trim"),
                 TextTransformType.UrlEncode => TransformText(text, "urlencode"),
                 TextTransformType.UrlDecode => TransformText(text, "urldecode"),
+                TextTransformType.Base64Encode => TransformText(text, "base64"),
+                TextTransformType.Base64Decode => TransformText(text, "unbase64"),
+                TextTransformType.JsonFormat => TransformText(text, "json"),
+                TextTransformType.JsonMinify => TransformText(text, "jsonmin"),
                 _ => text
             };
         }
@@ -257,8 +365,39 @@ namespace CryoUtils.Services
                 "trim" => text.Trim(),
                 "urlencode" => Uri.EscapeDataString(text),
                 "urldecode" => Uri.UnescapeDataString(text),
+                "base64" => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text)),
+                "unbase64" => DecodeBase64(text),
+                "json" => FormatJson(text, indented: true),
+                "jsonmin" => FormatJson(text, indented: false),
                 _ => text
             };
+        }
+
+        private static string DecodeBase64(string text)
+        {
+            try
+            {
+                return System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(text.Trim()));
+            }
+            catch
+            {
+                return text;
+            }
+        }
+
+        private static string FormatJson(string text, bool indented)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(text);
+                return JsonSerializer.Serialize(
+                    document.RootElement,
+                    new JsonSerializerOptions { WriteIndented = indented });
+            }
+            catch
+            {
+                return text;
+            }
         }
 
         private static string ToCamelCase(string text)
@@ -299,6 +438,7 @@ namespace CryoUtils.Services
                 if (_items.Contains(item))
                 {
                     _items.Remove(item);
+                    SavePersistent();
                     Changed?.Invoke();
                     (Application.Current as App)?.ShowToast(
                         LocalizationService.Format("Clip_SensitiveRemoved", seconds));
@@ -331,13 +471,174 @@ namespace CryoUtils.Services
         public void Remove(ClipItem item)
         {
             _items.Remove(item);
+            SavePersistent();
             Changed?.Invoke();
         }
 
         public void Clear()
         {
             _items.Clear();
+            SavePersistent();
             Changed?.Invoke();
+        }
+
+        public void SetPersistence(bool enabled)
+        {
+            if (_persistenceEnabled == enabled)
+            {
+                return;
+            }
+
+            _persistenceEnabled = enabled;
+            if (enabled)
+            {
+                LoadPersistent();
+            }
+            else
+            {
+                TryDeletePersistenceFile();
+            }
+        }
+
+        private void LoadPersistent()
+        {
+            try
+            {
+                if (!File.Exists(PersistenceFile))
+                {
+                    return;
+                }
+
+                byte[] protectedBytes = File.ReadAllBytes(PersistenceFile);
+                byte[] jsonBytes = DpapiService.Unprotect(protectedBytes);
+                var persisted = JsonSerializer.Deserialize<List<PersistedClip>>(jsonBytes);
+                if (persisted == null)
+                {
+                    return;
+                }
+
+                foreach (var entry in persisted)
+                {
+                    if (string.IsNullOrEmpty(entry.Text)
+                        || (entry.ExpiresAt.HasValue && entry.ExpiresAt.Value <= DateTime.Now)
+                        || _items.Any(item => item.Text == entry.Text && item.IsSnippet == entry.IsSnippet))
+                    {
+                        continue;
+                    }
+
+                    _items.Add(new ClipItem
+                    {
+                        Text = entry.Text,
+                        Name = entry.Name,
+                        CreatedAt = entry.CreatedAt,
+                        ExpiresAt = entry.ExpiresAt,
+                        Sensitive = entry.Sensitive,
+                        IsPinned = entry.IsPinned,
+                        IsSnippet = entry.IsSnippet
+                    });
+                }
+
+                Trim();
+                EnsureExpiryTimer();
+                Changed?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                DiagnosticsService.Log("Clipboard persistence load failed", ex);
+            }
+        }
+
+        private void SavePersistent()
+        {
+            if (!_persistenceEnabled)
+            {
+                return;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(DataFolder);
+                var entries = _items
+                    .Where(item => item.Text != null)
+                    .Select(item => new PersistedClip
+                    {
+                        Text = item.Text!,
+                        Name = item.Name,
+                        CreatedAt = item.CreatedAt,
+                        ExpiresAt = item.ExpiresAt,
+                        Sensitive = item.Sensitive,
+                        IsPinned = item.IsPinned,
+                        IsSnippet = item.IsSnippet
+                    })
+                    .ToList();
+                byte[] json = JsonSerializer.SerializeToUtf8Bytes(entries, PersistenceJson);
+                byte[] protectedBytes = DpapiService.Protect(json);
+                string tempPath = PersistenceFile + ".tmp";
+                File.WriteAllBytes(tempPath, protectedBytes);
+                File.Move(tempPath, PersistenceFile, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticsService.Log("Clipboard persistence save failed", ex);
+            }
+        }
+
+        private static void TryDeletePersistenceFile()
+        {
+            try
+            {
+                if (File.Exists(PersistenceFile))
+                {
+                    File.Delete(PersistenceFile);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void EnsureExpiryTimer()
+        {
+            if (_expiryTimer != null)
+            {
+                return;
+            }
+
+            _expiryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+            _expiryTimer.Tick += (_, _) => ExpireItems();
+            _expiryTimer.Start();
+        }
+
+        private void ExpireItems()
+        {
+            var expired = _items.Where(item => item.ExpiresAt.HasValue && item.ExpiresAt.Value <= DateTime.Now).ToList();
+            foreach (var item in expired)
+            {
+                _items.Remove(item);
+            }
+
+            if (expired.Count > 0)
+            {
+                SavePersistent();
+                Changed?.Invoke();
+            }
+
+            if (!_items.Any(item => item.ExpiresAt.HasValue))
+            {
+                _expiryTimer?.Stop();
+                _expiryTimer = null;
+            }
+        }
+
+        private sealed class PersistedClip
+        {
+            public string Text { get; set; } = "";
+            public string Name { get; set; } = "";
+            public DateTime CreatedAt { get; set; } = DateTime.Now;
+            public DateTime? ExpiresAt { get; set; }
+            public bool Sensitive { get; set; }
+            public bool IsPinned { get; set; }
+            public bool IsSnippet { get; set; }
         }
 
         public void PlainPaste()
@@ -364,7 +665,10 @@ namespace CryoUtils.Services
         public void Dispose()
         {
             StopListener();
-            Clear();
+            _persistenceEnabled = false;
+            _expiryTimer?.Stop();
+            _expiryTimer = null;
+            _items.Clear();
         }
     }
 }

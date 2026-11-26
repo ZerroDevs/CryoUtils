@@ -22,6 +22,7 @@ namespace CryoUtils.Views
         public static Geometry Tools { get; } = Frozen(CryoIcons.Tools);
         public static Geometry Menu { get; } = Frozen(CryoIcons.Menu);
         public static Geometry Record { get; } = Frozen(CryoIcons.Record);
+        public static Geometry Play { get; } = Frozen(CryoIcons.Play);
         public static Geometry Edit { get; } = Frozen(CryoIcons.Pen);
         public static Geometry Home { get; } = Frozen(CryoIcons.Home);
         public static Geometry Keyboard { get; } = Frozen(CryoIcons.Keyboard);
@@ -29,6 +30,8 @@ namespace CryoUtils.Views
         public static Geometry Power { get; } = Frozen(CryoIcons.Power);
         public static Geometry Minimize { get; } = Frozen(CryoIcons.Minimize);
         public static Geometry CloudUpload { get; } = Frozen(CryoIcons.CloudUpload);
+        public static Geometry ChevronDown { get; } = Frozen(CryoIcons.ChevronDown);
+        public static Geometry ChevronRight { get; } = Frozen(CryoIcons.ChevronRight);
 
         private static Geometry Frozen(string data)
         {

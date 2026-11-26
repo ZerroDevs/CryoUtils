@@ -16,16 +16,17 @@ namespace CryoUtils.Tray
         private const int MenuTextHorizontalReserve = 48;
 
         private readonly Forms.NotifyIcon _notifyIcon;
-        private readonly Drawing.Icon _icon;
+        private Drawing.Icon _icon;
         private Forms.ContextMenuStrip? _menu;
         private IntPtr _iconHandle;
+        private bool _recordingBadge;
 
         private readonly Drawing.Font _menuFont = new("Segoe UI", 9.5f, Drawing.FontStyle.Regular, Drawing.GraphicsUnit.Point);
         private readonly Drawing.Font _menuPrimaryFont = new("Segoe UI Semibold", 9.5f, Drawing.FontStyle.Regular, Drawing.GraphicsUnit.Point);
 
         public TrayIconManager()
         {
-            _icon = CreateIcon(out _iconHandle);
+            _icon = CreateIcon(out _iconHandle, false);
             _notifyIcon = new Forms.NotifyIcon
             {
                 Icon = _icon,
@@ -38,6 +39,7 @@ namespace CryoUtils.Tray
 
             LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
             TopmostService.Instance.StateChanged += OnTopmostStateChanged;
+            CryoUtils.Services.Recording.ReplayService.Instance.StateChanged += OnReplayStateChanged;
 
             _notifyIcon.DoubleClick += (_, _) => Invoke(() => App.CurrentApp?.ShowDashboard());
             _notifyIcon.MouseClick += (_, e) =>
@@ -109,6 +111,21 @@ namespace CryoUtils.Tray
                 () => App.CurrentApp?.StartRecording());
             menu.Items.Add(itemRecord);
 
+            var replayRunning = CryoUtils.Services.Recording.ReplayService.Instance.IsRunning;
+            var itemReplayToggle = CreateMenuItem(
+                LocalizationService.Get(replayRunning ? "Tray_StopReplay" : "Tray_StartReplay"),
+                () => App.CurrentApp?.ToggleReplayBuffer());
+            menu.Items.Add(itemReplayToggle);
+            if (replayRunning)
+            {
+                menu.Items.Add(CreateMenuItem(
+                    LocalizationService.Get("Tray_SaveReplay"),
+                    () => App.CurrentApp?.SaveReplay()));
+            }
+            menu.Items.Add(CreateMenuItem(
+                LocalizationService.Get("Tray_RecorderSettings"),
+                () => App.CurrentApp?.OpenRecorderSettings()));
+
             menu.Items.Add(CreateSeparator());
 
             // 3. Local Utilities
@@ -134,6 +151,10 @@ namespace CryoUtils.Tray
                 LocalizationService.Get("Tray_Clipboard"),
                 () => App.CurrentApp?.OpenClipboardHistory());
             menu.Items.Add(itemClipboard);
+
+            menu.Items.Add(CreateMenuItem(
+                LocalizationService.Get("Tray_Workbench"),
+                () => App.CurrentApp?.OpenWorkbench()));
 
             // Window Pinner dynamic items
             if (TopmostService.Instance.IsPinned)
@@ -264,6 +285,39 @@ namespace CryoUtils.Tray
             Invoke(RebuildMenu);
         }
 
+        private void OnReplayStateChanged()
+        {
+            Invoke(() =>
+            {
+                App.CurrentApp?.SyncRecordingBadge();
+                RebuildMenu();
+            });
+        }
+
+        public void SetRecordingBadge(bool active)
+        {
+            if (_recordingBadge == active)
+            {
+                return;
+            }
+
+            _recordingBadge = active;
+            var replacement = CreateIcon(out IntPtr replacementHandle, active);
+            var previous = _icon;
+            var previousHandle = _iconHandle;
+            _icon = replacement;
+            _iconHandle = replacementHandle;
+            _notifyIcon.Icon = _icon;
+            _notifyIcon.Text = active
+                ? LocalizationService.Get("Tray_RecordingTooltip")
+                : LocalizationService.Get("Tray_Tooltip");
+            previous.Dispose();
+            if (previousHandle != IntPtr.Zero)
+            {
+                DestroyIcon(previousHandle);
+            }
+        }
+
         private void RebuildMenu()
         {
             var previous = _menu;
@@ -285,7 +339,7 @@ namespace CryoUtils.Tray
             }
         }
 
-        private static Drawing.Icon CreateIcon(out IntPtr handle)
+        private static Drawing.Icon CreateIcon(out IntPtr handle, bool recordingBadge)
         {
             handle = IntPtr.Zero;
             try
@@ -297,7 +351,26 @@ namespace CryoUtils.Tray
                     using var stream = resource.Stream;
                     int traySize = Forms.SystemInformation.SmallIconSize.Width;
                     traySize = Math.Clamp(traySize, 16, 48);
-                    return new Drawing.Icon(stream, new Drawing.Size(traySize, traySize));
+                    var packaged = new Drawing.Icon(stream, new Drawing.Size(traySize, traySize));
+                    if (!recordingBadge)
+                    {
+                        return packaged;
+                    }
+
+                    using (packaged)
+                    using (var packagedBitmap = packaged.ToBitmap())
+                    using (var packagedGraphics = Drawing.Graphics.FromImage(packagedBitmap))
+                    {
+                        packagedGraphics.SmoothingMode = SmoothingMode.AntiAlias;
+                        using var brush = new Drawing.SolidBrush(Drawing.Color.FromArgb(229, 83, 75));
+                        using var border = new Drawing.Pen(Drawing.Color.FromArgb(20, 24, 28), 1.5f);
+                        int size = Math.Max(5, packagedBitmap.Width / 3);
+                        packagedGraphics.FillEllipse(brush, packagedBitmap.Width - size, 0, size, size);
+                        packagedGraphics.DrawEllipse(border, packagedBitmap.Width - size, 0, size, size);
+                        handle = packagedBitmap.GetHicon();
+                        using var packagedTemp = Drawing.Icon.FromHandle(handle);
+                        return (Drawing.Icon)packagedTemp.Clone();
+                    }
                 }
             }
             catch
@@ -310,7 +383,7 @@ namespace CryoUtils.Tray
             {
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 graphics.Clear(Drawing.Color.Transparent);
-                using var pen = new Drawing.Pen(Drawing.Color.FromArgb(47, 211, 189), 2.2f)
+                using var pen = new Drawing.Pen(Drawing.Color.FromArgb(43, 136, 216), 2.2f)
                 {
                     StartCap = LineCap.Round,
                     EndCap = LineCap.Round,
@@ -337,8 +410,13 @@ namespace CryoUtils.Tray
                     new Drawing.PointF(26, 19), new Drawing.PointF(26, 24), new Drawing.PointF(24, 26),
                     new Drawing.PointF(19, 26)
                 });
-                using var dot = new Drawing.SolidBrush(Drawing.Color.FromArgb(47, 211, 189));
+                using var dot = new Drawing.SolidBrush(Drawing.Color.FromArgb(43, 136, 216));
                 graphics.FillEllipse(dot, 13, 13, 6, 6);
+                if (recordingBadge)
+                {
+                    using var badge = new Drawing.SolidBrush(Drawing.Color.FromArgb(229, 83, 75));
+                    graphics.FillEllipse(badge, 23, 1, 8, 8);
+                }
             }
 
             handle = bitmap.GetHicon();
@@ -351,6 +429,7 @@ namespace CryoUtils.Tray
         {
             LocalizationService.Instance.LanguageChanged -= OnLanguageChanged;
             TopmostService.Instance.StateChanged -= OnTopmostStateChanged;
+            CryoUtils.Services.Recording.ReplayService.Instance.StateChanged -= OnReplayStateChanged;
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _icon.Dispose();
@@ -372,13 +451,13 @@ namespace CryoUtils.Tray
             public static readonly Drawing.Color SurfaceBorder = Drawing.Color.FromArgb(46, 52, 60);
             public static readonly Drawing.Color HoverFill = Drawing.Color.FromArgb(32, 40, 48);
             public static readonly Drawing.Color PressedFill = Drawing.Color.FromArgb(26, 34, 42);
-            public static readonly Drawing.Color HoverBorder = Drawing.Color.FromArgb(47, 211, 189);
+            public static readonly Drawing.Color HoverBorder = Drawing.Color.FromArgb(43, 136, 216);
             public static readonly Drawing.Color SeparatorLine = Drawing.Color.FromArgb(40, 46, 54);
             public static readonly Drawing.Color TextNormal = Drawing.Color.FromArgb(236, 239, 242);
             public static readonly Drawing.Color TextSelected = Drawing.Color.White;
             public static readonly Drawing.Color TextDisabled = Drawing.Color.FromArgb(120, 126, 134);
             public static readonly Drawing.Color ChevronNormal = Drawing.Color.FromArgb(170, 178, 186);
-            public static readonly Drawing.Color ChevronSelected = Drawing.Color.FromArgb(47, 211, 189);
+            public static readonly Drawing.Color ChevronSelected = Drawing.Color.FromArgb(43, 136, 216);
 
             protected override void OnRenderToolStripBackground(Forms.ToolStripRenderEventArgs e)
             {

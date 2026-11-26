@@ -12,6 +12,7 @@ namespace CryoUtils.Views
     public partial class ClipboardHistoryWindow : Window
     {
         private readonly ClipboardService _service = ClipboardService.Instance;
+        private bool _loadingSettings;
 
         public ClipboardHistoryWindow()
         {
@@ -21,10 +22,31 @@ namespace CryoUtils.Views
             Closed += (_, _) => _service.Changed -= RefreshList;
             Loaded += (_, _) =>
             {
+                LoadSettings();
                 RefreshList();
                 TxtSearch.Focus();
                 Activate();
             };
+        }
+
+        private void LoadSettings()
+        {
+            _loadingSettings = true;
+            ChkPersistence.IsChecked = SettingsService.Instance.Current.ClipboardPersistenceEnabled;
+            int minutes = SettingsService.Instance.Current.ClipboardExpirationMinutes;
+            foreach (ComboBoxItem item in CmbExpiry.Items)
+            {
+                if (item.Tag is string tag && int.TryParse(tag, out int value) && value == minutes)
+                {
+                    CmbExpiry.SelectedItem = item;
+                    break;
+                }
+            }
+            if (CmbExpiry.SelectedItem == null)
+            {
+                CmbExpiry.SelectedIndex = 0;
+            }
+            _loadingSettings = false;
         }
 
         private void RefreshList()
@@ -34,9 +56,19 @@ namespace CryoUtils.Views
             if (!string.IsNullOrEmpty(query))
             {
                 items = items.Where(item =>
-                    item.Text != null &&
-                    item.Text.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+                    (item.Text != null && item.Text.Contains(query, StringComparison.CurrentCultureIgnoreCase)) ||
+                    item.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase));
             }
+
+            string filter = (CmbFilter.SelectedItem as ComboBoxItem)?.Tag as string ?? "All";
+            items = filter switch
+            {
+                "Text" => items.Where(item => item.Text != null && !item.IsSnippet),
+                "Image" => items.Where(item => item.Image != null),
+                "Snippets" => items.Where(item => item.IsSnippet),
+                "Pinned" => items.Where(item => item.IsPinned),
+                _ => items
+            };
 
             items = items.OrderByDescending(item => item.IsPinned).ThenByDescending(item => item.CreatedAt);
             var list = items.ToList();
@@ -52,6 +84,70 @@ namespace CryoUtils.Views
         private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
         {
             RefreshList();
+        }
+
+        private void CmbFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RefreshList();
+        }
+
+        private void BtnAddSnippet_Click(object sender, RoutedEventArgs e)
+        {
+            _service.AddSnippet(TxtSnippetName.Text, TxtSnippetText.Text);
+            TxtSnippetName.Clear();
+            TxtSnippetText.Clear();
+            RefreshList();
+        }
+
+        private async void BtnOcrClip_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not ClipItem item || item.Image == null)
+            {
+                return;
+            }
+
+            try
+            {
+                string text = await OcrService.RecognizeAsync(item.Image);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_OcrEmpty"));
+                    return;
+                }
+
+                Clipboard.SetText(text);
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
+            }
+            catch (Exception ex)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+            }
+        }
+
+        private void Persistence_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loadingSettings)
+            {
+                return;
+            }
+
+            SettingsService.Instance.Current.ClipboardPersistenceEnabled = ChkPersistence.IsChecked == true;
+            SettingsService.Instance.Save();
+            _service.SetPersistence(ChkPersistence.IsChecked == true);
+        }
+
+        private void Expiry_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loadingSettings || CmbExpiry.SelectedItem is not ComboBoxItem item)
+            {
+                return;
+            }
+
+            if (int.TryParse(item.Tag as string, out int minutes))
+            {
+                SettingsService.Instance.Current.ClipboardExpirationMinutes = minutes;
+                SettingsService.Instance.Save();
+            }
         }
 
         private void BtnCopyClip_Click(object sender, RoutedEventArgs e)
@@ -97,6 +193,11 @@ namespace CryoUtils.Views
             AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformTrim"), TextTransformType.Trim);
             AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformUrlEncode"), TextTransformType.UrlEncode);
             AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformUrlDecode"), TextTransformType.UrlDecode);
+            menu.Items.Add(new Separator());
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformBase64Encode"), TextTransformType.Base64Encode);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformBase64Decode"), TextTransformType.Base64Decode);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformJsonFormat"), TextTransformType.JsonFormat);
+            AddTransformMenuItem(menu, item, LocalizationService.Get("Clip_TransformJsonMinify"), TextTransformType.JsonMinify);
 
             menu.PlacementTarget = button;
             menu.Placement = PlacementMode.Bottom;
@@ -111,9 +212,8 @@ namespace CryoUtils.Views
                 if (item.Text != null)
                 {
                     string transformed = ClipboardService.TransformText(item.Text, type);
-                    Clipboard.SetText(transformed);
-                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
-                    Close();
+                    var preview = new ClipboardTransformWindow(item.Text, transformed);
+                    preview.ShowDialog();
                 }
             };
             menu.Items.Add(mi);
@@ -143,6 +243,14 @@ namespace CryoUtils.Views
         private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                DragMove();
+            }
         }
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

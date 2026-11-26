@@ -23,6 +23,8 @@ namespace CryoUtils.Services
 
     public static class ScreenCaptureService
     {
+        private const string CaptureFilePrefix = "CryoUtils_";
+
         public static IReadOnlyList<MonitorInfo> GetMonitors()
         {
             var monitors = new List<MonitorInfo>();
@@ -251,7 +253,7 @@ namespace CryoUtils.Services
         {
             string folder = SettingsService.Instance.EffectiveSaveFolder;
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, CreateTimestampedFileName(extension));
+            string path = CreateUniquePath(Path.Combine(folder, CreateTimestampedFileName(extension)));
             ImageIO.SaveBitmap(bitmap, path);
             EnforceSavedCaptureLimit();
             return path;
@@ -266,20 +268,26 @@ namespace CryoUtils.Services
             }
 
             var list = new List<FileInfo>();
-            foreach (string file in Directory.EnumerateFiles(folder))
+            try
             {
-                if (!SavedCaptureExtensions.Contains(Path.GetExtension(file)))
+                foreach (string file in Directory.EnumerateFiles(folder))
                 {
-                    continue;
-                }
+                    if (!SavedCaptureExtensions.Contains(Path.GetExtension(file)))
+                    {
+                        continue;
+                    }
 
-                try
-                {
-                    list.Add(new FileInfo(file));
+                    try
+                    {
+                        list.Add(new FileInfo(file));
+                    }
+                    catch
+                    {
+                    }
                 }
-                catch
-                {
-                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+            {
             }
 
             list.Sort((a, b) =>
@@ -291,6 +299,19 @@ namespace CryoUtils.Services
             return list;
         }
 
+        public static List<FileInfo> GetManagedCaptureFiles()
+        {
+            var managed = new List<FileInfo>();
+            foreach (var file in GetSavedCaptureFiles())
+            {
+                if (file.Name.StartsWith(CaptureFilePrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    managed.Add(file);
+                }
+            }
+            return managed;
+        }
+
         public static void EnforceSavedCaptureLimit()
         {
             int limit = SettingsService.Instance.Current.SavedCapturesLimit;
@@ -299,7 +320,7 @@ namespace CryoUtils.Services
                 return;
             }
 
-            var files = GetSavedCaptureFiles();
+            var files = GetManagedCaptureFiles();
             if (files.Count <= limit)
             {
                 return;
@@ -311,8 +332,10 @@ namespace CryoUtils.Services
                 try
                 {
                     string path = files[i].FullName;
-                    File.Delete(path);
-                    deletedPaths.Add(path);
+                    if (NativeMethods.MoveToRecycleBin(path))
+                    {
+                        deletedPaths.Add(path);
+                    }
                 }
                 catch
                 {
@@ -323,6 +346,28 @@ namespace CryoUtils.Services
             {
                 RecentCaptureService.Instance.NotifyFilesDeleted(deletedPaths);
             }
+        }
+
+        private static string CreateUniquePath(string path)
+        {
+            if (!File.Exists(path))
+            {
+                return path;
+            }
+
+            string directory = Path.GetDirectoryName(path) ?? ".";
+            string name = Path.GetFileNameWithoutExtension(path);
+            string extension = Path.GetExtension(path);
+            for (int suffix = 2; suffix < 1000; suffix++)
+            {
+                string candidate = Path.Combine(directory, $"{name}_{suffix}{extension}");
+                if (!File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return Path.Combine(directory, $"{name}_{Guid.NewGuid():N}{extension}");
         }
     }
 }
