@@ -2174,33 +2174,27 @@ namespace CryoUtils.Views
 
             ActivitySectionsPanel.Children.Clear();
 
-            var captures = CaptureLibraryService.Instance.Load()
-                .Take(3)
-                .Select(item => $"{item.FileName} · {item.MetaDisplay}")
-                .ToList();
-            AddActivitySection("Workbench_RecentCaptures", captures, "Workbench_NoCaptures");
-
             var uploads = UploadHistoryService.Instance.Records
-                .Take(3)
+                .Take(2)
                 .Select(record => $"{record.FileName} · {record.MetaDisplay}")
                 .ToList();
             AddActivitySection("Workbench_RecentUploads", uploads, "Workbench_NoUploads");
 
             var runs = WorkflowService.Instance.Runs
-                .Take(4)
+                .Take(2)
                 .Select(run => run.DisplayLine)
                 .ToList();
             AddActivitySection("Workbench_WorkflowRuns", runs, "Workbench_NoRuns");
 
             var jobs = FileActionQueueService.Instance.Jobs
                 .Where(job => job.Status is FileActionStatus.Pending or FileActionStatus.Running)
-                .Take(4)
+                .Take(2)
                 .Select(job => job.DisplayLine)
                 .ToList();
             AddActivitySection("Workbench_FileJobs", jobs, "Workbench_NoJobs");
 
             var pins = TopmostService.Instance.PinnedWindows
-                .Take(4)
+                .Take(2)
                 .Select(pin => $"{pin.Title} · {pin.ProcessName} · {pin.Opacity}%")
                 .ToList();
             AddActivitySection("Workbench_Pinned", pins, "Workbench_NoPins");
@@ -2219,26 +2213,14 @@ namespace CryoUtils.Views
                 "Workbench_Storage",
                 new[]
                 {
-                    LocalizationService.Format(
-                        "Workbench_StorageCaptures",
-                        ImageIO.FormatBytes(captureBytes),
-                        captureCount),
-                    LocalizationService.Format(
-                        "Workbench_StorageUploads",
-                        ImageIO.FormatBytes(uploadBytes)),
-                    LocalizationService.Format(
-                        "Workbench_StorageReplay",
-                        ImageIO.FormatBytes(replayBytes)),
-                    LocalizationService.Format(
-                        "Workbench_Retention",
-                        Math.Clamp(SettingsService.Instance.Current.SavedCapturesLimit, 0, 10000),
-                        captureCount)
+                    $"{LocalizationService.Format("Workbench_StorageCaptures", ImageIO.FormatBytes(captureBytes), captureCount)} · {LocalizationService.Format("Workbench_StorageUploads", ImageIO.FormatBytes(uploadBytes))}",
+                    $"{LocalizationService.Format("Workbench_StorageReplay", ImageIO.FormatBytes(replayBytes))} · {LocalizationService.Format("Workbench_Retention", Math.Clamp(SettingsService.Instance.Current.SavedCapturesLimit, 0, 10000), captureCount)}"
                 },
                 "Workbench_StorageUnavailable");
 
             AddQuickActionsSection();
 
-            double cardWidth = ActivitySectionsPanel.Children.Count <= 3 ? 360 : 270;
+            double cardWidth = ActivitySectionsPanel.Children.Count <= 2 ? 320 : 230;
             foreach (var child in ActivitySectionsPanel.Children)
             {
                 if (child is Border card)
@@ -2259,7 +2241,9 @@ namespace CryoUtils.Views
             stack.Children.Add(new TextBlock
             {
                 Text = LocalizationService.Get(titleKey),
-                Style = (Style)FindResource("SectionTitle")
+                Foreground = ThemeService.GetBrush("TextPrimaryBrush"),
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold
             });
 
             if (lines.Count == 0)
@@ -2268,8 +2252,9 @@ namespace CryoUtils.Views
                 {
                     Text = LocalizationService.Get(emptyKey),
                     Style = (Style)FindResource("MutedText"),
-                    Margin = new Thickness(0, 6, 0, 0),
-                    TextWrapping = TextWrapping.Wrap
+                    FontSize = 10.5,
+                    Margin = new Thickness(0, 3, 0, 0),
+                    TextTrimming = TextTrimming.CharacterEllipsis
                 });
             }
             else
@@ -2280,10 +2265,9 @@ namespace CryoUtils.Views
                     {
                         Text = line,
                         Foreground = ThemeService.GetBrush("TextSecondaryBrush"),
-                        FontSize = 11,
-                        Margin = new Thickness(0, 5, 0, 0),
-                        TextWrapping = TextWrapping.Wrap,
-                        MaxHeight = 34,
+                        FontSize = 10.5,
+                        Margin = new Thickness(0, 2, 0, 0),
+                        TextWrapping = TextWrapping.NoWrap,
                         TextTrimming = TextTrimming.CharacterEllipsis
                     });
                 }
@@ -2292,9 +2276,9 @@ namespace CryoUtils.Views
             var border = new Border
             {
                 Style = (Style)FindResource("InsetBorder"),
-                Width = 260,
-                Margin = new Thickness(0, 0, 10, 10),
-                Padding = new Thickness(10, 9, 10, 9),
+                Width = 230,
+                Margin = new Thickness(0, 0, 6, 4),
+                Padding = new Thickness(8, 6, 8, 6),
                 Child = stack
             };
             ActivitySectionsPanel.Children.Add(border);
@@ -2306,9 +2290,11 @@ namespace CryoUtils.Views
             stack.Children.Add(new TextBlock
             {
                 Text = LocalizationService.Get("Workbench_QuickActions"),
-                Style = (Style)FindResource("SectionTitle")
+                Foreground = ThemeService.GetBrush("TextPrimaryBrush"),
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold
             });
-            var wrap = new WrapPanel { Margin = new Thickness(0, 7, 0, 0) };
+            var wrap = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
             wrap.Children.Add(ActivityButton("Main_CaptureNow", BtnQuickCapture_Click));
             wrap.Children.Add(ActivityButton("Workbench_QuickOcr", BtnActivityOcr_Click));
             wrap.Children.Add(ActivityButton("Workbench_QuickClipboard", BtnQuickClipboard_Click));
@@ -2318,9 +2304,9 @@ namespace CryoUtils.Views
             var border = new Border
             {
                 Style = (Style)FindResource("InsetBorder"),
-                Width = 260,
-                Margin = new Thickness(0, 0, 10, 10),
-                Padding = new Thickness(10, 9, 10, 9),
+                Width = 230,
+                Margin = new Thickness(0, 0, 6, 4),
+                Padding = new Thickness(8, 6, 8, 6),
                 Child = stack
             };
             ActivitySectionsPanel.Children.Add(border);
@@ -2332,9 +2318,10 @@ namespace CryoUtils.Views
             {
                 Content = LocalizationService.Get(contentKey),
                 Style = (Style)FindResource("SecondaryButton"),
-                Margin = new Thickness(0, 0, 5, 5),
-                Padding = new Thickness(8, 3, 8, 3),
-                Height = 26
+                Margin = new Thickness(0, 0, 4, 2),
+                Padding = new Thickness(7, 1, 7, 1),
+                Height = 22,
+                FontSize = 10.5
             };
             button.Click += handler;
             return button;

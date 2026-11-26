@@ -4,10 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using CryoUtils.Models;
 using CryoUtils.Services;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
@@ -30,6 +32,10 @@ namespace CryoUtils.Views
         private BitmapSource? _image;
         private string? _sourcePath;
         private EditorTool _tool = EditorTool.Pen;
+        private string _colorHex = AppSettings.DefaultAnnotationColor;
+        private double _thickness = 3;
+        private Popup? _colorPopup;
+        private readonly Stack<UIElement> _redo = new();
         private bool _drawing;
         private Point _start;
         private Point _current;
@@ -47,13 +53,19 @@ namespace CryoUtils.Views
         {
             InitializeComponent();
             FlowDirection = LocalizationService.Instance.FlowDirection;
+            var settings = SettingsService.Instance.Current;
+            _colorHex = string.IsNullOrWhiteSpace(settings.AnnotationColor)
+                ? AppSettings.DefaultAnnotationColor
+                : settings.AnnotationColor;
+            _thickness = Math.Clamp(settings.AnnotationThickness, 1, 24);
             Loaded += (_, _) =>
             {
                 if (!string.IsNullOrWhiteSpace(initialPath))
                 {
                     LoadImage(initialPath);
                 }
-                UpdateToolButtons();
+                UpdateChromeState();
+                Focus();
             };
         }
 
@@ -82,6 +94,7 @@ namespace CryoUtils.Views
             InkCanvas.Width = image.PixelWidth;
             InkCanvas.Height = image.PixelHeight;
             InkCanvas.Children.Clear();
+            _redo.Clear();
             _activeShape = null;
             _activePen = null;
             _activeLine = null;
@@ -90,7 +103,7 @@ namespace CryoUtils.Views
             TxtFile.Text = path ?? "";
             TxtDimensions.Text = $"{image.PixelWidth} × {image.PixelHeight}";
             TxtStatus.Text = LocalizationService.Get("Editor_Hint");
-            UpdateToolButtons();
+            UpdateChromeState();
         }
 
         private void BtnOpen_Click(object sender, RoutedEventArgs e)
@@ -228,7 +241,7 @@ namespace CryoUtils.Views
             }
             _cropRect = null;
             TxtStatus.Text = LocalizationService.Get("Editor_CropReady");
-            UpdateToolButtons();
+            UpdateChromeState();
         }
 
         private void BtnApplyCrop_Click(object sender, RoutedEventArgs e)
@@ -267,7 +280,7 @@ namespace CryoUtils.Views
             }
             _cropRect = null;
             TxtStatus.Text = LocalizationService.Get("Editor_Hint");
-            UpdateToolButtons();
+            UpdateChromeState();
         }
 
         private void UpdateToolButtons()
@@ -320,10 +333,11 @@ namespace CryoUtils.Views
 
             if (_tool == EditorTool.Pen)
             {
+                _redo.Clear();
                 _activePen = new Polyline
                 {
-                    Stroke = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x4B)),
-                    StrokeThickness = 3,
+                    Stroke = CreateStrokeBrush(),
+                    StrokeThickness = _thickness,
                     StrokeLineJoin = PenLineJoin.Round,
                     StrokeStartLineCap = PenLineCap.Round,
                     StrokeEndLineCap = PenLineCap.Round
@@ -331,41 +345,47 @@ namespace CryoUtils.Views
                 _activePen.Points.Add(point);
                 InkCanvas.Children.Add(_activePen);
                 _activeShape = _activePen;
+                UpdateChromeState();
                 return;
             }
 
             if (_tool == EditorTool.Arrow)
             {
+                _redo.Clear();
+                var brush = CreateStrokeBrush();
                 var canvas = new Canvas();
                 _activeLine = new Line
                 {
-                    Stroke = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x4B)),
-                    StrokeThickness = 3,
+                    Stroke = brush,
+                    StrokeThickness = _thickness,
                     StrokeStartLineCap = PenLineCap.Round,
-                    StrokeEndLineCap = PenLineCap.Round
+                    StrokeEndLineCap = PenLineCap.Flat
                 };
                 _activeArrowHead = new Polygon
                 {
-                    Fill = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x4B))
+                    Fill = brush
                 };
                 canvas.Children.Add(_activeLine);
                 canvas.Children.Add(_activeArrowHead);
                 InkCanvas.Children.Add(canvas);
                 _activeShape = canvas;
+                UpdateChromeState();
                 return;
             }
 
-            var color = _tool == EditorTool.Redact
-                ? Colors.Black
-                : Color.FromRgb(0xE5, 0x53, 0x4B);
+            _redo.Clear();
+            var brushShape = _tool == EditorTool.Redact
+                ? Brushes.Black
+                : CreateStrokeBrush();
             var rectangle = new Rectangle
             {
-                Stroke = _tool == EditorTool.Redact ? null : new SolidColorBrush(color),
-                Fill = _tool == EditorTool.Redact ? new SolidColorBrush(color) : null,
-                StrokeThickness = 3
+                Stroke = _tool == EditorTool.Redact ? null : brushShape,
+                Fill = _tool == EditorTool.Redact ? brushShape : null,
+                StrokeThickness = _thickness
             };
             InkCanvas.Children.Add(rectangle);
             _activeShape = rectangle;
+            UpdateChromeState();
         }
 
         private void InkCanvas_MouseMove(object sender, MouseEventArgs e)
@@ -396,18 +416,25 @@ namespace CryoUtils.Views
 
             if (_tool == EditorTool.Arrow && _activeShape is Canvas arrowCanvas)
             {
-                _activeLine!.X1 = _start.X;
-                _activeLine.Y1 = _start.Y;
-                _activeLine.X2 = point.X;
-                _activeLine.Y2 = point.Y;
-                double angle = Math.Atan2(point.Y - _start.Y, point.X - _start.X);
-                double head = 14;
-                double spread = Math.PI / 7;
-                _activeArrowHead!.Points = new PointCollection
+                if (!AnnotationRenderer.TryComputeArrowGeometry(_start, point, _thickness, out var arrow))
                 {
-                    point,
-                    new Point(point.X - head * Math.Cos(angle - spread), point.Y - head * Math.Sin(angle - spread)),
-                    new Point(point.X - head * Math.Cos(angle + spread), point.Y - head * Math.Sin(angle + spread))
+                    _activeLine!.Visibility = Visibility.Collapsed;
+                    _activeArrowHead!.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                _activeLine!.Visibility = arrow.HasShaft ? Visibility.Visible : Visibility.Collapsed;
+                _activeLine.StrokeThickness = arrow.EffectiveThickness;
+                _activeLine.X1 = _start.X;
+                _activeLine.Y1 = _start.Y;
+                _activeLine.X2 = arrow.ShaftEnd.X;
+                _activeLine.Y2 = arrow.ShaftEnd.Y;
+                _activeArrowHead!.Visibility = Visibility.Visible;
+                _activeArrowHead.Points = new PointCollection
+                {
+                    arrow.Tip,
+                    arrow.LeftWing,
+                    arrow.RightWing
                 };
                 return;
             }
@@ -450,6 +477,7 @@ namespace CryoUtils.Views
             _activePen = null;
             _activeLine = null;
             _activeArrowHead = null;
+            UpdateChromeState();
         }
 
         private void UpdateCropRect(Point point)
@@ -514,16 +542,18 @@ namespace CryoUtils.Views
             InkCanvas.Children.Remove(editor);
             if (text.Length > 0)
             {
+                _redo.Clear();
                 var label = new TextBlock
                 {
                     Text = text,
-                    FontSize = 20,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0x53, 0x4B)),
+                    FontSize = Math.Max(12, _thickness * 6),
+                    Foreground = CreateStrokeBrush(),
                     Background = Brushes.Transparent
                 };
                 Canvas.SetLeft(label, left);
                 Canvas.SetTop(label, top);
                 InkCanvas.Children.Add(label);
+                UpdateChromeState();
             }
         }
 
@@ -531,7 +561,270 @@ namespace CryoUtils.Views
         {
             if (InkCanvas.Children.Count > 0)
             {
-                InkCanvas.Children.RemoveAt(InkCanvas.Children.Count - 1);
+                int last = InkCanvas.Children.Count - 1;
+                var removed = InkCanvas.Children[last];
+                InkCanvas.Children.RemoveAt(last);
+                if (!ReferenceEquals(removed, _cropRect))
+                {
+                    _redo.Push(removed);
+                }
+                else
+                {
+                    _cropRect = null;
+                }
+                UpdateChromeState();
+            }
+        }
+
+        private void BtnRedo_Click(object sender, RoutedEventArgs e)
+        {
+            if (_redo.Count == 0)
+            {
+                return;
+            }
+
+            var restored = _redo.Pop();
+            InkCanvas.Children.Add(restored);
+            UpdateChromeState();
+        }
+
+        private void BtnColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (_colorPopup == null)
+            {
+                BuildColorPopup();
+            }
+
+            if (_colorPopup == null)
+            {
+                return;
+            }
+
+            _colorPopup.PlacementTarget = BtnColor;
+            _colorPopup.IsOpen = true;
+        }
+
+        private void BuildColorPopup()
+        {
+            var panel = new WrapPanel { Width = 188 };
+            string[] palette =
+            {
+                "#E5534B", "#F2C94C", "#3FBF7F", "#4C8DF6",
+                "#FFFFFF", "#141414", "#F2994A", "#2B88D8"
+            };
+
+            foreach (string hex in palette)
+            {
+                var button = new Button
+                {
+                    Style = (Style)FindResource("SecondaryButton"),
+                    Width = 38,
+                    Height = 30,
+                    Padding = new Thickness(0),
+                    Margin = new Thickness(2),
+                    Background = new SolidColorBrush(AnnotationRenderer.ParseColor(hex)),
+                    BorderBrush = ThemeService.GetBrush("BorderStrongBrush"),
+                    ToolTip = hex
+                };
+                button.Click += (_, _) =>
+                {
+                    _colorHex = hex;
+                    UpdateChromeState();
+                    if (_colorPopup != null)
+                    {
+                        _colorPopup.IsOpen = false;
+                    }
+                };
+                panel.Children.Add(button);
+            }
+
+            var customButton = new Button
+            {
+                Style = (Style)FindResource("SecondaryButton"),
+                Content = LocalizationService.Get("Capture_Color"),
+                Margin = new Thickness(2, 6, 2, 2),
+                Padding = new Thickness(8, 4, 8, 4)
+            };
+            customButton.Click += (_, _) =>
+            {
+                if (_colorPopup != null)
+                {
+                    _colorPopup.IsOpen = false;
+                }
+                PickCustomColor();
+            };
+            panel.Children.Add(customButton);
+
+            var container = new Border
+            {
+                Background = ThemeService.GetBrush("CardBackgroundBrush"),
+                BorderBrush = ThemeService.GetBrush("BorderStrongBrush"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(4),
+                Child = panel
+            };
+
+            _colorPopup = new Popup
+            {
+                Placement = PlacementMode.Bottom,
+                StaysOpen = false,
+                AllowsTransparency = true,
+                PopupAnimation = PopupAnimation.Fade,
+                Child = container
+            };
+        }
+
+        private void PickCustomColor()
+        {
+            var current = AnnotationRenderer.ParseColor(_colorHex);
+            using var dialog = new System.Windows.Forms.ColorDialog
+            {
+                FullOpen = true,
+                Color = System.Drawing.Color.FromArgb(current.R, current.G, current.B)
+            };
+            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+            {
+                return;
+            }
+
+            _colorHex = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+            UpdateChromeState();
+        }
+
+        private void BtnThickDown_Click(object sender, RoutedEventArgs e) => AdjustThickness(-1);
+
+        private void BtnThickUp_Click(object sender, RoutedEventArgs e) => AdjustThickness(1);
+
+        private void CanvasHost_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+            {
+                return;
+            }
+
+            double step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 0.5 : 1;
+            AdjustThickness(e.Delta > 0 ? step : -step);
+            e.Handled = true;
+        }
+
+        private void AdjustThickness(double delta)
+        {
+            _thickness = Math.Clamp(Math.Round(_thickness + delta, 1), 1, 24);
+            UpdateChromeState();
+        }
+
+        private SolidColorBrush CreateStrokeBrush()
+        {
+            var brush = new SolidColorBrush(AnnotationRenderer.ParseColor(_colorHex));
+            brush.Freeze();
+            return brush;
+        }
+
+        private void UpdateChromeState()
+        {
+            UpdateToolButtons();
+            if (ColorSwatch != null)
+            {
+                ColorSwatch.Background = CreateStrokeBrush();
+            }
+            if (TxtThickness != null)
+            {
+                TxtThickness.Text = LocalizationService.Format("Capture_SizePreview", Math.Round(_thickness, 1));
+            }
+            if (BtnUndo != null)
+            {
+                BtnUndo.IsEnabled = InkCanvas.Children.Count > 0;
+            }
+            if (BtnRedo != null)
+            {
+                BtnRedo.IsEnabled = _redo.Count > 0;
+            }
+        }
+
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (Keyboard.FocusedElement is TextBox)
+            {
+                return;
+            }
+
+            bool control = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+            if (control && e.Key == Key.Z)
+            {
+                BtnUndo_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (control && e.Key == Key.Y)
+            {
+                BtnRedo_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (control && e.Key == Key.S)
+            {
+                BtnSave_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (control && e.Key == Key.C)
+            {
+                BtnCopy_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+            if (control || Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
+            {
+                return;
+            }
+
+            if (e.Key == Key.Enter && _tool == EditorTool.Crop && _cropWidth >= 2 && _cropHeight >= 2)
+            {
+                BtnApplyCrop_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Escape && _cropRect != null)
+            {
+                InkCanvas.Children.Remove(_cropRect);
+                _cropRect = null;
+                _cropWidth = 0;
+                _cropHeight = 0;
+                UpdateChromeState();
+                e.Handled = true;
+                return;
+            }
+
+            EditorTool? nextTool = e.Key switch
+            {
+                Key.D1 or Key.NumPad1 or Key.P => EditorTool.Pen,
+                Key.D2 or Key.NumPad2 or Key.A => EditorTool.Arrow,
+                Key.D3 or Key.NumPad3 or Key.R => EditorTool.Box,
+                Key.D4 or Key.NumPad4 or Key.K => EditorTool.Redact,
+                Key.D5 or Key.NumPad5 or Key.T => EditorTool.Text,
+                Key.D6 or Key.NumPad6 or Key.C => EditorTool.Crop,
+                _ => null
+            };
+            if (nextTool.HasValue)
+            {
+                if (nextTool.Value == EditorTool.Crop)
+                {
+                    BtnCrop_Click(this, new RoutedEventArgs());
+                }
+                else
+                {
+                    _tool = nextTool.Value;
+                    if (_cropRect != null)
+                    {
+                        InkCanvas.Children.Remove(_cropRect);
+                        _cropRect = null;
+                    }
+                    TxtStatus.Text = LocalizationService.Get("Editor_Hint");
+                    UpdateChromeState();
+                }
+                e.Handled = true;
             }
         }
 
@@ -544,9 +837,18 @@ namespace CryoUtils.Views
 
             int width = _image.PixelWidth;
             int height = _image.PixelHeight;
+            var previousCropVisibility = _cropRect?.Visibility;
+            if (_cropRect != null)
+            {
+                _cropRect.Visibility = Visibility.Collapsed;
+            }
             var ink = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             ink.Render(InkCanvas);
             ink.Freeze();
+            if (_cropRect != null && previousCropVisibility.HasValue)
+            {
+                _cropRect.Visibility = previousCropVisibility.Value;
+            }
 
             var visual = new DrawingVisual();
             using (var dc = visual.RenderOpen())

@@ -9,6 +9,8 @@
         Background="Transparent"
         ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
+        Focusable="True"
+        PreviewKeyDown="Window_PreviewKeyDown"
         FontFamily="{StaticResource SegoeUIVariableText}">
     <Border Background="{DynamicResource WindowBackgroundBrush}"
             BorderBrush="{DynamicResource WindowBorderBrush}"
@@ -42,16 +44,25 @@
                     <Button Content="{DynamicResource Editor_Resize}" Style="{StaticResource SecondaryButton}" Click="BtnResize_Click" Margin="0,0,5,0"/>
                     <Button x:Name="BtnCrop" Content="{DynamicResource Editor_Crop}" Style="{StaticResource SecondaryButton}" Click="BtnCrop_Click" Margin="0,0,5,0"/>
                     <Button Content="{DynamicResource Editor_ApplyCrop}" Style="{StaticResource SecondaryButton}" Click="BtnApplyCrop_Click" Margin="0,0,12,0"/>
-                    <Button Content="{DynamicResource Editor_Undo}" Style="{StaticResource SecondaryButton}" Click="BtnUndo_Click" Margin="0,0,12,0"/>
-                    <Button x:Name="BtnPen" Tag="Pen" Content="{DynamicResource Editor_Pen}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0"/>
-                    <Button x:Name="BtnArrow" Tag="Arrow" Content="{DynamicResource Editor_Arrow}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0"/>
-                    <Button x:Name="BtnBox" Tag="Box" Content="{DynamicResource Editor_Box}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0"/>
-                    <Button x:Name="BtnRedact" Tag="Redact" Content="{DynamicResource Editor_Redact}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0"/>
-                    <Button x:Name="BtnText" Tag="Text" Content="{DynamicResource Editor_Text}" Style="{StaticResource SecondaryButton}" Click="Tool_Click"/>
+                    <Button x:Name="BtnUndo" Content="{DynamicResource Editor_Undo}" Style="{StaticResource SecondaryButton}" Click="BtnUndo_Click" Margin="0,0,4,0"/>
+                    <Button x:Name="BtnRedo" Content="{DynamicResource Capture_ToolRedo}" Style="{StaticResource SecondaryButton}" Click="BtnRedo_Click" Margin="0,0,10,0"/>
+                    <Button x:Name="BtnPen" Tag="Pen" Content="{DynamicResource Editor_Pen}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0" ToolTip="Pen (1 / P)"/>
+                    <Button x:Name="BtnArrow" Tag="Arrow" Content="{DynamicResource Editor_Arrow}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0" ToolTip="Arrow (2 / A)"/>
+                    <Button x:Name="BtnBox" Tag="Box" Content="{DynamicResource Editor_Box}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0" ToolTip="Rectangle (3 / R)"/>
+                    <Button x:Name="BtnRedact" Tag="Redact" Content="{DynamicResource Editor_Redact}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,4,0" ToolTip="Redact (4 / K)"/>
+                    <Button x:Name="BtnText" Tag="Text" Content="{DynamicResource Editor_Text}" Style="{StaticResource SecondaryButton}" Click="Tool_Click" Margin="0,0,10,0" ToolTip="Text (5 / T)"/>
+                    <Button x:Name="BtnColor" Style="{StaticResource SecondaryButton}" Padding="5,3" Margin="0,0,6,0" Click="BtnColor_Click" ToolTip="{DynamicResource Capture_Color}" AutomationProperties.Name="{DynamicResource Capture_Color}">
+                        <Border x:Name="ColorSwatch" Width="16" Height="16" CornerRadius="2" BorderThickness="1" BorderBrush="{DynamicResource BorderStrongBrush}" Background="#E5534B"/>
+                    </Button>
+                    <Button Style="{StaticResource SecondaryButton}" Content="-" Width="24" Padding="0" Margin="0,0,3,0" Click="BtnThickDown_Click" ToolTip="Decrease stroke"/>
+                    <Border Style="{StaticResource InsetBorder}" Padding="7,3" Margin="0,0,3,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtThickness" Text="3 px" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="11" VerticalAlignment="Center" FlowDirection="LeftToRight"/>
+                    </Border>
+                    <Button Style="{StaticResource SecondaryButton}" Content="+" Width="24" Padding="0" Click="BtnThickUp_Click" ToolTip="Increase stroke"/>
                 </WrapPanel>
             </Border>
 
-            <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#0B0E10">
+            <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="#0B0E10" PreviewMouseWheel="CanvasHost_PreviewMouseWheel">
                 <Grid x:Name="CanvasHost" HorizontalAlignment="Left" VerticalAlignment="Top" Background="#0B0E10">
                     <Image x:Name="PreviewImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="HighQuality"/>
                     <Canvas x:Name="InkCanvas" Background="Transparent" ClipToBounds="True"

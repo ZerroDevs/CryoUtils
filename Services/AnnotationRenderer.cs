@@ -123,6 +123,88 @@ namespace CryoUtils.Services
             dc.DrawGeometry(null, pen, geometry);
         }
 
+        public readonly record struct ArrowGeometry(
+            Point Tip,
+            Point ShaftEnd,
+            Point LeftWing,
+            Point RightWing,
+            double EffectiveThickness,
+            bool HasShaft);
+
+        public static bool TryComputeArrowGeometry(
+            Point start,
+            Point end,
+            double thickness,
+            out ArrowGeometry geometry)
+        {
+            double dx = end.X - start.X;
+            double dy = end.Y - start.Y;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 0.5)
+            {
+                geometry = default;
+                return false;
+            }
+
+            double ux = dx / length;
+            double uy = dy / length;
+            double angle = Math.Atan2(dy, dx);
+            double spread = Math.PI / 10; // Acute 18-degree half-angle for sleek pointed tips.
+            double baseThickness = Math.Max(1, thickness);
+            double desiredHead = Math.Max(11, baseThickness * 3.2 + 4);
+            double head = Math.Min(desiredHead, Math.Max(6, length * 0.65));
+            double effectiveThickness = Math.Min(baseThickness, Math.Max(1, length * 0.45));
+            double baseDepth = head * Math.Cos(spread);
+            // Stop the shaft inside the arrowhead base so flat/round caps never poke through the tip or edges.
+            double trim = Math.Min(length, baseDepth * 0.85);
+
+            var shaftEnd = new Point(end.X - ux * trim, end.Y - uy * trim);
+            var leftWing = new Point(
+                end.X - head * Math.Cos(angle - spread),
+                end.Y - head * Math.Sin(angle - spread));
+            var rightWing = new Point(
+                end.X - head * Math.Cos(angle + spread),
+                end.Y - head * Math.Sin(angle + spread));
+
+            geometry = new ArrowGeometry(
+                end,
+                shaftEnd,
+                leftWing,
+                rightWing,
+                effectiveThickness,
+                length > trim + 0.25);
+            return true;
+        }
+
+        public static void DrawArrow(DrawingContext dc, Brush brush, Point start, Point end, double thickness)
+        {
+            if (!TryComputeArrowGeometry(start, end, thickness, out var arrow))
+            {
+                return;
+            }
+
+            if (arrow.HasShaft)
+            {
+                var pen = new Pen(brush, arrow.EffectiveThickness)
+                {
+                    StartLineCap = PenLineCap.Round,
+                    EndLineCap = PenLineCap.Flat
+                };
+                pen.Freeze();
+                dc.DrawLine(pen, start, arrow.ShaftEnd);
+            }
+
+            var headGeometry = new StreamGeometry();
+            using (var context = headGeometry.Open())
+            {
+                context.BeginFigure(arrow.Tip, true, true);
+                context.LineTo(arrow.LeftWing, true, true);
+                context.LineTo(arrow.RightWing, true, true);
+            }
+            headGeometry.Freeze();
+            dc.DrawGeometry(brush, null, headGeometry);
+        }
+
         private static void DrawLine(DrawingContext dc, Annotation annotation, Brush brush)
         {
             var points = annotation.Points;
@@ -133,34 +215,19 @@ namespace CryoUtils.Services
 
             var start = points[0];
             var end = points[^1];
+            if (annotation.Kind == AnnotationKind.Arrow)
+            {
+                DrawArrow(dc, brush, start, end, annotation.Thickness);
+                return;
+            }
+
             var pen = new Pen(brush, Math.Max(1, annotation.Thickness))
             {
                 StartLineCap = PenLineCap.Round,
                 EndLineCap = PenLineCap.Round
             };
+            pen.Freeze();
             dc.DrawLine(pen, start, end);
-
-            if (annotation.Kind == AnnotationKind.Arrow)
-            {
-                double angle = Math.Atan2(end.Y - start.Y, end.X - start.X);
-                double head = Math.Max(11, annotation.Thickness * 4.2);
-                double spread = Math.PI / 7;
-                var p1 = new Point(
-                    end.X - head * Math.Cos(angle - spread),
-                    end.Y - head * Math.Sin(angle - spread));
-                var p2 = new Point(
-                    end.X - head * Math.Cos(angle + spread),
-                    end.Y - head * Math.Sin(angle + spread));
-                var headGeometry = new StreamGeometry();
-                using (var context = headGeometry.Open())
-                {
-                    context.BeginFigure(end, true, true);
-                    context.LineTo(p1, true, true);
-                    context.LineTo(p2, true, true);
-                }
-                headGeometry.Freeze();
-                dc.DrawGeometry(brush, null, headGeometry);
-            }
         }
 
         private static void DrawRectangle(DrawingContext dc, Annotation annotation, Brush brush)
@@ -233,6 +300,72 @@ namespace CryoUtils.Services
             }
 
             dc.DrawRectangle(brush, null, annotation.Rect);
+        }
+
+        public static Rect GetAnnotationBounds(Annotation annotation)
+        {
+            switch (annotation.Kind)
+            {
+                case AnnotationKind.Line:
+                case AnnotationKind.Arrow:
+                    if (annotation.Points.Count < 2)
+                    {
+                        return Rect.Empty;
+                    }
+                    var lineStart = annotation.Points[0];
+                    var lineEnd = annotation.Points[^1];
+                    var lineRect = new Rect(lineStart, lineEnd);
+                    double pad = Math.Max(4, annotation.Thickness);
+                    lineRect.Inflate(pad, pad);
+                    return lineRect;
+
+                case AnnotationKind.Pen:
+                case AnnotationKind.Highlighter:
+                case AnnotationKind.Redaction:
+                    if (annotation.Points.Count == 0)
+                    {
+                        return annotation.Rect;
+                    }
+                    double minX = double.MaxValue, minY = double.MaxValue;
+                    double maxX = double.MinValue, maxY = double.MinValue;
+                    foreach (var p in annotation.Points)
+                    {
+                        if (p.X < minX) minX = p.X;
+                        if (p.Y < minY) minY = p.Y;
+                        if (p.X > maxX) maxX = p.X;
+                        if (p.Y > maxY) maxY = p.Y;
+                    }
+                    var strokeRect = new Rect(minX, minY, maxX - minX, maxY - minY);
+                    double strokePad = Math.Max(4, annotation.Thickness / 2 + 2);
+                    strokeRect.Inflate(strokePad, strokePad);
+                    return strokeRect;
+
+                case AnnotationKind.Step:
+                    double radius = Math.Max(12, annotation.Thickness * 5);
+                    var center = annotation.Rect.TopLeft;
+                    return new Rect(center.X - radius, center.Y - radius, radius * 2, radius * 2);
+
+                case AnnotationKind.Text:
+                    if (string.IsNullOrEmpty(annotation.Text))
+                    {
+                        return annotation.Rect;
+                    }
+                    var formatted = new FormattedText(
+                        annotation.Text,
+                        annotation.IsRtl ? CultureInfo.GetCultureInfo("ar-SA") : CultureInfo.GetCultureInfo("en-US"),
+                        annotation.IsRtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight,
+                        RegularTypeface,
+                        Math.Max(8, annotation.FontSize),
+                        Brushes.White,
+                        1.0)
+                    {
+                        MaxTextWidth = Math.Max(40, annotation.Rect.Width > 0 ? annotation.Rect.Width : 2000)
+                    };
+                    return new Rect(annotation.Rect.X, annotation.Rect.Y, Math.Max(12, formatted.Width), Math.Max(12, formatted.Height));
+
+                default:
+                    return annotation.Rect;
+            }
         }
 
         private static void DrawText(DrawingContext dc, Annotation annotation, Brush brush)

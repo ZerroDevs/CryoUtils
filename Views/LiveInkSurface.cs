@@ -122,27 +122,12 @@ namespace CryoUtils.Views
                     {
                         return;
                     }
-                    var start = item.Points[0];
-                    var end = item.Points[^1];
-                    dc.DrawLine(pen, start, end);
-                    double angle = Math.Atan2(end.Y - start.Y, end.X - start.X);
-                    double head = Math.Max(11, item.Thickness * 4.2);
-                    double spread = Math.PI / 7;
-                    var p1 = new Point(
-                        end.X - head * Math.Cos(angle - spread),
-                        end.Y - head * Math.Sin(angle - spread));
-                    var p2 = new Point(
-                        end.X - head * Math.Cos(angle + spread),
-                        end.Y - head * Math.Sin(angle + spread));
-                    var headGeometry = new StreamGeometry();
-                    using (var context = headGeometry.Open())
-                    {
-                        context.BeginFigure(end, true, true);
-                        context.LineTo(p1, true, true);
-                        context.LineTo(p2, true, true);
-                    }
-                    headGeometry.Freeze();
-                    dc.DrawGeometry(brush, null, headGeometry);
+                    CryoUtils.Services.AnnotationRenderer.DrawArrow(
+                        dc,
+                        brush,
+                        item.Points[0],
+                        item.Points[^1],
+                        item.Thickness);
                     break;
 
                 case LiveInkKind.Rectangle:

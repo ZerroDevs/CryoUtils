@@ -211,6 +211,80 @@ namespace CryoUtils.Tests
                 AssertEqual(new DateTime(2026, 1, 1, 11, 59, 30, DateTimeKind.Utc), ReplayMath.ClipStart(end, 30));
             });
 
+            Test("arrow shaft stops inside head without protruding past tip", () =>
+            {
+                foreach (double thickness in new[] { 1.5, 3.0, 6.0, 12.0 })
+                {
+                    var start = new Point(20, 40);
+                    var end = new Point(220, 40);
+                    AssertTrue(AnnotationRenderer.TryComputeArrowGeometry(start, end, thickness, out var arrow));
+                    AssertTrue(arrow.HasShaft);
+                    AssertTrue(arrow.ShaftEnd.X < arrow.Tip.X);
+                    double baseX = Math.Max(arrow.LeftWing.X, arrow.RightWing.X);
+                    AssertTrue(arrow.ShaftEnd.X >= baseX);
+                    AssertNear(arrow.Tip.X, end.X, 0.001);
+                    AssertNear(arrow.Tip.Y, end.Y, 0.001);
+                }
+
+                // Short drags keep effective thickness proportional and never extend shaft past tip.
+                AssertTrue(AnnotationRenderer.TryComputeArrowGeometry(new Point(100, 100), new Point(108, 100), 10, out var shortArrow));
+                AssertTrue(shortArrow.ShaftEnd.X <= shortArrow.Tip.X);
+                AssertTrue(shortArrow.EffectiveThickness <= 4.0);
+                AssertTrue(!AnnotationRenderer.TryComputeArrowGeometry(new Point(10, 10), new Point(10, 10), 3, out _));
+            });
+
+            Test("capture controller toggles active tool back to select", () =>
+            {
+                var controller = CryoUtils.Views.CaptureController.Instance;
+                controller.SetTool(CaptureTool.Select);
+                AssertTrue(controller.Tool == CaptureTool.Select);
+
+                controller.ToggleTool(CaptureTool.Arrow);
+                AssertTrue(controller.Tool == CaptureTool.Arrow);
+
+                controller.ToggleTool(CaptureTool.Rectangle);
+                AssertTrue(controller.Tool == CaptureTool.Rectangle);
+
+                controller.ToggleTool(CaptureTool.Rectangle);
+                AssertTrue(controller.Tool == CaptureTool.Select);
+            });
+
+            Test("annotation selection bounds and controller cleanup work cleanly", () =>
+            {
+                var arrow = new Annotation
+                {
+                    Kind = AnnotationKind.Arrow,
+                    Thickness = 4,
+                    Points = { new Point(10, 20), new Point(110, 60) }
+                };
+                var arrowBounds = AnnotationRenderer.GetAnnotationBounds(arrow);
+                AssertTrue(arrowBounds.Width > 100 && arrowBounds.Height > 40);
+
+                var text = new Annotation
+                {
+                    Kind = AnnotationKind.Text,
+                    Text = "Sample",
+                    FontSize = 18,
+                    Rect = new Rect(40, 50, 0, 0)
+                };
+                var textBounds = AnnotationRenderer.GetAnnotationBounds(text);
+                AssertTrue(textBounds.Width > 10 && textBounds.Height > 10);
+
+                var controller = CryoUtils.Views.CaptureController.Instance;
+                controller.Annotations.Clear();
+                controller.AddAnnotation(arrow);
+                controller.SetSelectedAnnotation(arrow);
+                AssertTrue(ReferenceEquals(controller.SelectedAnnotation, arrow));
+
+                controller.SetTool(CaptureTool.Pen);
+                AssertTrue(controller.SelectedAnnotation == null);
+
+                controller.SetTool(CaptureTool.Select);
+                controller.SetSelectedAnnotation(arrow);
+                controller.RemoveAnnotation(arrow);
+                AssertTrue(controller.SelectedAnnotation == null);
+            });
+
             if (Environment.GetEnvironmentVariable("CRYO_RECORDER_SMOKE") == "1")
             {
                 Test("media foundation encoder and replay remux smoke", () =>

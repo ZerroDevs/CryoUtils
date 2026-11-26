@@ -44,6 +44,8 @@ namespace CryoUtils.Views
         private Annotation? _activeAnnotation;
         private Annotation? _selectedAnnotation;
         private bool _movingAnnotation;
+        private bool _resizingAnnotation;
+        private int _annotationHandle = -1;
         private Point _annotationStart;
         private Rect _annotationStartRect;
         private List<Point> _annotationStartPoints = new();
@@ -142,8 +144,6 @@ namespace CryoUtils.Views
         // ============================ Toolbar ============================
         private void BuildToolbars()
         {
-            AddToolButton(CaptureTool.Select, CryoIcons.Select, "Capture_ToolSelect", filled: true);
-            AddSeparator();
             AddToolButton(CaptureTool.Pen, CryoIcons.Pen, "Capture_ToolPen");
             AddToolButton(CaptureTool.Line, CryoIcons.Line, "Capture_ToolLine");
             AddToolButton(CaptureTool.Arrow, CryoIcons.Arrow, "Capture_ToolArrow");
@@ -239,7 +239,7 @@ namespace CryoUtils.Views
                 Height = 18,
                 Children = { icon }
             };
-            button.Click += (_, _) => Controller.SetTool(tool);
+            button.Click += (_, _) => Controller.ToggleTool(tool);
             _toolButtons[tool] = new ToolButtonRef { Button = button, Icon = icon, Filled = filled };
             AnnotationToolbar.Children.Add(button);
         }
@@ -269,7 +269,7 @@ namespace CryoUtils.Views
             grid.Children.Add(circle);
             grid.Children.Add(number);
             button.Content = grid;
-            button.Click += (_, _) => Controller.SetTool(CaptureTool.Step);
+            button.Click += (_, _) => Controller.ToggleTool(CaptureTool.Step);
             _toolButtons[CaptureTool.Step] = new ToolButtonRef { Button = button, Icon = circle, Filled = false };
             AnnotationToolbar.Children.Add(button);
         }
@@ -634,6 +634,10 @@ namespace CryoUtils.Views
                 {
                     ShowTextEditor(global);
                 }
+                else if (!Controller.Selection.HasValue)
+                {
+                    BeginSelection(global, creating: true);
+                }
                 e.Handled = true;
                 return;
             }
@@ -653,6 +657,10 @@ namespace CryoUtils.Views
                     Controller.NextStep++;
                     Controller.AddAnnotation(annotation);
                 }
+                else if (!Controller.Selection.HasValue)
+                {
+                    BeginSelection(global, creating: true);
+                }
                 e.Handled = true;
                 return;
             }
@@ -661,7 +669,7 @@ namespace CryoUtils.Views
             {
                 if (Controller.Selection.HasValue && Controller.Selection.Value.Contains(global))
                 {
-                    _selectedAnnotation = null;
+                    SelectAnnotation(null);
                     BeginAnnotation(global);
                 }
                 else if (!Controller.Selection.HasValue)
@@ -673,10 +681,30 @@ namespace CryoUtils.Views
             }
 
             var selection = Controller.Selection;
+            if (selection.HasValue &&
+                Controller.SelectedAnnotation != null &&
+                Controller.Annotations.Contains(Controller.SelectedAnnotation))
+            {
+                int annotationHandle = HitTestAnnotationHandle(Controller.SelectedAnnotation, global);
+                if (annotationHandle >= 0)
+                {
+                    _selectedAnnotation = Controller.SelectedAnnotation;
+                    _resizingAnnotation = true;
+                    _annotationHandle = annotationHandle;
+                    _annotationStart = global;
+                    _annotationStartRect = _selectedAnnotation.Rect;
+                    _annotationStartPoints = new List<Point>(_selectedAnnotation.Points);
+                    Controller.PushUndo();
+                    Surface.CaptureMouse();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             var hitAnnotation = HitTestAnnotation(global);
             if (selection.HasValue && selection.Value.Contains(global) && hitAnnotation != null)
             {
-                _selectedAnnotation = hitAnnotation;
+                SelectAnnotation(hitAnnotation);
                 _movingAnnotation = true;
                 _annotationStart = global;
                 _annotationStartRect = hitAnnotation.Rect;
@@ -687,7 +715,7 @@ namespace CryoUtils.Views
                 return;
             }
 
-            _selectedAnnotation = null;
+            SelectAnnotation(null);
             _handle = HitTestHandle(global);
             if (selection.HasValue && _handle >= 0)
             {
@@ -713,7 +741,7 @@ namespace CryoUtils.Views
 
         private void BeginSelection(Point global, bool creating)
         {
-            _selectedAnnotation = null;
+            SelectAnnotation(null);
             _creating = creating;
             _startPhysical = global;
             _initialSelection = Rect.Empty;
@@ -777,9 +805,12 @@ namespace CryoUtils.Views
             UpdateCursor(global);
 
             bool overToolbar = AnnotationToolbarBorder.IsMouseOver || ActionToolbarBorder.IsMouseOver;
+            bool drawingFreehand = _drawing &&
+                _activeAnnotation?.Kind is AnnotationKind.Pen or AnnotationKind.Highlighter or AnnotationKind.Redaction;
             if (SettingsService.Instance.Current.ShowCaptureLoupe &&
                 !overToolbar &&
-                Controller.Selection.HasValue)
+                !drawingFreehand &&
+                (!Controller.Selection.HasValue || _creating || _resizing || Controller.Tool != CaptureTool.Text))
             {
                 UpdateLoupe(global, local);
             }
@@ -805,6 +836,10 @@ namespace CryoUtils.Views
                 double maxDy = Controller.VirtualBounds.Bottom - moved.Bottom;
                 moved.Offset(Math.Clamp(dx, minDx, maxDx), Math.Clamp(dy, minDy, maxDy));
                 Controller.SetSelection(moved);
+            }
+            else if (_resizingAnnotation && _selectedAnnotation != null)
+            {
+                ResizeActiveAnnotation(global);
             }
             else if (_movingAnnotation && _selectedAnnotation != null)
             {
@@ -893,7 +928,7 @@ namespace CryoUtils.Views
 
         private void Surface_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (!_creating && !_moving && !_resizing && !_drawing)
+            if (!_creating && !_moving && !_movingAnnotation && !_resizingAnnotation && !_resizing && !_drawing)
             {
                 return;
             }
@@ -932,6 +967,8 @@ namespace CryoUtils.Views
             _creating = false;
             _moving = false;
             _movingAnnotation = false;
+            _resizingAnnotation = false;
+            _annotationHandle = -1;
             _resizing = false;
             _drawing = false;
             _activeAnnotation = null;
@@ -953,7 +990,7 @@ namespace CryoUtils.Views
 
         private void Surface_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            Controller.CloseAll();
+            StepBackOrClose();
             e.Handled = true;
         }
 
@@ -997,9 +1034,9 @@ namespace CryoUtils.Views
                         }
                         break;
                     case AnnotationKind.Text:
-                        var textRect = annotation.Rect;
+                        var textRect = AnnotationRenderer.GetAnnotationBounds(annotation);
                         textRect.Inflate(4, 4);
-                        if (annotation.Rect.Width > 0 && textRect.Contains(point))
+                        if (textRect.Width > 0 && textRect.Height > 0 && textRect.Contains(point))
                         {
                             return annotation;
                         }
@@ -1016,6 +1053,117 @@ namespace CryoUtils.Views
             }
 
             return null;
+        }
+
+        private void SelectAnnotation(Annotation? annotation)
+        {
+            _selectedAnnotation = annotation;
+            Controller.SetSelectedAnnotation(annotation);
+        }
+
+        private void StepBackOrClose()
+        {
+            if (TextEditor.Visibility == Visibility.Visible)
+            {
+                CancelText();
+                return;
+            }
+
+            if (_drawing && _activeAnnotation != null)
+            {
+                Controller.Annotations.Remove(_activeAnnotation);
+                _drawing = false;
+                _activeAnnotation = null;
+                if (Surface.IsMouseCaptured)
+                {
+                    Surface.ReleaseMouseCapture();
+                }
+                LoupePanel.Visibility = Visibility.Collapsed;
+                Controller.NotifyChanged();
+                return;
+            }
+
+            if (Controller.Tool != CaptureTool.Select)
+            {
+                Controller.SetTool(CaptureTool.Select);
+                return;
+            }
+
+            if (Controller.SelectedAnnotation != null)
+            {
+                SelectAnnotation(null);
+                return;
+            }
+
+            Controller.CloseAll();
+        }
+
+        private int HitTestAnnotationHandle(Annotation annotation, Point global)
+        {
+            var local = ToLocalDip(global);
+            if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow &&
+                annotation.Points.Count >= 2)
+            {
+                var startDip = ToLocalDip(annotation.Points[0]);
+                var endDip = ToLocalDip(annotation.Points[^1]);
+                if ((local - startDip).Length <= 9)
+                {
+                    return 0;
+                }
+                if ((local - endDip).Length <= 9)
+                {
+                    return 1;
+                }
+                return -1;
+            }
+
+            if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or
+                AnnotationKind.Spotlight or AnnotationKind.Blur &&
+                annotation.Rect.Width > 0 && annotation.Rect.Height > 0)
+            {
+                return HitTestRectHandles(ToLocalRect(annotation.Rect), local);
+            }
+
+            return -1;
+        }
+
+        private void ResizeActiveAnnotation(Point global)
+        {
+            var annotation = _selectedAnnotation;
+            if (annotation == null)
+            {
+                return;
+            }
+
+            bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+            if (annotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow &&
+                annotation.Points.Count >= 2)
+            {
+                if (_annotationHandle == 0)
+                {
+                    annotation.Points[0] = shift ? SnapAngle(annotation.Points[^1], global) : global;
+                }
+                else if (_annotationHandle == 1)
+                {
+                    annotation.Points[^1] = shift ? SnapAngle(annotation.Points[0], global) : global;
+                }
+                Controller.NotifyChanged();
+                return;
+            }
+
+            var bounds = new Rect(
+                Controller.VirtualBounds.Left,
+                Controller.VirtualBounds.Top,
+                Controller.VirtualBounds.Width,
+                Controller.VirtualBounds.Height);
+            double dx = global.X - _annotationStart.X;
+            double dy = global.Y - _annotationStart.Y;
+            annotation.Rect = ResizeRectByHandle(_annotationStartRect, _annotationHandle, dx, dy, bounds);
+            if (annotation.Kind == AnnotationKind.Blur)
+            {
+                annotation.PixelPreview = null;
+            }
+            Controller.NotifyChanged();
         }
 
         private static double DistanceToSegment(Point point, Point start, Point end)
@@ -1078,6 +1226,38 @@ namespace CryoUtils.Views
                 return;
             }
 
+            if (Controller.Selection.HasValue &&
+                Controller.SelectedAnnotation != null &&
+                Controller.Annotations.Contains(Controller.SelectedAnnotation))
+            {
+                int annotationHandle = HitTestAnnotationHandle(Controller.SelectedAnnotation, global);
+                if (annotationHandle >= 0)
+                {
+                    if (Controller.SelectedAnnotation.Kind is AnnotationKind.Line or AnnotationKind.Arrow)
+                    {
+                        Surface.Cursor = Cursors.Hand;
+                        return;
+                    }
+                    Surface.Cursor = annotationHandle switch
+                    {
+                        0 or 4 => Cursors.SizeNWSE,
+                        2 or 6 => Cursors.SizeNESW,
+                        1 or 5 => Cursors.SizeNS,
+                        3 or 7 => Cursors.SizeWE,
+                        _ => Cursors.SizeAll
+                    };
+                    return;
+                }
+            }
+
+            if (Controller.Selection.HasValue &&
+                Controller.Selection.Value.Contains(global) &&
+                HitTestAnnotation(global) != null)
+            {
+                Surface.Cursor = Cursors.SizeAll;
+                return;
+            }
+
             int handle = HitTestHandle(global);
             Surface.Cursor = handle switch
             {
@@ -1098,8 +1278,11 @@ namespace CryoUtils.Views
                 return -1;
             }
 
-            var local = ToLocalDip(global);
-            var rect = ToLocalRect(Controller.Selection.Value);
+            return HitTestRectHandles(ToLocalRect(Controller.Selection.Value), ToLocalDip(global));
+        }
+
+        private static int HitTestRectHandles(Rect rect, Point local)
+        {
             var handles = new[]
             {
                 new Point(rect.Left, rect.Top),
@@ -1126,14 +1309,27 @@ namespace CryoUtils.Views
 
         private Rect ResizeSelection(Rect initial, Point global)
         {
-            double dx = global.X - _startPhysical.X;
-            double dy = global.Y - _startPhysical.Y;
+            var virtualBounds = new Rect(
+                Controller.VirtualBounds.Left,
+                Controller.VirtualBounds.Top,
+                Controller.VirtualBounds.Width,
+                Controller.VirtualBounds.Height);
+            return ResizeRectByHandle(
+                initial,
+                _handle,
+                global.X - _startPhysical.X,
+                global.Y - _startPhysical.Y,
+                virtualBounds);
+        }
+
+        private static Rect ResizeRectByHandle(Rect initial, int handle, double dx, double dy, Rect bounds)
+        {
             double left = initial.Left;
             double top = initial.Top;
             double right = initial.Right;
             double bottom = initial.Bottom;
 
-            switch (_handle)
+            switch (handle)
             {
                 case 0:
                     left += dx;
@@ -1165,15 +1361,10 @@ namespace CryoUtils.Views
                     break;
             }
 
-            var virtualBounds = new Rect(
-                Controller.VirtualBounds.Left,
-                Controller.VirtualBounds.Top,
-                Controller.VirtualBounds.Width,
-                Controller.VirtualBounds.Height);
-            left = Math.Clamp(left, virtualBounds.Left, virtualBounds.Right - 4);
-            top = Math.Clamp(top, virtualBounds.Top, virtualBounds.Bottom - 4);
-            right = Math.Clamp(right, left + 4, virtualBounds.Right);
-            bottom = Math.Clamp(bottom, top + 4, virtualBounds.Bottom);
+            left = Math.Clamp(left, bounds.Left, bounds.Right - 4);
+            top = Math.Clamp(top, bounds.Top, bounds.Bottom - 4);
+            right = Math.Clamp(right, left + 4, bounds.Right);
+            bottom = Math.Clamp(bottom, top + 4, bounds.Bottom);
             return new Rect(left, top, right - left, bottom - top);
         }
 
@@ -1567,10 +1758,10 @@ namespace CryoUtils.Views
             bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
             if ((e.Key == Key.Delete || e.Key == Key.Back) &&
                 Controller.Tool == CaptureTool.Select &&
-                _selectedAnnotation != null)
+                Controller.SelectedAnnotation != null)
             {
-                Controller.RemoveAnnotation(_selectedAnnotation);
-                _selectedAnnotation = null;
+                Controller.RemoveAnnotation(Controller.SelectedAnnotation);
+                SelectAnnotation(null);
                 e.Handled = true;
                 return;
             }
@@ -1578,6 +1769,15 @@ namespace CryoUtils.Views
             if (e.Key == Key.Escape)
             {
                 Controller.CloseAll();
+                e.Handled = true;
+                return;
+            }
+
+            if (!control && !shift && !Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) &&
+                e.Key == Key.Return &&
+                Controller.Selection.HasValue)
+            {
+                Controller.CopySelection();
                 e.Handled = true;
                 return;
             }
@@ -1630,25 +1830,31 @@ namespace CryoUtils.Views
                 return;
             }
 
+            if (e.Key == Key.V)
+            {
+                Controller.SetTool(CaptureTool.Select);
+                e.Handled = true;
+                return;
+            }
+
             CaptureTool? shortcut = e.Key switch
             {
-                Key.V => CaptureTool.Select,
-                Key.P => CaptureTool.Pen,
-                Key.L => CaptureTool.Line,
-                Key.A => CaptureTool.Arrow,
-                Key.R => CaptureTool.Rectangle,
-                Key.E => CaptureTool.Ellipse,
-                Key.S => CaptureTool.Spotlight,
-                Key.K => CaptureTool.Redaction,
-                Key.H => CaptureTool.Highlighter,
-                Key.T => CaptureTool.Text,
-                Key.B => CaptureTool.Blur,
+                Key.D1 or Key.NumPad1 or Key.P => CaptureTool.Pen,
+                Key.D2 or Key.NumPad2 or Key.L => CaptureTool.Line,
+                Key.D3 or Key.NumPad3 or Key.A => CaptureTool.Arrow,
+                Key.D4 or Key.NumPad4 or Key.R => CaptureTool.Rectangle,
+                Key.D5 or Key.NumPad5 or Key.E => CaptureTool.Ellipse,
+                Key.D6 or Key.NumPad6 or Key.S => CaptureTool.Spotlight,
+                Key.D7 or Key.NumPad7 or Key.K => CaptureTool.Redaction,
+                Key.D8 or Key.NumPad8 or Key.H => CaptureTool.Highlighter,
+                Key.D9 or Key.NumPad9 or Key.T => CaptureTool.Text,
+                Key.D0 or Key.NumPad0 or Key.B => CaptureTool.Blur,
                 Key.N => CaptureTool.Step,
                 _ => null
             };
             if (shortcut.HasValue)
             {
-                Controller.SetTool(shortcut.Value);
+                Controller.ToggleTool(shortcut.Value);
                 e.Handled = true;
             }
         }

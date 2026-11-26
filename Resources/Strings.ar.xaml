@@ -232,13 +232,13 @@
     <sys:String x:Key="Tray_Exit">خروج</sys:String>
     <sys:String x:Key="Tray_Tooltip">CryoUtils</sys:String>
 
-    <sys:String x:Key="Capture_ToolPen">قلم (P)</sys:String>
-    <sys:String x:Key="Capture_ToolLine">خط (L)</sys:String>
-    <sys:String x:Key="Capture_ToolArrow">سهم (A)</sys:String>
-    <sys:String x:Key="Capture_ToolRect">مستطيل (R)</sys:String>
-    <sys:String x:Key="Capture_ToolHighlighter">قلم تحديد (H)</sys:String>
-    <sys:String x:Key="Capture_ToolText">نص (T)</sys:String>
-    <sys:String x:Key="Capture_ToolBlur">تمويه (B)</sys:String>
+    <sys:String x:Key="Capture_ToolPen">قلم (1 / P)</sys:String>
+    <sys:String x:Key="Capture_ToolLine">خط (2 / L)</sys:String>
+    <sys:String x:Key="Capture_ToolArrow">سهم (3 / A)</sys:String>
+    <sys:String x:Key="Capture_ToolRect">مستطيل (4 / R)</sys:String>
+    <sys:String x:Key="Capture_ToolHighlighter">قلم تحديد (8 / H)</sys:String>
+    <sys:String x:Key="Capture_ToolText">نص (9 / T)</sys:String>
+    <sys:String x:Key="Capture_ToolBlur">تمويه (0 / B)</sys:String>
     <sys:String x:Key="Capture_ToolStep">رقم خطوة (N)</sys:String>
     <sys:String x:Key="Capture_ToolUndo">تراجع (Ctrl+Z)</sys:String>
     <sys:String x:Key="Capture_ToolRedo">إعادة (Ctrl+Y)</sys:String>
@@ -711,9 +711,9 @@
     <sys:String x:Key="Tools_PowerToolsTitle">مختبر Cryo</sys:String>
     <sys:String x:Key="Tools_PowerToolsDesc">ابحث عن اللقطات ووسمها، وأتمت الوصفات، وأدر خصوصية الرفع والقوائم، وافتح أدوات PDF والوسائط.</sys:String>
     <sys:String x:Key="Tools_OpenPowerTools">فتح المختبر</sys:String>
-    <sys:String x:Key="Capture_ToolEllipse">شكل بيضاوي</sys:String>
-    <sys:String x:Key="Capture_ToolSpotlight">تسليط الضوء</sys:String>
-    <sys:String x:Key="Capture_ToolRedaction">حجب</sys:String>
+    <sys:String x:Key="Capture_ToolEllipse">شكل بيضاوي (5 / E)</sys:String>
+    <sys:String x:Key="Capture_ToolSpotlight">تسليط الضوء (6 / S)</sys:String>
+    <sys:String x:Key="Capture_ToolRedaction">حجب (7 / K)</sys:String>
     <sys:String x:Key="Capture_ToolCrop">قص التحديد</sys:String>
     <sys:String x:Key="Capture_ToolRotate">تدوير التحديد</sys:String>
     <sys:String x:Key="Capture_ToolScroll">التقاط التمرير</sys:String>

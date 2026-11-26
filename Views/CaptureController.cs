@@ -27,6 +27,7 @@ namespace CryoUtils.Views
         public IReadOnlyList<MonitorInfo> Monitors { get; private set; } = Array.Empty<MonitorInfo>();
         public Rect? Selection { get; private set; }
         public List<Annotation> Annotations { get; } = new();
+        public Annotation? SelectedAnnotation { get; private set; }
         public CaptureTool Tool { get; private set; } = CaptureTool.Select;
         public string CurrentColor { get; private set; } = AppSettings.DefaultAnnotationColor;
         public string SourceApp { get; private set; } = "";
@@ -103,6 +104,7 @@ namespace CryoUtils.Views
                 Thickness = Math.Clamp(settings.AnnotationThickness, 1, 24);
                 NextStep = Math.Max(1, settings.StepStartNumber);
                 Annotations.Clear();
+                SelectedAnnotation = null;
                 _undo.Clear();
                 _redo.Clear();
                 IsClosing = false;
@@ -223,6 +225,7 @@ namespace CryoUtils.Views
                 NextStep = Math.Max(1, settings.StepStartNumber);
                 Selection = null;
                 Annotations.Clear();
+                SelectedAnnotation = null;
                 _undo.Clear();
                 _redo.Clear();
                 IsClosing = false;
@@ -319,7 +322,31 @@ namespace CryoUtils.Views
         public void SetTool(CaptureTool tool)
         {
             Tool = tool;
+            if (tool != CaptureTool.Select)
+            {
+                SelectedAnnotation = null;
+            }
             NotifyChanged();
+        }
+
+        public void ToggleTool(CaptureTool tool)
+        {
+            Tool = Tool == tool ? CaptureTool.Select : tool;
+            if (Tool != CaptureTool.Select)
+            {
+                SelectedAnnotation = null;
+            }
+            NotifyChanged();
+        }
+
+        public void SetSelectedAnnotation(Annotation? annotation)
+        {
+            var next = annotation != null && Annotations.Contains(annotation) ? annotation : null;
+            if (!ReferenceEquals(SelectedAnnotation, next))
+            {
+                SelectedAnnotation = next;
+                NotifyChanged();
+            }
         }
 
         public void SetColor(string color)
@@ -358,6 +385,7 @@ namespace CryoUtils.Views
             var snapshot = _undo.Pop();
             Annotations.Clear();
             Annotations.AddRange(snapshot);
+            SelectedAnnotation = null;
             NotifyChanged();
         }
 
@@ -372,6 +400,7 @@ namespace CryoUtils.Views
             var snapshot = _redo.Pop();
             Annotations.Clear();
             Annotations.AddRange(snapshot);
+            SelectedAnnotation = null;
             NotifyChanged();
         }
 
@@ -387,6 +416,10 @@ namespace CryoUtils.Views
 
             PushUndo();
             Annotations.Remove(annotation);
+            if (ReferenceEquals(SelectedAnnotation, annotation))
+            {
+                SelectedAnnotation = null;
+            }
             NotifyChanged();
         }
 

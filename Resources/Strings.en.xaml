@@ -232,13 +232,13 @@
     <sys:String x:Key="Tray_Exit">Exit</sys:String>
     <sys:String x:Key="Tray_Tooltip">CryoUtils</sys:String>
 
-    <sys:String x:Key="Capture_ToolPen">Pen (P)</sys:String>
-    <sys:String x:Key="Capture_ToolLine">Line (L)</sys:String>
-    <sys:String x:Key="Capture_ToolArrow">Arrow (A)</sys:String>
-    <sys:String x:Key="Capture_ToolRect">Rectangle (R)</sys:String>
-    <sys:String x:Key="Capture_ToolHighlighter">Highlighter (H)</sys:String>
-    <sys:String x:Key="Capture_ToolText">Text (T)</sys:String>
-    <sys:String x:Key="Capture_ToolBlur">Blur (B)</sys:String>
+    <sys:String x:Key="Capture_ToolPen">Pen (1 / P)</sys:String>
+    <sys:String x:Key="Capture_ToolLine">Line (2 / L)</sys:String>
+    <sys:String x:Key="Capture_ToolArrow">Arrow (3 / A)</sys:String>
+    <sys:String x:Key="Capture_ToolRect">Rectangle (4 / R)</sys:String>
+    <sys:String x:Key="Capture_ToolHighlighter">Highlighter (8 / H)</sys:String>
+    <sys:String x:Key="Capture_ToolText">Text (9 / T)</sys:String>
+    <sys:String x:Key="Capture_ToolBlur">Blur (0 / B)</sys:String>
     <sys:String x:Key="Capture_ToolStep">Step number (N)</sys:String>
     <sys:String x:Key="Capture_ToolUndo">Undo (Ctrl+Z)</sys:String>
     <sys:String x:Key="Capture_ToolRedo">Redo (Ctrl+Y)</sys:String>
@@ -711,9 +711,9 @@
     <sys:String x:Key="Tools_PowerToolsTitle">Cryo Workbench</sys:String>
     <sys:String x:Key="Tools_PowerToolsDesc">Search and tag captures, automate recipes, manage upload privacy and queues, and open PDF/media tools.</sys:String>
     <sys:String x:Key="Tools_OpenPowerTools">Open Workbench</sys:String>
-    <sys:String x:Key="Capture_ToolEllipse">Ellipse</sys:String>
-    <sys:String x:Key="Capture_ToolSpotlight">Spotlight</sys:String>
-    <sys:String x:Key="Capture_ToolRedaction">Redaction</sys:String>
+    <sys:String x:Key="Capture_ToolEllipse">Ellipse (5 / E)</sys:String>
+    <sys:String x:Key="Capture_ToolSpotlight">Spotlight (6 / S)</sys:String>
+    <sys:String x:Key="Capture_ToolRedaction">Redaction (7 / K)</sys:String>
     <sys:String x:Key="Capture_ToolCrop">Crop selection</sys:String>
     <sys:String x:Key="Capture_ToolRotate">Rotate selection</sys:String>
     <sys:String x:Key="Capture_ToolScroll">Scrolling capture</sys:String>
