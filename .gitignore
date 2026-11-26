@@ -57,6 +57,7 @@ scratch/
 .claude/
 .cursor/
 .aider*
+.tool-test/
 node_modules/
 
 # OS metadata
