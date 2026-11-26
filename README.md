@@ -21,6 +21,7 @@ The current baseline is `0.0.100`. The application runs locally from the tray an
 - [At a glance](#at-a-glance)
 - [Feature tour](#feature-tour)
 - [Capture and annotations](#capture-and-annotations)
+- [Windows Explorer context menus](#windows-explorer-context-menus)
 - [OCR](#ocr)
 - [Color picker](#color-picker)
 - [Image compressor](#image-compressor)
@@ -50,9 +51,11 @@ The current baseline is `0.0.100`. The application runs locally from the tray an
 | Platform | Windows 10 version 2004 (build 19041) or Windows 11, x64 |
 | Runtime | .NET 10 with WPF and Windows Forms |
 | Privileges | Standard user (`asInvoker`); no UAC and no service |
-| Capture | Multi-monitor freeze frame, region or window selection, annotations |
-| Output | PNG, JPG, WebP, GIF, and MP4 |
-| OCR | Local Windows OCR with editable results, code mode, color swatches, and text-file open/save |
+| Capture | Multi-monitor freeze frame, region or window selection, `1–0` tool shortcuts, draggable annotation handles |
+| Recording | Region GIF & native WGC/D3D11/Media Foundation MP4, WASAPI system audio + mic pickers, webcam bubble, cursor/click effects, trim editor, and disk-backed Instant Replay (`Ctrl+Shift+R`) |
+| Shell integration | Opt-in per-user Windows Explorer `CryoUtils` and `CryoUtils Convert` right-click menus for images, GIFs, PDFs, videos, audio, JSON/XML/text, all files, and folders |
+| Output | PNG, JPG, WebP, ICO, GIF, MP4, MP3, WAV, M4A, PDF |
+| OCR & QR | Local Windows OCR (editable results, code mode, color swatches) and offline ZXing QR scan/generate |
 | Tools | Cryo Workbench (library, recipes, privacy, files, colors, PDF/media, logs), Activity Center, Live Draw, Screen Ruler, File Shelf, Image Editor, Developer Toolbox, color picker, compressor, clipboard history, window pinner |
 | Appearance | Dark (default), Light, or System; English and Arabic with RTL |
 | Storage | `%APPDATA%\CryoUtils\settings.json` plus saved and auto-archived captures |
@@ -75,11 +78,11 @@ The capture hotkey is configurable and defaults to `PrintScreen`. If Windows alr
 Capture opens one overlay per monitor over a frozen desktop snapshot. The current monitor's overlay supports:
 
 - Drag selection with a live size badge, moving, eight resize handles, and double-click window selection.
-- `Ctrl+A` for the full monitor, `Esc` to close, and the existing capture shortcuts.
-- Pen, line, arrow, rectangle, ellipse, highlighter, text, step-number, spotlight, redaction brush, and irreversible blur/pixelate annotations.
-- Existing annotations can be selected, moved, or deleted from the overlay; **Crop** and **Rotate 90°** finish the selection into a new editable capture.
-- Color swatches, a custom color picker, and thickness control.
-- An optional pixel magnifier with a color readout, off by default and enabled in the Capture settings.
+- `Ctrl+A` for the full monitor, `Enter` or `Ctrl+C` to copy and close, right-click to step back cleanly (`active stroke -> active tool -> Select -> deselect -> close`), and `Esc` to exit immediately.
+- Starts cleanly in **Select** mode; press **`1`–`0`** (`1` Pen, `2` Line, `3` Arrow, `4` Rectangle, `5` Ellipse, `6` Spotlight, `7` Redaction, `8` Highlighter, `9` Text, `0` Blur), `N` (Step number), or their letter aliases (`P, L, A, R, E, S, K, H, T, B`) — clicking or pressing an active tool again toggles back to **Select**. `Text` (`9`) and `Step` (`N`) also start a region drag when no selection exists yet.
+- Selected annotations display a dashed highlight and draggable handles (endpoint handles on Line/Arrow with `Shift` angle snap, 8 resize handles on Rectangle/Ellipse/Spotlight/Blur with live blur refresh, and `Delete`/`Backspace` removal).
+- Color swatches, a custom color picker, and mouse-wheel thickness control.
+- An optional pixel magnifier with a color readout (off by default; active before/during region drag and annotation placement, hidden over rails and freehand ink).
 - The action rail automatically moves around the tool rail, so small or narrow selections do not stack the controls.
 - Undo and redo.
 - Copy, save, print, pin to screen, OCR, scan QR, and upload actions.
@@ -90,9 +93,25 @@ Capture opens one overlay per monitor over a frozen desktop snapshot. The curren
 - Scrolling capture collects frames while the target window scrolls, detects row overlap, and saves a stitched image.
 - Optional delayed capture with a countdown that restores the dashboard when canceled.
 
-The Overview tab can show either this session's captures or the current save folder's all-time capture library.
+The Overview tab keeps the **Activity Center** closed by default, features a closeable **Recent captures** strip combining screenshots and recordings (`This session` or `All time`), and opens with a quick summary bar above recent files.
 
 Saving uses a save dialog or the configured quick-save folder. The default output folder is `Pictures\CryoUtils`.
+
+### Windows Explorer context menus
+
+CryoUtils can optionally register per-user right-click menus (`CryoUtils` and `CryoUtils Convert`) under `HKCU\Software\Classes` without admin elevation (managed in Settings):
+
+- **Images (`.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.ico`, `.jfif`) & `.gif`:**
+  - *Tools:* Resize (`50%`, `1920px`, `512px`), Quick compress, Remove background, Trim transparent margins, Strip EXIF metadata, Extract text (OCR), Scan QR code, Copy pixels to clipboard, Pin to screen, Upload & copy link.
+  - *Convert:* Convert to `PNG`, `JPG`, `WebP`, `ICO`, Image to `PDF`, Flatten transparency to white, Extract GIF frames (`.gif`), Copy Base64 Data URI.
+- **PDF (`.pdf`):** PDF to PNG/JPG pages, Compress PDF, Grayscale PDF, Rotate `90°` / `180°`, Upload & copy link.
+- **Video (`.mp4`, `.mkv`, `.avi`, `.mov`, `.webm`):** Compress for Discord (`_compressed.mp4`), Video to GIF, Extract MP3 audio, Mute audio, Save video thumbnail, Upload & copy link.
+- **Audio (`.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.aac`):** Convert to `MP3`, `WAV`, `M4A`, Upload & copy link.
+- **JSON, XML & Text (`.json`, `.xml`, `.txt`, `.md`, `.csv`):** Pretty-print/minify JSON, Pretty-print XML, Generate QR code (`text-to-qr`), Copy SHA-256, Upload & copy link.
+- **All Files (`*`):** Upload & copy link, Copy `SHA-256`, Copy `MD5`.
+- **Folders (`Directory`):** Merge folder images into PDF, Folder images to animated GIF, Batch compress folder images.
+
+Commands execute through short-lived `CryoUtils.exe --action <action> "<path>"` helpers and show non-blocking result toasts.
 
 ### OCR
 
@@ -139,14 +158,14 @@ The compressor accepts PNG, JPG/JPEG, WebP, and GIF files by drag/drop or file b
 
 ### Workspace tools and Activity Center
 
-The **Overview** tab now opens with an **Activity Center**. It lists recent captures and uploads, workflow runs (including failures), active file-action jobs, pinned windows, storage and retention totals, and quick actions for capture, OCR, clipboard history, and privacy/upload settings. Refresh is manual or automatic when the underlying services change; the center does not copy or upload capture data.
+The **Overview** tab includes a compact, collapsed-by-default **Activity Center** (storage/retention summary, recent uploads, workflow runs, active file jobs, pinned windows, and quick actions) above the closeable **Recent captures** strip. Refresh is manual or automatic when the underlying services change; the center does not copy or upload capture data.
 
 The **Tools & Utilities** tab adds a **Workspace tools** card:
 
 - **Live Draw** (`Ctrl+Shift+D` by default) opens a transparent, topmost ink layer over the whole virtual desktop without freezing the screen first. Pen, arrow, box, and text tools draw over any app; ink can fade after five seconds or stay until cleared. **Capture annotated screen** hides the overlay, captures the desktop, composites the ink, and saves a PNG through the normal capture library. Esc closes and Ctrl+Z undoes.
 - **Screen Ruler** measures horizontal, vertical, diagonal, or rectangular regions in physical pixels, shows distance and angle, supports click-to-place alignment guides, and copies the current readout. It never takes a screenshot.
 - **File Shelf** is a floating drop target for images, PDFs, videos, and folders. Items can be dragged back to another app, batch-compressed or converted through the existing file-action queue, merged to PDF, removed, or copied as paths.
-- **Image Editor** opens an existing PNG/JPG/WebP/BMP file and supports pen, arrow, box, redaction, and text annotations, crop, rotate, resize, save-as/convert, and copy to clipboard.
+- **Image Editor** opens an existing PNG/JPG/WebP/BMP file and supports Pen (`1`/`P`), Arrow (`2`/`A`), Box (`3`/`R`), Redact (`4`/`K`), and Text (`5`/`T`), custom color picker, stroke thickness controls & mouse-wheel adjustment (`1–24 px`), crop (`6`/`C`, `Enter` to apply, `Esc` to clear), rotate, resize, Undo/Redo (`Ctrl+Z`/`Ctrl+Y`), save-as/convert, and copy to clipboard.
 - **Developer Toolbox** formats JSON and XML, Base64/URL encodes and decodes, computes SHA-256, generates GUIDs, and tests regular expressions locally.
 
 ### Clipboard history
@@ -275,7 +294,7 @@ Signing is optional. When `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_
 
 ## Testing and diagnostics
 
-CryoUtils includes a small dependency-free test runner for pure services (contrast math, clipboard transforms, hashing, JSON/XML formatting, unique filenames, PDF page ranges, color-vision simulation, capture-control-bar layout, and palette exports):
+CryoUtils includes a dependency-free test runner for pure services and capture geometry (contrast math, clipboard transforms, hashing, JSON/XML formatting, unique filenames, PDF page ranges, color-vision simulation, capture-control-bar layout, palette exports, recording option normalization, replay retention/remux math, arrow geometry, tool toggling, and annotation bounds):
 
 ```powershell
 dotnet run --project Tests/CryoUtils.Tests.csproj -c Release
