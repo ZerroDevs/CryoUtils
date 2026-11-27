@@ -4,7 +4,6 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using SkiaSharp;
 
 namespace CryoUtils.Services
 {
@@ -76,11 +75,7 @@ namespace CryoUtils.Services
             int scalePercent,
             long? targetBytes)
         {
-            using var source = SKBitmap.Decode(inputPath);
-            if (source == null)
-            {
-                throw new InvalidOperationException("Unsupported image.");
-            }
+            var source = ImageIO.LoadFileBitmap(inputPath);
             byte[] original = File.ReadAllBytes(inputPath);
 
             string outputExtension = extension switch
@@ -91,27 +86,25 @@ namespace CryoUtils.Services
             };
 
             byte[] best = Array.Empty<byte>();
-            int bestWidth = source.Width;
-            int bestHeight = source.Height;
+            int bestWidth = source.PixelWidth;
+            int bestHeight = source.PixelHeight;
             double scale = scalePercent / 100.0;
             int attemptQuality = quality;
 
             for (int attempt = 0; attempt < 7; attempt++)
             {
-                int width = Math.Max(1, (int)Math.Round(source.Width * scale));
-                int height = Math.Max(1, (int)Math.Round(source.Height * scale));
-                using var resized = width == source.Width && height == source.Height
-                    ? null
-                    : source.Resize(new SKImageInfo(width, height), SKFilterQuality.High);
-                using var image = SKImage.FromBitmap(resized ?? source);
-                using var data = image.Encode(
-                    outputExtension == ".jpg"
-                        ? SKEncodedImageFormat.Jpeg
-                        : outputExtension == ".webp"
-                            ? SKEncodedImageFormat.Webp
-                            : SKEncodedImageFormat.Png,
-                    outputExtension == ".png" ? 100 : attemptQuality);
-                best = data.ToArray();
+                int width = Math.Max(1, (int)Math.Round(source.PixelWidth * scale));
+                int height = Math.Max(1, (int)Math.Round(source.PixelHeight * scale));
+                var resized = width == source.PixelWidth && height == source.PixelHeight
+                    ? source
+                    : ImageIO.ResizeToExact(source, width, height);
+
+                best = outputExtension switch
+                {
+                    ".jpg" => ImageIO.EncodeJpeg(resized, attemptQuality),
+                    ".webp" => ImageIO.EncodeWebP(resized, attemptQuality),
+                    _ => ImageIO.EncodePng(resized)
+                };
                 bestWidth = width;
                 bestHeight = height;
 
@@ -127,8 +120,8 @@ namespace CryoUtils.Services
             if (best.LongLength >= original.LongLength)
             {
                 best = original;
-                bestWidth = source.Width;
-                bestHeight = source.Height;
+                bestWidth = source.PixelWidth;
+                bestHeight = source.PixelHeight;
             }
 
             var preview = TryPreview(best);

@@ -39,6 +39,12 @@ namespace CryoUtils.Views
             InvalidateVisual();
         }
 
+        public void ReleaseBitmap()
+        {
+            _monitorBitmap = null;
+            Controller = null;
+        }
+
         protected override void OnRender(DrawingContext dc)
         {
             if (Controller == null || Monitor == null || _monitorBitmap == null)

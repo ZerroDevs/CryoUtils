@@ -9,7 +9,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using CryoUtils.Services;
-using Forms = System.Windows.Forms;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
@@ -134,10 +133,13 @@ namespace CryoUtils.Views
 
         private void BtnAddFolder_Click(object sender, RoutedEventArgs e)
         {
-            using var dialog = new Forms.FolderBrowserDialog();
-            if (dialog.ShowDialog() == Forms.DialogResult.OK)
+            var dialog = new Microsoft.Win32.OpenFolderDialog
             {
-                AddPaths(new[] { dialog.SelectedPath });
+                Title = LocalizationService.Get("Shelf_Title")
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                AddPaths(new[] { dialog.FolderName });
             }
         }
 

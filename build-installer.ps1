@@ -1,15 +1,17 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Publishes the self-contained x64 CryoUtils build and packages it with Inno Setup.
+    Publishes Full Offline and/or Lite CryoUtils builds and packages installers & portable zips.
 .DESCRIPTION
-    Reads the version from VERSION, runs dotnet publish into publish\win-x64,
-    locates Inno Setup 6 (installing it with winget when absent), compiles
-    Installer\Output\CryoUtils-Setup-<version>.exe, and packages the portable
-    release\CryoUtils-<version>-win-x64.zip.
+    Reads VERSION, runs dotnet publish for the requested variant(s) (Full self-contained
+    and/or Lite framework-dependent), locates Inno Setup 6, compiles Installer\Output\*.exe,
+    and packages release\CryoUtils-*.zip with SHA-256 checksums.
 #>
 [CmdletBinding()]
-param()
+param(
+    [ValidateSet('All', 'Full', 'Lite')]
+    [string]$Variant = 'All'
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -18,7 +20,6 @@ $repoRoot = $PSScriptRoot
 $versionFile = Join-Path $repoRoot 'VERSION'
 $projectFile = Join-Path $repoRoot 'CryoUtils.csproj'
 $issPath = Join-Path $repoRoot 'Installer\CryoUtils.iss'
-$publishDir = Join-Path $repoRoot 'publish\win-x64'
 
 Write-Host 'CryoUtils release build' -ForegroundColor Cyan
 
@@ -47,24 +48,7 @@ foreach ($required in @('LICENSE', 'NOTICE')) {
     }
 }
 
-$outputExe = Join-Path $repoRoot "Installer\Output\CryoUtils-Setup-$Version.exe"
-
-Write-Host "Version: $Version"
-
-if (Test-Path -LiteralPath $publishDir) {
-    Remove-Item -LiteralPath $publishDir -Recurse -Force
-}
-
-Write-Host 'Publishing self-contained win-x64 build...'
-& dotnet publish $projectFile -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false "-p:Version=$Version" -o $publishDir
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet publish failed with exit code $LASTEXITCODE."
-}
-
-$publishedExe = Join-Path $publishDir 'CryoUtils.exe'
-if (-not (Test-Path -LiteralPath $publishedExe -PathType Leaf)) {
-    throw "Published application not found: $publishedExe"
-}
+Write-Host "Version: $Version | Variant: $Variant"
 
 function Find-Iscc {
     $candidates = @()
@@ -126,34 +110,67 @@ if ($isccVersionCandidate -and $isccVersionCandidate -match '^(\d+)\.(\d+)\.(\d+
     Write-Host "Inno Setup version: $isccVer"
 }
 
-Write-Host 'Compiling installer...'
-& $iscc "/DAppVersion=$Version" $issPath
-if ($LASTEXITCODE -ne 0) {
-    throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
-}
-
-if (-not (Test-Path -LiteralPath $outputExe -PathType Leaf)) {
-    throw "Installer was not created: $outputExe"
-}
-
-$sizeMb = [math]::Round((Get-Item -LiteralPath $outputExe).Length / 1MB, 2)
-Write-Host "Installer created: $outputExe ($sizeMb MB)" -ForegroundColor Green
-
-$setupHash = (Get-FileHash -LiteralPath $outputExe -Algorithm SHA256).Hash.ToLowerInvariant()
-"$setupHash  $(Split-Path -Leaf $outputExe)" | Set-Content -LiteralPath "$outputExe.sha256" -Encoding ascii
-
 $releaseDir = Join-Path $repoRoot 'release'
-$portableZip = Join-Path $releaseDir "CryoUtils-$Version-win-x64.zip"
 New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
-Write-Host 'Creating portable zip...'
-Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $portableZip -Force
-if (-not (Test-Path -LiteralPath $portableZip -PathType Leaf)) {
-    throw "Portable archive was not created: $portableZip"
+$variantsToBuild = switch ($Variant) {
+    'Full' { @('Full') }
+    'Lite' { @('Lite') }
+    default { @('Full', 'Lite') }
 }
 
-$zipHash = (Get-FileHash -LiteralPath $portableZip -Algorithm SHA256).Hash.ToLowerInvariant()
-"$zipHash  $(Split-Path -Leaf $portableZip)" | Set-Content -LiteralPath "$portableZip.sha256" -Encoding ascii
+foreach ($currentVariant in $variantsToBuild) {
+    $isLite = $currentVariant -eq 'Lite'
+    $selfContainedArg = if ($isLite) { 'false' } else { 'true' }
+    $publishDir = if ($isLite) { Join-Path $repoRoot 'publish\win-x64-lite' } else { Join-Path $repoRoot 'publish\win-x64' }
+    $setupName = if ($isLite) { "CryoUtils-Lite-Setup-$Version.exe" } else { "CryoUtils-Setup-$Version.exe" }
+    $zipName = if ($isLite) { "CryoUtils-Lite-$Version-win-x64.zip" } else { "CryoUtils-$Version-win-x64.zip" }
+    $outputExe = Join-Path $repoRoot "Installer\Output\$setupName"
+    $portableZip = Join-Path $releaseDir $zipName
 
-$zipSizeMb = [math]::Round((Get-Item -LiteralPath $portableZip).Length / 1MB, 2)
-Write-Host "Portable zip created: $portableZip ($zipSizeMb MB)" -ForegroundColor Green
+    if (Test-Path -LiteralPath $publishDir) {
+        Remove-Item -LiteralPath $publishDir -Recurse -Force
+    }
+
+    Write-Host "Publishing $currentVariant win-x64 build (self-contained=$selfContainedArg)..." -ForegroundColor Cyan
+    & dotnet publish $projectFile -c Release -r win-x64 --self-contained $selfContainedArg -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false "-p:Version=$Version" -o $publishDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish ($currentVariant) failed with exit code $LASTEXITCODE."
+    }
+
+    $publishedExe = Join-Path $publishDir 'CryoUtils.exe'
+    if (-not (Test-Path -LiteralPath $publishedExe -PathType Leaf)) {
+        throw "Published application not found: $publishedExe"
+    }
+
+    $publishFolderMb = [math]::Round(((Get-ChildItem -LiteralPath $publishDir -Recurse -File | Measure-Object -Property Length -Sum).Sum) / 1MB, 2)
+    Write-Host "Published $currentVariant folder size: $publishFolderMb MB"
+
+    Write-Host "Compiling $currentVariant installer..."
+    & $iscc "/DAppVersion=$Version" "/DVariant=$currentVariant" $issPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup compilation ($currentVariant) failed with exit code $LASTEXITCODE."
+    }
+
+    if (-not (Test-Path -LiteralPath $outputExe -PathType Leaf)) {
+        throw "Installer was not created: $outputExe"
+    }
+
+    $sizeMb = [math]::Round((Get-Item -LiteralPath $outputExe).Length / 1MB, 2)
+    Write-Host "Installer created: $outputExe ($sizeMb MB)" -ForegroundColor Green
+
+    $setupHash = (Get-FileHash -LiteralPath $outputExe -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$setupHash  $setupName" | Set-Content -LiteralPath "$outputExe.sha256" -Encoding ascii
+
+    Write-Host "Creating $currentVariant portable zip..."
+    Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $portableZip -Force
+    if (-not (Test-Path -LiteralPath $portableZip -PathType Leaf)) {
+        throw "Portable archive was not created: $portableZip"
+    }
+
+    $zipHash = (Get-FileHash -LiteralPath $portableZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$zipHash  $zipName" | Set-Content -LiteralPath "$portableZip.sha256" -Encoding ascii
+
+    $zipSizeMb = [math]::Round((Get-Item -LiteralPath $portableZip).Length / 1MB, 2)
+    Write-Host "Portable zip created: $portableZip ($zipSizeMb MB)" -ForegroundColor Green
+}

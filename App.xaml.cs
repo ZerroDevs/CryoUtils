@@ -30,10 +30,47 @@ namespace CryoUtils
         private ToastWindow? _toast;
         private string? _lastLanguage;
         private bool _lastContextMenuEnabled;
+        private bool _lastScreenshotOnly;
         private bool _captureRestoresDashboard;
         private bool _pickerRestoresDashboard;
         private bool _exiting;
         private bool _recordingActive;
+        private static bool _uiResourcesLoaded;
+        private static readonly object UiResourcesLock = new();
+
+        public static void EnsureUiResourcesLoaded()
+        {
+            if (_uiResourcesLoaded)
+            {
+                return;
+            }
+
+            var app = Current;
+            if (app == null)
+            {
+                return;
+            }
+
+            lock (UiResourcesLock)
+            {
+                if (_uiResourcesLoaded)
+                {
+                    return;
+                }
+
+                var existing = app.Resources.MergedDictionaries.Any(d =>
+                    d.Source?.OriginalString.Contains("Resources/Controls.xaml", StringComparison.OrdinalIgnoreCase) == true);
+                if (!existing)
+                {
+                    app.Resources.MergedDictionaries.Add(new ResourceDictionary
+                    {
+                        Source = new Uri("Resources/Controls.xaml", UriKind.Relative)
+                    });
+                }
+
+                _uiResourcesLoaded = true;
+            }
+        }
 
         public App()
         {
@@ -83,22 +120,34 @@ namespace CryoUtils
                 return;
             }
 
-            // Always sync so a disabled setting also removes stale Explorer entries.
-            CryoContextMenuService.SetEnabled(settings.ContextMenuEnabled);
+            if (e.Args.Any(argument =>
+                    string.Equals(argument, "--capture", StringComparison.OrdinalIgnoreCase)))
+            {
+                EnsureUiResourcesLoaded();
+                CaptureController.Instance.Start(oneShotExit: true);
+                return;
+            }
+
+            // Only rewrite HKCU Explorer keys if missing, path-changed, or language-changed.
+            CryoContextMenuService.SyncIfNeeded(settings.ContextMenuEnabled);
             _lastContextMenuEnabled = settings.ContextMenuEnabled;
+            _lastScreenshotOnly = settings.ScreenshotOnlyMode;
 
             GlobalHotkeyService.Instance.HotkeyPressed += OnHotkeyPressed;
             SettingsService.Instance.SettingsChanged += ApplyAllSettings;
 
             ApplyHotkeys();
-            ClipboardService.Instance.SetEnabled(settings.ClipboardHistoryEnabled);
-            if (settings.WindowPinnerEnabled)
+            if (!settings.ScreenshotOnlyMode)
             {
-                TopmostService.Instance.RestoreSavedPins();
+                ClipboardService.Instance.SetEnabled(settings.ClipboardHistoryEnabled);
+                if (settings.WindowPinnerEnabled)
+                {
+                    TopmostService.Instance.RestoreSavedPins();
+                }
             }
             _tray = new TrayIconManager();
 
-            if (settings.ReplayEnabled)
+            if (!settings.ScreenshotOnlyMode && settings.ReplayEnabled)
             {
                 Dispatcher.BeginInvoke(new Action(() => ApplyReplayPreference()));
             }
@@ -124,6 +173,7 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             if (_dashboard == null)
             {
                 _dashboard = new MainWindow();
@@ -167,6 +217,7 @@ namespace CryoUtils
 
             if (delay > 0)
             {
+                EnsureUiResourcesLoaded();
                 PrepareForCapture();
                 try
                 {
@@ -199,6 +250,7 @@ namespace CryoUtils
 
         public void OpenRecorderSettings()
         {
+            EnsureUiResourcesLoaded();
             var window = new RecorderSettingsWindow
             {
                 Owner = _dashboard != null && _dashboard.IsVisible ? _dashboard : null
@@ -293,6 +345,7 @@ namespace CryoUtils
                     string suggested = Path.Combine(
                         SettingsService.Instance.EffectiveSaveFolder,
                         ScreenCaptureService.CreateTimestampedFileName(".mp4"));
+                    EnsureUiResourcesLoaded();
                     var trim = new RecordingTrimWindow(path, suggested)
                     {
                         Owner = IsDashboardVisible ? _dashboard : null
@@ -366,6 +419,7 @@ namespace CryoUtils
                 _dashboard?.Hide();
             }
 
+            EnsureUiResourcesLoaded();
             _colorPicker = new ColorPickerWindow();
             _colorPicker.Closed += (_, _) =>
             {
@@ -374,6 +428,10 @@ namespace CryoUtils
                 {
                     _pickerRestoresDashboard = false;
                     ShowDashboard();
+                }
+                else if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
                 }
             };
             _colorPicker.Show();
@@ -422,8 +480,16 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             _clipboardWindow = new ClipboardHistoryWindow();
-            _clipboardWindow.Closed += (_, _) => _clipboardWindow = null;
+            _clipboardWindow.Closed += (_, _) =>
+            {
+                _clipboardWindow = null;
+                if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
+                }
+            };
             _clipboardWindow.Show();
             _clipboardWindow.Activate();
         }
@@ -436,8 +502,16 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             _liveDraw = new LiveDrawWindow();
-            _liveDraw.Closed += (_, _) => _liveDraw = null;
+            _liveDraw.Closed += (_, _) =>
+            {
+                _liveDraw = null;
+                if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
+                }
+            };
             _liveDraw.Show();
             _liveDraw.Activate();
         }
@@ -450,8 +524,16 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             _screenRuler = new ScreenRulerWindow();
-            _screenRuler.Closed += (_, _) => _screenRuler = null;
+            _screenRuler.Closed += (_, _) =>
+            {
+                _screenRuler = null;
+                if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
+                }
+            };
             _screenRuler.Show();
             _screenRuler.Activate();
         }
@@ -468,11 +550,19 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             _fileShelf = new FileShelfWindow
             {
                 Owner = IsDashboardVisible ? _dashboard : null
             };
-            _fileShelf.Closed += (_, _) => _fileShelf = null;
+            _fileShelf.Closed += (_, _) =>
+            {
+                _fileShelf = null;
+                if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
+                }
+            };
             _fileShelf.Show();
             _fileShelf.Activate();
         }
@@ -485,11 +575,19 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             var editor = new ImageEditorWindow(path)
             {
                 Owner = IsDashboardVisible ? _dashboard : null
             };
-            editor.Closed += (_, _) => _imageEditor = null;
+            editor.Closed += (_, _) =>
+            {
+                _imageEditor = null;
+                if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
+                }
+            };
             _imageEditor = editor;
             editor.Show();
             editor.Activate();
@@ -507,11 +605,19 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             _developerToolbox = new DeveloperToolboxWindow
             {
                 Owner = IsDashboardVisible ? _dashboard : null
             };
-            _developerToolbox.Closed += (_, _) => _developerToolbox = null;
+            _developerToolbox.Closed += (_, _) =>
+            {
+                _developerToolbox = null;
+                if (!_exiting)
+                {
+                    MemoryTrimService.ScheduleTrim(400);
+                }
+            };
             _developerToolbox.Show();
             _developerToolbox.Activate();
         }
@@ -545,7 +651,16 @@ namespace CryoUtils
                     return;
                 }
 
-                new OcrResultWindow(text).Show();
+                EnsureUiResourcesLoaded();
+                var ocrWin = new OcrResultWindow(text);
+                ocrWin.Closed += (_, _) =>
+                {
+                    if (!_exiting)
+                    {
+                        MemoryTrimService.ScheduleTrim(400);
+                    }
+                };
+                ocrWin.Show();
             }
             catch (Exception ex)
             {
@@ -565,6 +680,7 @@ namespace CryoUtils
                 return;
             }
 
+            EnsureUiResourcesLoaded();
             _workbench = new PowerToolsWindow();
             _workbench.Closed += (_, _) =>
             {
@@ -624,6 +740,33 @@ namespace CryoUtils
                 new Action(() => ShowDashboard()));
         }
 
+        public void RepeatLastRegion()
+        {
+            if (!SettingsService.Instance.Current.CaptureEnabled)
+            {
+                ShowToast(LocalizationService.Get("Module_OffNote"));
+                return;
+            }
+
+            CaptureController.Instance.StartLastRegion();
+        }
+
+        public async void CompleteOneShotCapture(bool waitForToast)
+        {
+            if (_exiting)
+            {
+                return;
+            }
+
+            if (waitForToast)
+            {
+                await Task.Delay(1400);
+            }
+
+            ThemeService.Shutdown();
+            Shutdown();
+        }
+
         public void ShowToast(string message)
         {
             if (_exiting || string.IsNullOrWhiteSpace(message) ||
@@ -634,6 +777,7 @@ namespace CryoUtils
 
             try
             {
+                EnsureUiResourcesLoaded();
                 _toast?.Close();
                 _toast = new ToastWindow(message);
                 _toast.Closed += (_, _) => _toast = null;
@@ -672,59 +816,127 @@ namespace CryoUtils
                 CryoContextMenuService.RegisterAll();
             }
             StartupService.SetEnabled(settings.StartWithWindows);
-            ClipboardService.Instance.SetEnabled(settings.ClipboardHistoryEnabled);
+            bool full = !settings.ScreenshotOnlyMode;
+            ClipboardService.Instance.SetEnabled(full && settings.ClipboardHistoryEnabled);
             ClipboardService.Instance.SetPersistence(settings.ClipboardPersistenceEnabled);
-            if (!settings.WindowPinnerEnabled)
+            if (!full || !settings.WindowPinnerEnabled)
             {
                 TopmostService.Instance.Unpin(silent: true);
             }
             TopmostService.Instance.ApplySettings();
+            if (!full && ReplayService.Instance.IsRunning)
+            {
+                ApplyReplayPreference();
+            }
             ApplyHotkeys();
+
+            bool enteredScreenshotOnly = !_lastScreenshotOnly && settings.ScreenshotOnlyMode;
+            _lastScreenshotOnly = settings.ScreenshotOnlyMode;
+            if (!full)
+            {
+                CloseNonCaptureUtilityWindows();
+                if (enteredScreenshotOnly)
+                {
+                    ShowToast(LocalizationService.Get("Toast_ScreenshotOnlyEnabled"));
+                }
+                MemoryTrimService.ScheduleTrim(200);
+            }
+        }
+
+        private void CloseNonCaptureUtilityWindows()
+        {
+            CloseUtilityWindow(ref _clipboardWindow);
+            CloseUtilityWindow(ref _workbench);
+            CloseUtilityWindow(ref _colorPicker);
+            CloseUtilityWindow(ref _liveDraw);
+            CloseUtilityWindow(ref _screenRuler);
+            CloseUtilityWindow(ref _fileShelf);
+            CloseUtilityWindow(ref _developerToolbox);
+        }
+
+        private static void CloseUtilityWindow<T>(ref T? window) where T : Window
+        {
+            if (window == null)
+            {
+                return;
+            }
+
+            try
+            {
+                window.Close();
+            }
+            catch
+            {
+            }
+            window = null;
         }
 
         public void ApplyHotkeys()
         {
             var settings = SettingsService.Instance.Current;
+            bool full = !settings.ScreenshotOnlyMode;
             RegisterHotkey(
                 GlobalHotkeyService.CaptureHotkeyId,
                 settings.CaptureEnabled,
                 settings.CaptureHotkeyModifiers,
                 settings.CaptureHotkeyKey);
+
+            string? repeatModifiers = BuildRepeatRegionModifiers(settings.CaptureHotkeyModifiers);
+            RegisterHotkey(
+                GlobalHotkeyService.RepeatLastRegionHotkeyId,
+                settings.CaptureEnabled && repeatModifiers != null,
+                repeatModifiers,
+                settings.CaptureHotkeyKey);
+
             RegisterHotkey(
                 GlobalHotkeyService.ColorPickerHotkeyId,
-                settings.ColorPickerEnabled,
+                full && settings.ColorPickerEnabled,
                 settings.ColorPickerHotkeyModifiers,
                 settings.ColorPickerHotkeyKey);
             RegisterHotkey(
                 GlobalHotkeyService.WindowPinnerHotkeyId,
-                settings.WindowPinnerEnabled,
+                full && settings.WindowPinnerEnabled,
                 settings.WindowPinnerHotkeyModifiers,
                 settings.WindowPinnerHotkeyKey);
             RegisterHotkey(
                 GlobalHotkeyService.PlainPasteHotkeyId,
-                settings.ClipboardHistoryEnabled,
+                full && settings.ClipboardHistoryEnabled,
                 settings.PlainPasteHotkeyModifiers,
                 settings.PlainPasteHotkeyKey);
             RegisterHotkey(
                 GlobalHotkeyService.ClipboardHistoryHotkeyId,
-                settings.ClipboardHistoryEnabled,
+                full && settings.ClipboardHistoryEnabled,
                 settings.ClipboardHotkeyModifiers,
                 settings.ClipboardHotkeyKey);
             RegisterHotkey(
                 GlobalHotkeyService.WorkbenchHotkeyId,
-                true,
+                full,
                 settings.WorkbenchHotkeyModifiers,
                 settings.WorkbenchHotkeyKey);
             RegisterHotkey(
                 GlobalHotkeyService.ReplayHotkeyId,
-                settings.ReplayEnabled,
+                full && settings.ReplayEnabled,
                 settings.ReplayHotkeyModifiers,
                 settings.ReplayHotkeyKey);
             RegisterHotkey(
                 GlobalHotkeyService.LiveDrawHotkeyId,
-                true,
+                full,
                 settings.LiveDrawHotkeyModifiers,
                 settings.LiveDrawHotkeyKey);
+        }
+
+        private static string? BuildRepeatRegionModifiers(string? baseModifiers)
+        {
+            string mods = (baseModifiers ?? "").Trim();
+            if (!mods.Contains("Shift", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrEmpty(mods) ? "Shift" : $"{mods}+Shift";
+            }
+            if (!mods.Contains("Alt", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrEmpty(mods) ? "Alt" : $"{mods}+Alt";
+            }
+            return null;
         }
 
         private static void RegisterHotkey(
@@ -748,6 +960,9 @@ namespace CryoUtils
             {
                 case GlobalHotkeyService.CaptureHotkeyId:
                     StartCapture();
+                    break;
+                case GlobalHotkeyService.RepeatLastRegionHotkeyId:
+                    RepeatLastRegion();
                     break;
                 case GlobalHotkeyService.ColorPickerHotkeyId:
                     OpenColorPicker();
@@ -809,6 +1024,7 @@ namespace CryoUtils
 
         private async Task HandleCliActionAsync(string action, string rawTargetPath)
         {
+            EnsureUiResourcesLoaded();
             bool keepAliveForWindow = false;
             try
             {

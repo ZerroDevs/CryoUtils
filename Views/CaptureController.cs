@@ -21,6 +21,8 @@ namespace CryoUtils.Views
         private readonly Stack<List<Annotation>> _redo = new();
         private bool _starting;
         private bool _recordAfterSelection;
+        private bool _oneShotExit;
+        private Annotation? _lastWheelStyledAnnotation;
 
         public NativeMethods.RECT VirtualBounds { get; private set; }
         public BitmapSource? VirtualBitmap { get; private set; }
@@ -51,9 +53,31 @@ namespace CryoUtils.Views
         {
         }
 
-        public void Start()
+        public void Start(bool oneShotExit = false)
         {
-            Start(recordMode: false);
+            _oneShotExit = oneShotExit;
+            Start(recordMode: false, presetSelection: null);
+        }
+
+        public void StartLastRegion()
+        {
+            var s = SettingsService.Instance.Current;
+            if (!s.LastCaptureX.HasValue || !s.LastCaptureY.HasValue ||
+                !s.LastCaptureWidth.HasValue || !s.LastCaptureHeight.HasValue ||
+                s.LastCaptureWidth.Value < 4 || s.LastCaptureHeight.Value < 4)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoLastRegion"));
+                Start();
+                return;
+            }
+
+            _oneShotExit = false;
+            var preset = new Rect(
+                s.LastCaptureX.Value,
+                s.LastCaptureY.Value,
+                s.LastCaptureWidth.Value,
+                s.LastCaptureHeight.Value);
+            Start(recordMode: false, presetSelection: preset);
         }
 
         public void StartForImage(BitmapSource image, string? originalPath = null)
@@ -63,16 +87,18 @@ namespace CryoUtils.Views
                 return;
             }
 
+            _oneShotExit = false;
             _recordAfterSelection = false;
             _ = StartForImageAsync(image, originalPath);
         }
 
         public void StartRecordingMode()
         {
-            Start(recordMode: true);
+            _oneShotExit = false;
+            Start(recordMode: true, presetSelection: null);
         }
 
-        private void Start(bool recordMode)
+        private void Start(bool recordMode, Rect? presetSelection)
         {
             if (IsActive || _starting)
             {
@@ -80,7 +106,7 @@ namespace CryoUtils.Views
             }
 
             _recordAfterSelection = recordMode;
-            _ = StartAsync();
+            _ = StartAsync(presetSelection);
         }
 
         private async System.Threading.Tasks.Task StartForImageAsync(BitmapSource image, string? originalPath)
@@ -93,6 +119,7 @@ namespace CryoUtils.Views
                     CaptureSourceInfo();
                 }
                 var app = Application.Current as App;
+                App.EnsureUiResourcesLoaded();
                 app?.PrepareForCapture();
                 await System.Threading.Tasks.Task.Delay(150);
 
@@ -206,13 +233,14 @@ namespace CryoUtils.Views
             }
         }
 
-        private async System.Threading.Tasks.Task StartAsync()
+        private async System.Threading.Tasks.Task StartAsync(Rect? presetSelection = null)
         {
             _starting = true;
             try
             {
                 CaptureSourceInfo();
                 var app = Application.Current as App;
+                App.EnsureUiResourcesLoaded();
                 app?.PrepareForCapture();
                 await System.Threading.Tasks.Task.Delay(150);
 
@@ -226,12 +254,27 @@ namespace CryoUtils.Views
                 Selection = null;
                 Annotations.Clear();
                 SelectedAnnotation = null;
+                _lastWheelStyledAnnotation = null;
                 _undo.Clear();
                 _redo.Clear();
                 IsClosing = false;
                 VirtualBounds = ScreenCaptureService.GetVirtualBounds();
                 VirtualBitmap = ScreenCaptureService.CaptureRegion(VirtualBounds);
                 Monitors = ScreenCaptureService.GetMonitors();
+
+                if (presetSelection.HasValue)
+                {
+                    var virtualRect = new Rect(
+                        VirtualBounds.Left,
+                        VirtualBounds.Top,
+                        VirtualBounds.Width,
+                        VirtualBounds.Height);
+                    var clampedPreset = Rect.Intersect(presetSelection.Value, virtualRect);
+                    if (!clampedPreset.IsEmpty && clampedPreset.Width >= 4 && clampedPreset.Height >= 4)
+                    {
+                        Selection = clampedPreset;
+                    }
+                }
 
                 NativeMethods.GetCursorPos(out var cursor);
                 ActiveMonitor = Monitors.FirstOrDefault(monitor =>
@@ -345,8 +388,70 @@ namespace CryoUtils.Views
             if (!ReferenceEquals(SelectedAnnotation, next))
             {
                 SelectedAnnotation = next;
+                _lastWheelStyledAnnotation = null;
                 NotifyChanged();
             }
+        }
+
+        public bool UpdateSelectedAnnotationStyle(string? color = null, double? thickness = null, bool coalesceUndo = false)
+        {
+            var annotation = SelectedAnnotation;
+            if (annotation == null || !Annotations.Contains(annotation))
+            {
+                return false;
+            }
+
+            if (!coalesceUndo || !ReferenceEquals(_lastWheelStyledAnnotation, annotation))
+            {
+                PushUndo();
+                _lastWheelStyledAnnotation = coalesceUndo ? annotation : null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(color))
+            {
+                annotation.Color = color;
+            }
+
+            if (thickness.HasValue)
+            {
+                double clamped = Math.Clamp(thickness.Value, 1, 32);
+                annotation.Thickness = clamped;
+                if (annotation.Kind == AnnotationKind.Text)
+                {
+                    annotation.FontSize = Math.Max(10, clamped * 6);
+                }
+                else if (annotation.Kind == AnnotationKind.Blur)
+                {
+                    annotation.PixelPreview = null;
+                }
+            }
+
+            NotifyChanged();
+            return true;
+        }
+
+        public void UpdateSelectedText(Annotation annotation, string newText, bool isRtl)
+        {
+            if (!Annotations.Contains(annotation))
+            {
+                return;
+            }
+
+            PushUndo();
+            if (string.IsNullOrWhiteSpace(newText))
+            {
+                Annotations.Remove(annotation);
+                if (ReferenceEquals(SelectedAnnotation, annotation))
+                {
+                    SelectedAnnotation = null;
+                }
+            }
+            else
+            {
+                annotation.Text = newText.Trim();
+                annotation.IsRtl = isRtl;
+            }
+            NotifyChanged();
         }
 
         public void SetColor(string color)
@@ -369,6 +474,7 @@ namespace CryoUtils.Views
 
         public void AddAnnotation(Annotation annotation)
         {
+            _lastWheelStyledAnnotation = null;
             PushUndo();
             Annotations.Add(annotation);
             NotifyChanged();
@@ -381,6 +487,7 @@ namespace CryoUtils.Views
                 return;
             }
 
+            _lastWheelStyledAnnotation = null;
             _redo.Push(Annotations.Select(item => item.Clone()).ToList());
             var snapshot = _undo.Pop();
             Annotations.Clear();
@@ -396,6 +503,7 @@ namespace CryoUtils.Views
                 return;
             }
 
+            _lastWheelStyledAnnotation = null;
             _undo.Push(Annotations.Select(item => item.Clone()).ToList());
             var snapshot = _redo.Pop();
             Annotations.Clear();
@@ -600,7 +708,8 @@ namespace CryoUtils.Views
                 : null;
             string? displayName = string.IsNullOrEmpty(savedPath) ? null : System.IO.Path.GetFileName(savedPath);
 
-            CloseAll();
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: true, allowOneShotExit: false);
             UploadProgressWindow.StartCaptureUpload(
                 bitmap,
                 onSuccess: url => RecentCaptureService.Instance.Add(bitmap, savedPath, url),
@@ -652,7 +761,8 @@ namespace CryoUtils.Views
             {
                 NativeMethods.MessageBeep(0x40);
             }
-            CloseAll();
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: true, waitForOneShotToast: true);
             (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_Copied"));
             _ = WorkflowService.Instance.RunPostCaptureAsync(
                 bitmap,
@@ -712,7 +822,8 @@ namespace CryoUtils.Views
             {
                 NativeMethods.MessageBeep(0x40);
             }
-            CloseAll();
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: true, waitForOneShotToast: true);
             (Application.Current as App)?.ShowToast(LocalizationService.Format("Capture_Saved", path));
             _ = WorkflowService.Instance.RunPostCaptureAsync(
                 bitmap,
@@ -730,7 +841,8 @@ namespace CryoUtils.Views
                 return;
             }
 
-            CloseAll();
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: false, allowOneShotExit: false);
             var pin = new PinWindow(bitmap);
             pin.Show();
             pin.Activate();
@@ -746,7 +858,8 @@ namespace CryoUtils.Views
             }
 
             var app = Application.Current as App;
-            CloseAll();
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: false, allowOneShotExit: false);
             app?.ShowToast(LocalizationService.Get("Capture_OcrRunning"));
             try
             {
@@ -777,7 +890,8 @@ namespace CryoUtils.Views
             }
 
             var app = Application.Current as App;
-            CloseAll();
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: false, allowOneShotExit: false);
             try
             {
                 var result = QrCodeService.Decode(bitmap);
@@ -839,6 +953,7 @@ namespace CryoUtils.Views
             image.Measure(new Size(dialog.PrintableAreaWidth, dialog.PrintableAreaHeight));
             image.Arrange(new Rect(0, 0, dialog.PrintableAreaWidth, dialog.PrintableAreaHeight));
             dialog.PrintVisual(image, "CryoUtils");
+            RememberSelectionBounds();
             CloseAll();
         }
 
@@ -851,10 +966,26 @@ namespace CryoUtils.Views
             }
 
             var physical = GetSelectionPhysical();
-            CloseAll(restoreDashboard: false);
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: false, allowOneShotExit: false);
             var window = new RecordingBarWindow(physical);
             window.Show();
             window.Activate();
+        }
+
+        private void RememberSelectionBounds()
+        {
+            if (!Selection.HasValue || Selection.Value.Width < 4 || Selection.Value.Height < 4)
+            {
+                return;
+            }
+
+            var s = SettingsService.Instance.Current;
+            s.LastCaptureX = Selection.Value.X;
+            s.LastCaptureY = Selection.Value.Y;
+            s.LastCaptureWidth = Selection.Value.Width;
+            s.LastCaptureHeight = Selection.Value.Height;
+            SettingsService.Instance.SaveWithoutNotification();
         }
 
         public void Close()
@@ -862,7 +993,7 @@ namespace CryoUtils.Views
             CloseAll();
         }
 
-        public void CloseAll(bool restoreDashboard = true)
+        public void CloseAll(bool restoreDashboard = true, bool allowOneShotExit = true, bool waitForOneShotToast = false)
         {
             if (IsClosing)
             {
@@ -870,6 +1001,8 @@ namespace CryoUtils.Views
             }
 
             IsClosing = true;
+            bool shouldOneShotExit = allowOneShotExit && _oneShotExit;
+            _oneShotExit = false;
             foreach (var overlay in _windows.ToList())
             {
                 try
@@ -886,18 +1019,26 @@ namespace CryoUtils.Views
             ActiveOverlay = null;
             Selection = null;
             Annotations.Clear();
+            SelectedAnnotation = null;
+            _lastWheelStyledAnnotation = null;
             _undo.Clear();
             _redo.Clear();
             VirtualBitmap = null;
             IsClosing = false;
 
             var app = Application.Current as App;
+            if (shouldOneShotExit)
+            {
+                app?.CompleteOneShotCapture(waitForOneShotToast);
+                return;
+            }
+
             if (restoreDashboard)
             {
                 app?.FinishCapture();
             }
             NotifyChanged();
-            MemoryTrimService.ScheduleTrim(800);
+            MemoryTrimService.ScheduleTrim(250);
         }
 
         public void RemoveOverlay(CaptureOverlayWindow overlay)
@@ -911,7 +1052,15 @@ namespace CryoUtils.Views
             if (!IsClosing && _windows.Count == 0 && IsActive)
             {
                 IsActive = false;
+                Selection = null;
+                Annotations.Clear();
+                SelectedAnnotation = null;
+                _lastWheelStyledAnnotation = null;
+                _undo.Clear();
+                _redo.Clear();
+                VirtualBitmap = null;
                 (Application.Current as App)?.FinishCapture();
+                MemoryTrimService.ScheduleTrim(250);
             }
         }
     }

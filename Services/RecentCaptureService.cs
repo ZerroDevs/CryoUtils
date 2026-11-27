@@ -17,7 +17,7 @@ namespace CryoUtils.Services
     {
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public BitmapSource? Image { get; init; }
+        public BitmapSource? Image { get; set; }
         public BitmapSource Thumbnail { get; init; } = null!;
         public string? Path { get; init; }
         public DateTime CreatedAt { get; init; } = DateTime.Now;
@@ -138,6 +138,19 @@ namespace CryoUtils.Services
             while (Items.Count > 10)
             {
                 Items.RemoveAt(Items.Count - 1);
+            }
+            // Keep at most 2 unsaved full-resolution bitmaps in RAM to cap session memory spikes.
+            int retainedFull = 0;
+            for (int i = 0; i < Items.Count; i++)
+            {
+                if (Items[i].Image != null)
+                {
+                    retainedFull++;
+                    if (retainedFull > 2)
+                    {
+                        Items[i].Image = null;
+                    }
+                }
             }
 
             if (savedOnDisk)

@@ -6,9 +6,10 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Xml.Linq;
-using SkiaSharp;
 
 namespace CryoUtils.Services
 {
@@ -124,12 +125,12 @@ namespace CryoUtils.Services
                 return 0;
             }
 
-            using var first = SKBitmap.Decode(images[0]) ?? throw new InvalidOperationException("Could not decode first image.");
+            var first = ImageIO.LoadFileBitmap(images[0]);
             double scale = Math.Min(
                 1.0,
-                Math.Min(maxWidth / (double)first.Width, maxWidth / (double)first.Height));
-            int targetW = Math.Max(2, (int)Math.Round(first.Width * scale));
-            int targetH = Math.Max(2, (int)Math.Round(first.Height * scale));
+                Math.Min(maxWidth / (double)first.PixelWidth, maxWidth / (double)first.PixelHeight));
+            int targetW = Math.Max(2, (int)Math.Round(first.PixelWidth * scale));
+            int targetH = Math.Max(2, (int)Math.Round(first.PixelHeight * scale));
 
             var frames = new List<BitmapSource>();
             int total = Math.Min(images.Count, MaxGifFrames);
@@ -142,27 +143,33 @@ namespace CryoUtils.Services
                     break;
                 }
 
-                using var src = SKBitmap.Decode(imgPath);
-                if (src == null)
+                BitmapSource? src;
+                try
+                {
+                    src = ImageIO.LoadFileBitmap(imgPath);
+                }
+                catch
                 {
                     continue;
                 }
 
-                using var fitted = new SKBitmap(targetW, targetH, SKColorType.Bgra8888, SKAlphaType.Premul);
-                using (var canvas = new SKCanvas(fitted))
+                var visual = new DrawingVisual();
+                using (var dc = visual.RenderOpen())
                 {
-                    canvas.Clear(SKColors.Black);
-                    float fitScale = Math.Min(targetW / (float)src.Width, targetH / (float)src.Height);
-                    float drawW = src.Width * fitScale;
-                    float drawH = src.Height * fitScale;
-                    float left = (targetW - drawW) / 2f;
-                    float top = (targetH - drawH) / 2f;
-                    canvas.DrawBitmap(src, new SKRect(left, top, left + drawW, top + drawH));
+                    RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+                    dc.DrawRectangle(Brushes.Black, null, new Rect(0, 0, targetW, targetH));
+                    double fitScale = Math.Min(targetW / (double)src.PixelWidth, targetH / (double)src.PixelHeight);
+                    double drawW = src.PixelWidth * fitScale;
+                    double drawH = src.PixelHeight * fitScale;
+                    double left = (targetW - drawW) / 2.0;
+                    double top = (targetH - drawH) / 2.0;
+                    dc.DrawImage(src, new Rect(left, top, drawW, drawH));
                 }
 
-                using var skImg = SKImage.FromBitmap(fitted);
-                using var png = skImg.Encode(SKEncodedImageFormat.Png, 100);
-                frames.Add(ImageIO.DecodeBytes(png.ToArray()));
+                var fitted = new RenderTargetBitmap(targetW, targetH, 96, 96, PixelFormats.Pbgra32);
+                fitted.Render(visual);
+                fitted.Freeze();
+                frames.Add(fitted);
                 if (total > 0)
                 {
                     progress?.Report((int)Math.Round(frames.Count * 100.0 / total));

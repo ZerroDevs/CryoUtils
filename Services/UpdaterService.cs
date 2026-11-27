@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
@@ -116,6 +117,7 @@ namespace CryoUtils.Services
             if (root.TryGetProperty("assets", out var assets) &&
                 assets.ValueKind == JsonValueKind.Array)
             {
+                var candidates = new List<(string Name, string Url)>();
                 foreach (var asset in assets.EnumerateArray())
                 {
                     string name = asset.TryGetProperty("name", out var nameProperty)
@@ -124,25 +126,15 @@ namespace CryoUtils.Services
                     string url = asset.TryGetProperty("browser_download_url", out var urlProperty)
                         ? urlProperty.GetString() ?? ""
                         : "";
-                    if (string.IsNullOrEmpty(url))
+                    if (!string.IsNullOrEmpty(url))
                     {
-                        continue;
-                    }
-
-                    bool preferred =
-                        name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-                        name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
-                    if (!preferred)
-                    {
-                        continue;
-                    }
-                    assetName = name;
-                    assetUrl = url;
-                    if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        break;
+                        candidates.Add((name, url));
                     }
                 }
+
+                (assetName, assetUrl) = SelectPreferredAsset(
+                    candidates,
+                    IsSelfContainedInstallation(AppContext.BaseDirectory));
             }
 
             DateTime published = DateTime.MinValue;
@@ -254,7 +246,9 @@ namespace CryoUtils.Services
                 fileName.Contains("setup", StringComparison.OrdinalIgnoreCase) ||
                 fileName.Contains("install", StringComparison.OrdinalIgnoreCase);
             string applyLine = setupPackage
-                ? $"start \"\" /wait \"{installerPath}\" /S"
+                ? (installerPath.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)
+                    ? $"start \"\" /wait msiexec /i \"{installerPath}\" /qn /norestart"
+                    : $"start \"\" /wait \"{installerPath}\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART")
                 : $"copy /Y \"{installerPath}\" \"{exe}\" >nul";
 
             string script =
@@ -333,6 +327,60 @@ namespace CryoUtils.Services
             catch
             {
             }
+        }
+
+        internal static bool IsSelfContainedInstallation(string baseDirectory) =>
+            !string.IsNullOrWhiteSpace(baseDirectory) &&
+            File.Exists(Path.Combine(baseDirectory, "coreclr.dll"));
+
+        internal static (string Name, string Url) SelectPreferredAsset(
+            IEnumerable<(string Name, string Url)> assets,
+            bool isSelfContained)
+        {
+            string fallbackName = "";
+            string fallbackUrl = "";
+            string anyExeName = "";
+            string anyExeUrl = "";
+
+            foreach (var (name, url) in assets)
+            {
+                if (string.IsNullOrEmpty(url))
+                {
+                    continue;
+                }
+
+                bool isExe = name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+                bool isMsi = name.EndsWith(".msi", StringComparison.OrdinalIgnoreCase);
+                if (!isExe && !isMsi)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(fallbackUrl))
+                {
+                    fallbackName = name;
+                    fallbackUrl = url;
+                }
+
+                if (isExe)
+                {
+                    if (string.IsNullOrEmpty(anyExeUrl))
+                    {
+                        anyExeName = name;
+                        anyExeUrl = url;
+                    }
+
+                    bool isLite = name.Contains("-lite", StringComparison.OrdinalIgnoreCase);
+                    if (isSelfContained != isLite)
+                    {
+                        return (name, url);
+                    }
+                }
+            }
+
+            return !string.IsNullOrEmpty(anyExeUrl)
+                ? (anyExeName, anyExeUrl)
+                : (fallbackName, fallbackUrl);
         }
 
         private static string CurrentExePath

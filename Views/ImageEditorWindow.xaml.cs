@@ -677,18 +677,13 @@ namespace CryoUtils.Views
 
         private void PickCustomColor()
         {
-            var current = AnnotationRenderer.ParseColor(_colorHex);
-            using var dialog = new System.Windows.Forms.ColorDialog
-            {
-                FullOpen = true,
-                Color = System.Drawing.Color.FromArgb(current.R, current.G, current.B)
-            };
-            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+            string? hex = ColorDialogHelper.PickColorHex(this, _colorHex);
+            if (string.IsNullOrEmpty(hex))
             {
                 return;
             }
 
-            _colorHex = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+            _colorHex = hex;
             UpdateChromeState();
         }
 

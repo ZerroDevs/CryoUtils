@@ -65,7 +65,7 @@ jobs:
         shell: pwsh
         run: dotnet build CryoUtils.csproj -c Release --no-restore
 
-      - name: Publish self-contained Windows build
+      - name: Publish Full Offline and Lite Windows builds
         if: steps.version.outputs.skip != 'true'
         shell: pwsh
         run: |
@@ -80,7 +80,17 @@ jobs:
             "-p:Version=$version" `
             -o publish\win-x64
 
-      - name: Sign app executable
+          dotnet publish CryoUtils.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -p:PublishSingleFile=false `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            "-p:Version=$version" `
+            -o publish\win-x64-lite
+
+      - name: Sign app executables
         if: steps.version.outputs.skip != 'true' && env.SIGNING_PFX_BASE64 != ''
         shell: pwsh
         run: |
@@ -103,23 +113,24 @@ jobs:
             throw "signtool.exe was not found. Install the Windows SDK signing tools."
           }
 
-          $target = "publish\win-x64\CryoUtils.exe"
-          & $signtool.FullName sign `
-            /fd SHA256 `
-            /td SHA256 `
-            /tr http://timestamp.digicert.com `
-            /f $pfxPath `
-            /p $env:SIGNING_PFX_PASSWORD `
-            $target
+          foreach ($target in @("publish\win-x64\CryoUtils.exe", "publish\win-x64-lite\CryoUtils.exe")) {
+            & $signtool.FullName sign `
+              /fd SHA256 `
+              /td SHA256 `
+              /tr http://timestamp.digicert.com `
+              /f $pfxPath `
+              /p $env:SIGNING_PFX_PASSWORD `
+              $target
 
-          $signature = Get-AuthenticodeSignature -LiteralPath $target
-          if ($signature.Status -ne "Valid") {
-            throw "$target signature verification failed: $($signature.Status)."
+            $signature = Get-AuthenticodeSignature -LiteralPath $target
+            if ($signature.Status -ne "Valid") {
+              throw "$target signature verification failed: $($signature.Status)."
+            }
           }
 
           Remove-Item -LiteralPath $pfxPath -Force
 
-      - name: Build Inno Setup installer
+      - name: Build Full Offline and Lite Inno Setup installers
         if: steps.version.outputs.skip != 'true'
         shell: pwsh
         run: |
@@ -141,12 +152,14 @@ jobs:
             throw "ISCC.exe (Inno Setup 6.3 or newer) could not be found."
           }
 
-          & $iscc "/DAppVersion=$version" Installer\CryoUtils.iss
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
+          foreach ($variant in @("Full", "Lite")) {
+            & $iscc "/DAppVersion=$version" "/DVariant=$variant" Installer\CryoUtils.iss
+            if ($LASTEXITCODE -ne 0) {
+              throw "Inno Setup compilation ($variant) failed with exit code $LASTEXITCODE."
+            }
           }
 
-      - name: Sign installer
+      - name: Sign installers
         if: steps.version.outputs.skip != 'true' && env.SIGNING_PFX_BASE64 != ''
         shell: pwsh
         run: |
@@ -170,18 +183,22 @@ jobs:
             throw "signtool.exe was not found. Install the Windows SDK signing tools."
           }
 
-          $target = "Installer\Output\CryoUtils-Setup-$version.exe"
-          & $signtool.FullName sign `
-            /fd SHA256 `
-            /td SHA256 `
-            /tr http://timestamp.digicert.com `
-            /f $pfxPath `
-            /p $env:SIGNING_PFX_PASSWORD `
-            $target
+          foreach ($target in @(
+            "Installer\Output\CryoUtils-Setup-$version.exe",
+            "Installer\Output\CryoUtils-Lite-Setup-$version.exe"
+          )) {
+            & $signtool.FullName sign `
+              /fd SHA256 `
+              /td SHA256 `
+              /tr http://timestamp.digicert.com `
+              /f $pfxPath `
+              /p $env:SIGNING_PFX_PASSWORD `
+              $target
 
-          $signature = Get-AuthenticodeSignature -LiteralPath $target
-          if ($signature.Status -ne "Valid") {
-            throw "$target signature verification failed: $($signature.Status)."
+            $signature = Get-AuthenticodeSignature -LiteralPath $target
+            if ($signature.Status -ne "Valid") {
+              throw "$target signature verification failed: $($signature.Status)."
+            }
           }
 
           Remove-Item -LiteralPath $pfxPath -Force
@@ -197,15 +214,18 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $tag = "${{ steps.version.outputs.tag }}"
-          $zipName = "CryoUtils-$version-win-x64.zip"
           $setupName = "CryoUtils-Setup-$version.exe"
-          $setupSource = "Installer\Output\$setupName"
+          $zipName = "CryoUtils-$version-win-x64.zip"
+          $liteSetupName = "CryoUtils-Lite-Setup-$version.exe"
+          $liteZipName = "CryoUtils-Lite-$version-win-x64.zip"
           New-Item -ItemType Directory -Path release -Force | Out-Null
 
-          Copy-Item -LiteralPath $setupSource -Destination "release\$setupName" -Force
+          Copy-Item -LiteralPath "Installer\Output\$setupName" -Destination "release\$setupName" -Force
+          Copy-Item -LiteralPath "Installer\Output\$liteSetupName" -Destination "release\$liteSetupName" -Force
           Compress-Archive -Path "publish\win-x64\*" -DestinationPath "release\$zipName" -Force
+          Compress-Archive -Path "publish\win-x64-lite\*" -DestinationPath "release\$liteZipName" -Force
 
-          foreach ($artifact in @($setupName, $zipName)) {
+          foreach ($artifact in @($setupName, $zipName, $liteSetupName, $liteZipName)) {
             $hash = (Get-FileHash -LiteralPath "release\$artifact" -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $artifact" | Set-Content -LiteralPath "release\$artifact.sha256" -Encoding ascii
           }
@@ -230,8 +250,6 @@ jobs:
             $commits = @("- No code changes recorded.")
           }
 
-          $setupHashName = "$setupName.sha256"
-          $zipHashName = "$zipName.sha256"
           $notes = @(
             "# CryoUtils $tag",
             "",
@@ -241,8 +259,10 @@ jobs:
             "",
             "## Download",
             "",
-            "- **Installer (Recommended):** Download ``$setupName`` and verify it against ``$setupHashName``. It installs per-user under ``%LOCALAPPDATA%\Programs\CryoUtils`` and does not require elevation.",
-            "- **Portable Zip:** Download ``$zipName``, verify it against ``$zipHashName``, extract it, and run ``CryoUtils.exe``."
+            "- **Lite Installer (Recommended — smallest download, ~3.4 MB installed):** Download ``$liteSetupName`` (``$liteSetupName.sha256``). Installs per-user into ``%LOCALAPPDATA%\Programs\CryoUtils`` and automatically installs .NET 10 Desktop Runtime (x64) if not already present.",
+            "- **Full Offline Installer (No internet needed after download):** Download ``$setupName`` (``$setupName.sha256``). Works immediately without downloading any runtime.",
+            "- **Portable Zip (Full Offline):** Download ``$zipName`` (``$zipName.sha256``), extract, and run ``CryoUtils.exe``.",
+            "- **Portable Zip (Lite, requires .NET 10 Desktop Runtime x64):** Download ``$liteZipName`` (``$liteZipName.sha256``), extract, and run ``CryoUtils.exe``."
           ) -join "`n"
 
           Set-Content -LiteralPath "release\notes.md" -Value $notes -Encoding utf8
@@ -255,15 +275,21 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $tag = "${{ steps.version.outputs.tag }}"
-          $zipName = "CryoUtils-$version-win-x64.zip"
           $setupName = "CryoUtils-Setup-$version.exe"
+          $zipName = "CryoUtils-$version-win-x64.zip"
+          $liteSetupName = "CryoUtils-Lite-Setup-$version.exe"
+          $liteZipName = "CryoUtils-Lite-$version-win-x64.zip"
 
           $arguments = @(
             "release", "create", $tag,
+            "release\$liteSetupName",
+            "release\$liteSetupName.sha256",
             "release\$setupName",
             "release\$setupName.sha256",
             "release\$zipName",
             "release\$zipName.sha256",
+            "release\$liteZipName",
+            "release\$liteZipName.sha256",
             "--title", "CryoUtils $tag",
             "--notes-file", "release\notes.md"
           )

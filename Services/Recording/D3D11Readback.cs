@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using WinRT;
 
 namespace CryoUtils.Services.Recording
 {
@@ -93,7 +92,7 @@ namespace CryoUtils.Services.Recording
         }
 
         public bool TryRead(
-            Windows.Graphics.DirectX.Direct3D11.IDirect3DSurface surface,
+            IntPtr direct3DSurfacePtr,
             out byte[] pixels,
             out int width,
             out int height)
@@ -101,18 +100,27 @@ namespace CryoUtils.Services.Recording
             pixels = Array.Empty<byte>();
             width = _width;
             height = _height;
-            if (_disposed || surface == null || _staging == IntPtr.Zero)
+            if (_disposed || direct3DSurfacePtr == IntPtr.Zero || _staging == IntPtr.Zero)
             {
                 return false;
             }
 
             IntPtr source = IntPtr.Zero;
+            IntPtr accessPtr = IntPtr.Zero;
             bool mapped = false;
             try
             {
-                var access = surface.As<IDirect3DDxgiInterfaceAccess>();
+                Guid accessIid = typeof(IDirect3DDxgiInterfaceAccess).GUID;
+                if (Marshal.QueryInterface(direct3DSurfacePtr, in accessIid, out accessPtr) < 0 || accessPtr == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                var access = (IDirect3DDxgiInterfaceAccess)Marshal.GetObjectForIUnknown(accessPtr);
                 Guid iid = Texture2DGuid;
-                if (access.GetInterface(ref iid, out source) < 0 || source == IntPtr.Zero)
+                int hr = access.GetInterface(ref iid, out source);
+                Marshal.ReleaseComObject(access);
+                if (hr < 0 || source == IntPtr.Zero)
                 {
                     return false;
                 }
@@ -157,6 +165,10 @@ namespace CryoUtils.Services.Recording
                 if (source != IntPtr.Zero)
                 {
                     Marshal.Release(source);
+                }
+                if (accessPtr != IntPtr.Zero)
+                {
+                    Marshal.Release(accessPtr);
                 }
             }
         }

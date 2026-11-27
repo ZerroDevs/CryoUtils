@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Windows.Forms;
+using System.Runtime.InteropServices;
 using System.Windows.Input;
-using System.Windows.Interop;
 
 namespace CryoUtils.Services
 {
@@ -20,9 +19,10 @@ namespace CryoUtils.Services
         public const int WorkbenchHotkeyId = 9206;
         public const int ReplayHotkeyId = 9207;
         public const int LiveDrawHotkeyId = 9208;
+        public const int RepeatLastRegionHotkeyId = 9209;
 
         private readonly Dictionary<int, Registration> _registrations = new();
-        private HwndSource? _source;
+        private HotkeyMessageWindow? _window;
         private bool _disposed;
 
         public event Action<int>? HotkeyPressed;
@@ -35,24 +35,77 @@ namespace CryoUtils.Services
             public string Error = "";
         }
 
+        private sealed class HotkeyMessageWindow : IDisposable
+        {
+            private readonly Action<int> _onHotkey;
+            private readonly NativeMethods.WndProcDelegate _wndProc;
+            private readonly string _className;
+            private readonly IntPtr _hInstance;
+
+            public IntPtr Handle { get; private set; }
+
+            public HotkeyMessageWindow(Action<int> onHotkey)
+            {
+                _onHotkey = onHotkey;
+                _wndProc = WndProc;
+                _hInstance = NativeMethods.GetModuleHandleW(null);
+                _className = $"CryoUtils_Hotkeys_{Guid.NewGuid():N}";
+
+                var wc = new NativeMethods.WNDCLASSEXW
+                {
+                    cbSize = (uint)Marshal.SizeOf<NativeMethods.WNDCLASSEXW>(),
+                    lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProc),
+                    hInstance = _hInstance,
+                    lpszClassName = _className
+                };
+
+                if (NativeMethods.RegisterClassExW(ref wc) != 0)
+                {
+                    // HWND_MESSAGE avoids waking WPF/DirectX rendering when idle in tray.
+                    Handle = NativeMethods.CreateWindowExW(
+                        0,
+                        _className,
+                        "CryoUtilsHotkeys",
+                        0,
+                        0, 0, 0, 0,
+                        NativeMethods.HWND_MESSAGE,
+                        IntPtr.Zero,
+                        _hInstance,
+                        IntPtr.Zero);
+                }
+            }
+
+            private IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam)
+            {
+                if (msg == NativeMethods.WM_HOTKEY)
+                {
+                    _onHotkey(wParam.ToInt32());
+                    return IntPtr.Zero;
+                }
+
+                return NativeMethods.DefWindowProcW(hwnd, msg, wParam, lParam);
+            }
+
+            public void Dispose()
+            {
+                if (Handle != IntPtr.Zero)
+                {
+                    NativeMethods.DestroyWindow(Handle);
+                    Handle = IntPtr.Zero;
+                }
+
+                NativeMethods.UnregisterClassW(_className, _hInstance);
+            }
+        }
+
         public void Initialize()
         {
-            if (_source != null)
+            if (_window != null || _disposed)
             {
                 return;
             }
 
-            var parameters = new HwndSourceParameters("CryoUtilsHotkeys")
-            {
-                Width = 0,
-                Height = 0,
-                WindowStyle = 0,
-                ExtendedWindowStyle = 0,
-                ParentWindow = new IntPtr(-3)
-            };
-
-            _source = new HwndSource(parameters);
-            _source.AddHook(WndProc);
+            _window = new HotkeyMessageWindow(id => HotkeyPressed?.Invoke(id));
         }
 
         public bool Register(int id, string? modifiers, string? key, out string error)
@@ -60,7 +113,7 @@ namespace CryoUtils.Services
             Initialize();
             Unregister(id);
             error = "";
-            if (_source == null)
+            if (_window == null || _window.Handle == IntPtr.Zero)
             {
                 error = "No message window.";
                 return false;
@@ -88,7 +141,7 @@ namespace CryoUtils.Services
                 return false;
             }
 
-            bool ok = NativeMethods.RegisterHotKey(_source.Handle, id, fsModifiers, vk);
+            bool ok = NativeMethods.RegisterHotKey(_window.Handle, id, fsModifiers, vk);
             int lastError = ok ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
             _registrations[id] = new Registration
             {
@@ -105,14 +158,14 @@ namespace CryoUtils.Services
 
         public void Unregister(int id)
         {
-            if (_source == null)
+            if (_window == null || _window.Handle == IntPtr.Zero)
             {
                 return;
             }
 
             if (_registrations.TryGetValue(id, out var registration) && registration.Registered)
             {
-                NativeMethods.UnregisterHotKey(_source.Handle, id);
+                NativeMethods.UnregisterHotKey(_window.Handle, id);
             }
             _registrations.Remove(id);
         }
@@ -136,18 +189,6 @@ namespace CryoUtils.Services
             }
 
             return registration.Registered ? "" : registration.Error;
-        }
-
-        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-        {
-            if (msg == NativeMethods.WM_HOTKEY)
-            {
-                int id = wParam.ToInt32();
-                HotkeyPressed?.Invoke(id);
-                handled = true;
-            }
-
-            return IntPtr.Zero;
         }
 
         public static bool TryCaptureShortcut(
@@ -252,14 +293,24 @@ namespace CryoUtils.Services
                 return (uint)('0' + (trimmed[1] - '0'));
             }
 
-            if (string.Equals(trimmed, "PrintScreen", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(trimmed, "PrintScreen", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(trimmed, "Snapshot", StringComparison.OrdinalIgnoreCase))
             {
                 return 0x2C;
             }
 
-            if (Enum.TryParse<Keys>(trimmed, true, out var keyVal) && keyVal != Keys.None)
+            if (string.Equals(trimmed, "Pause", StringComparison.OrdinalIgnoreCase))
             {
-                return (uint)keyVal;
+                return 0x13;
+            }
+
+            if (Enum.TryParse<Key>(trimmed, true, out var wpfKey) && wpfKey != Key.None)
+            {
+                int vk = KeyInterop.VirtualKeyFromKey(wpfKey);
+                if (vk > 0)
+                {
+                    return (uint)vk;
+                }
             }
 
             if (trimmed.Length == 1 && char.IsAsciiLetter(trimmed[0]))
@@ -289,11 +340,10 @@ namespace CryoUtils.Services
 
             _disposed = true;
             UnregisterAll();
-            if (_source != null)
+            if (_window != null)
             {
-                _source.RemoveHook(WndProc);
-                _source.Dispose();
-                _source = null;
+                _window.Dispose();
+                _window = null;
             }
         }
     }

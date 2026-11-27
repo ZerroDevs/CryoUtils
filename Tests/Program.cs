@@ -285,6 +285,190 @@ namespace CryoUtils.Tests
                 AssertTrue(controller.SelectedAnnotation == null);
             });
 
+            Test("in-place annotation styling, text edit, and screenshot-only defaults behave cleanly", () =>
+            {
+                var defaults = new AppSettings();
+                AssertTrue(!defaults.ScreenshotOnlyMode);
+                AssertTrue(!defaults.LastCaptureWidth.HasValue);
+
+                var controller = CryoUtils.Views.CaptureController.Instance;
+                controller.Annotations.Clear();
+                var label = new Annotation
+                {
+                    Kind = AnnotationKind.Text,
+                    Color = "#E5534B",
+                    Thickness = 3,
+                    FontSize = 18,
+                    Text = "Old"
+                };
+                controller.AddAnnotation(label);
+                controller.SetSelectedAnnotation(label);
+
+                AssertTrue(controller.UpdateSelectedAnnotationStyle(color: "#3FBF7F", thickness: 7));
+                AssertEqual("#3FBF7F", label.Color);
+                AssertNear(7.0, label.Thickness, 0.001);
+                AssertNear(42.0, label.FontSize, 0.001);
+
+                controller.UpdateSelectedText(label, "Updated", isRtl: false);
+                AssertEqual("Updated", label.Text);
+                AssertEqual(1, controller.Annotations.Count);
+
+                controller.Undo();
+                AssertEqual("Old", controller.Annotations[0].Text);
+
+                controller.UpdateSelectedText(controller.Annotations[0], "", isRtl: false);
+                AssertEqual(0, controller.Annotations.Count);
+
+                var bytes = new byte[16 * 16 * 4];
+                var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                    16, 16, 96, 96, PixelFormats.Bgra32, null, bytes, 64);
+                var blur = new Annotation
+                {
+                    Kind = AnnotationKind.Blur,
+                    Thickness = 3,
+                    Rect = new Rect(0, 0, 8, 8),
+                    PixelPreview = bmp
+                };
+                controller.AddAnnotation(blur);
+                controller.SetSelectedAnnotation(blur);
+                AssertTrue(controller.UpdateSelectedAnnotationStyle(thickness: 5));
+                AssertTrue(blur.PixelPreview == null);
+            });
+
+            Test("virtual key resolution works without WinForms", () =>
+            {
+                AssertEqual(0x2Cu, GlobalHotkeyService.ResolveVirtualKey("PrintScreen"));
+                AssertEqual(0x13u, GlobalHotkeyService.ResolveVirtualKey("Pause"));
+                AssertEqual(0x78u, GlobalHotkeyService.ResolveVirtualKey("F9"));
+                AssertEqual(0x35u, GlobalHotkeyService.ResolveVirtualKey("D5"));
+                AssertEqual(0x35u, GlobalHotkeyService.ResolveVirtualKey("5"));
+                AssertEqual(0x53u, GlobalHotkeyService.ResolveVirtualKey("S"));
+                AssertEqual(0x21u, GlobalHotkeyService.ResolveVirtualKey("PageUp"));
+                AssertEqual(0x22u, GlobalHotkeyService.ResolveVirtualKey("PageDown"));
+                AssertEqual(0x24u, GlobalHotkeyService.ResolveVirtualKey("Home"));
+                AssertEqual(0x2Du, GlobalHotkeyService.ResolveVirtualKey("Insert"));
+                AssertEqual(0u, GlobalHotkeyService.ResolveVirtualKey(""));
+            });
+
+            Test("updater selects matching variant setup asset", () =>
+            {
+                var assets = new[]
+                {
+                    ("CryoUtils-Lite-Setup-0.0.101.exe", "https://example.com/lite.exe"),
+                    ("CryoUtils-Setup-0.0.101.exe", "https://example.com/full.exe")
+                };
+
+                var lite = UpdaterService.SelectPreferredAsset(assets, isSelfContained: false);
+                AssertEqual("CryoUtils-Lite-Setup-0.0.101.exe", lite.Name);
+
+                var full = UpdaterService.SelectPreferredAsset(assets, isSelfContained: true);
+                AssertEqual("CryoUtils-Setup-0.0.101.exe", full.Name);
+            });
+
+            Test("color dialog COLORREF round-trip matches #RRGGBB", () =>
+            {
+                var input = Color.FromRgb(0x2B, 0x88, 0xD8);
+                uint colorRef = ColorDialogHelper.ColorToColorRef(input);
+                AssertEqual(0x00D8882Bu, colorRef);
+                AssertEqual("#2B88D8", ColorDialogHelper.ColorRefToHex(colorRef));
+            });
+
+            Test("screenshot-only overlay keeps OCR and QR while hiding Upload, Record, and Pin", () =>
+            {
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Ocr", screenshotOnly: true));
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Qr", screenshotOnly: true));
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Copy", screenshotOnly: true));
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Save", screenshotOnly: true));
+                AssertTrue(!Views.CaptureOverlayWindow.IsOverlayActionVisible("Upload", screenshotOnly: true));
+                AssertTrue(!Views.CaptureOverlayWindow.IsOverlayActionVisible("Record", screenshotOnly: true));
+                AssertTrue(!Views.CaptureOverlayWindow.IsOverlayActionVisible("Pin", screenshotOnly: true));
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Upload", screenshotOnly: false));
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Record", screenshotOnly: false));
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Pin", screenshotOnly: false));
+            });
+
+            Test("native WebP encoder produces valid RIFF WEBP VP8L container", () =>
+            {
+                var px = new byte[16 * 16 * 4];
+                for (int i = 0; i < px.Length; i += 4)
+                {
+                    px[i] = 0x33;
+                    px[i + 1] = 0x66;
+                    px[i + 2] = 0xCC;
+                    px[i + 3] = 0xFF;
+                }
+
+                var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                    16, 16, 96, 96, PixelFormats.Bgra32, null, px, 16 * 4);
+                bmp.Freeze();
+
+                byte[] webp = SimpleWebpEncoder.Encode(bmp);
+                AssertTrue(webp.Length > 24);
+                AssertEqual("RIFF", Encoding.ASCII.GetString(webp, 0, 4));
+                AssertEqual("WEBP", Encoding.ASCII.GetString(webp, 8, 4));
+                AssertEqual("VP8L", Encoding.ASCII.GetString(webp, 12, 4));
+            });
+
+            Test("WIC image processing, compression, and WinRT PDF round-trip work without SkiaSharp or Windows.SDK.NET", () =>
+            {
+                string folder = Path.Combine(Path.GetTempPath(), "CryoUtils.Tests", Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(folder);
+                try
+                {
+                    var px = new byte[64 * 48 * 4];
+                    for (int y = 0; y < 48; y++)
+                    {
+                        for (int x = 0; x < 64; x++)
+                        {
+                            int idx = (y * 64 + x) * 4;
+                            px[idx] = (byte)(x * 3);
+                            px[idx + 1] = (byte)(y * 5);
+                            px[idx + 2] = 180;
+                            px[idx + 3] = (byte)(x < 8 ? 0 : 255);
+                        }
+                    }
+
+                    var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                        64, 48, 96, 96, PixelFormats.Bgra32, null, px, 64 * 4);
+                    bmp.Freeze();
+
+                    string pngPath = Path.Combine(folder, "sample.png");
+                    File.WriteAllBytes(pngPath, ImageIO.EncodePng(bmp));
+
+                    string jpgPath = Path.Combine(folder, "sample.jpg");
+                    ImageProcessingService.ConvertFormat(pngPath, jpgPath, "JPG");
+                    AssertTrue(File.Exists(jpgPath) && new FileInfo(jpgPath).Length > 0);
+
+                    string icoPath = Path.Combine(folder, "sample.ico");
+                    ImageProcessingService.ConvertFormat(pngPath, icoPath, "ICO");
+                    byte[] icoBytes = File.ReadAllBytes(icoPath);
+                    AssertTrue(icoBytes.Length > 22 && icoBytes[2] == 1 && icoBytes[3] == 0);
+
+                    string flatPath = Path.Combine(folder, "flat.png");
+                    ImageProcessingService.FlattenWhite(pngPath, flatPath);
+                    AssertTrue(File.Exists(flatPath) && new FileInfo(flatPath).Length > 0);
+
+                    var compressed = CompressionService.CompressAsync(pngPath, "Custom", 75, 100).GetAwaiter().GetResult();
+                    AssertTrue(compressed.Data.Length > 0);
+
+                    string pdfPath = Path.Combine(folder, "doc.pdf");
+                    int added = PdfToolsService.ImagesToPdf(new[] { pngPath, jpgPath }, pdfPath);
+                    AssertEqual(2, added);
+
+                    uint pages = WinRtBridge.GetPdfPageCountAsync(pdfPath).GetAwaiter().GetResult();
+                    AssertEqual(2u, pages);
+
+                    string compressedPdfPath = Path.Combine(folder, "doc_compressed.pdf");
+                    PdfToolsService.CompressPdfAsync(pdfPath, compressedPdfPath, 65).GetAwaiter().GetResult();
+                    AssertTrue(File.Exists(compressedPdfPath) && new FileInfo(compressedPdfPath).Length > 0);
+                    AssertEqual(2u, WinRtBridge.GetPdfPageCountAsync(compressedPdfPath).GetAwaiter().GetResult());
+                }
+                finally
+                {
+                    try { Directory.Delete(folder, true); } catch { }
+                }
+            });
+
             if (Environment.GetEnvironmentVariable("CRYO_RECORDER_SMOKE") == "1")
             {
                 Test("media foundation encoder and replay remux smoke", () =>
@@ -342,6 +526,24 @@ namespace CryoUtils.Tests
                         Console.WriteLine($"SMOKE remux bytes={new FileInfo(output).Length}");
                         AssertTrue(new FileInfo(output).Length > 1000);
                         AssertMediaTracks(output, video: true, audio: true);
+
+                        string trimmed = Path.Combine(folder, "trimmed.mp4");
+                        MediaConversionService.TrimVideoAsync(output, trimmed, 0.2, 1.5).GetAwaiter().GetResult();
+                        AssertTrue(new FileInfo(trimmed).Length > 1000);
+                        AssertMediaTracks(trimmed, video: true, audio: true);
+
+                        string muted = Path.Combine(folder, "muted.mp4");
+                        MediaConversionService.MuteVideoAsync(output, muted).GetAwaiter().GetResult();
+                        AssertTrue(new FileInfo(muted).Length > 1000);
+                        AssertMediaTracks(muted, video: true, audio: false);
+
+                        string wav = Path.Combine(folder, "audio.wav");
+                        MediaConversionService.ConvertAudioAsync(output, wav, "WAV").GetAwaiter().GetResult();
+                        AssertTrue(new FileInfo(wav).Length > 44);
+
+                        string thumb = Path.Combine(folder, "thumb.png");
+                        MediaConversionService.SaveThumbnailAsync(output, thumb).GetAwaiter().GetResult();
+                        AssertTrue(new FileInfo(thumb).Length > 100);
                     }
                     finally
                     {
@@ -496,7 +698,7 @@ namespace CryoUtils.Tests
             catch (Exception ex)
             {
                 _failures++;
-                Console.WriteLine($"FAIL {name}: {ex.Message}");
+                Console.WriteLine($"FAIL {name}: {ex}");
             }
         }
 

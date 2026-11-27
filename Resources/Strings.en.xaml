@@ -947,4 +947,16 @@
     <sys:String x:Key="Dev_Ready">Ready</sys:String>
     <sys:String x:Key="Dev_MatchCount">{0} match(es)</sys:String>
     <sys:String x:Key="Dev_Error">Invalid input</sys:String>
+
+    <sys:String x:Key="General_ScreenshotOnly">Screenshot-only mode (Lite)</sys:String>
+    <sys:String x:Key="General_ScreenshotOnlyDesc">Runs only screenshot capture with a minimal tray menu and pauses video replay, clipboard history, pinner, and auto-updates.</sys:String>
+    <sys:String x:Key="Tray_ScreenshotOnly">Screenshot-only mode</sys:String>
+    <sys:String x:Key="Tray_RepeatLastRegion">Capture last region</sys:String>
+    <sys:String x:Key="Capture_NoLastRegion">No previous capture region saved yet.</sys:String>
+    <sys:String x:Key="Main_ScreenshotOnlyBadge">Screenshot-Only</sys:String>
+    <sys:String x:Key="Overview_ScreenshotOnlyTitle">Screenshot-Only Mode (Lite) is active</sys:String>
+    <sys:String x:Key="Overview_ScreenshotOnlyBody">Tray left-click takes screenshots directly. Replay, clipboard history, pinner, and extra tools are paused to minimize RAM.</sys:String>
+    <sys:String x:Key="Overview_RestoreFullMode">Restore Full Mode</sys:String>
+    <sys:String x:Key="Toast_ScreenshotOnlyEnabled">Screenshot-Only mode active — tray click captures directly and extra modules are paused.</sys:String>
+    <sys:String x:Key="Module_PausedInLite">Paused in Screenshot-Only mode</sys:String>
 </ResourceDictionary>

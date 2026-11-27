@@ -54,6 +54,49 @@ namespace CryoUtils.Services
             }
         }
 
+        public static void SyncIfNeeded(bool enable)
+        {
+            if (!enable)
+            {
+                if (IsEnabled())
+                {
+                    UnregisterAll();
+                }
+                return;
+            }
+
+            if (IsRegistrationCurrent())
+            {
+                return;
+            }
+
+            RegisterAll();
+        }
+
+        private static bool IsRegistrationCurrent()
+        {
+            try
+            {
+                string exePath = Process.GetCurrentProcess().MainModule?.FileName
+                    ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "CryoUtils.exe");
+                using var cmdKey = Registry.CurrentUser.OpenSubKey($@"{SystemAssocRoot}\.png\shell\{MenuName}\shell\02_quick_compress\command");
+                string? registeredCmd = cmdKey?.GetValue("") as string;
+                string expectedCmd = $"\"{exePath}\" --action quick-compress \"%1\"";
+                if (!string.Equals(registeredCmd, expectedCmd, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                using var convertKey = Registry.CurrentUser.OpenSubKey($@"{SystemAssocRoot}\.png\shell\{ConvertMenuName}");
+                string? convertLabel = convertKey?.GetValue("MUIVerb") as string;
+                return string.Equals(convertLabel, LocalizationService.Get("Context_TopConvert"), StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static void RegisterAll()
         {
             UnregisterAll();

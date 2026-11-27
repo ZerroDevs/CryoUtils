@@ -50,6 +50,7 @@ namespace CryoUtils.Views
         private Rect _annotationStartRect;
         private List<Point> _annotationStartPoints = new();
         private Point _textAnchorPhysical;
+        private Annotation? _editingTextAnnotation;
         private bool _textCommitting;
         private Rect _toolbarBounds = Rect.Empty;
         private Rect _actionToolbarBounds = Rect.Empty;
@@ -127,6 +128,7 @@ namespace CryoUtils.Views
         protected override void OnClosed(EventArgs e)
         {
             Controller.StateChanged -= OnStateChanged;
+            Surface.ReleaseBitmap();
             Controller.RemoveOverlay(this);
             base.OnClosed(e);
             if (!Controller.IsClosing)
@@ -200,20 +202,42 @@ namespace CryoUtils.Views
             };
             AnnotationToolbar.Children.Add(_thicknessText);
 
+            bool screenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
             AddActionButton(CryoIcons.Copy, "Capture_ToolCopy", () => Controller.CopySelection());
             AddActionButton(CryoIcons.Save, "Capture_ToolSave", () => Controller.SaveSelection(quick: false));
-            AddActionButton(CryoIcons.CloudUpload, "Capture_ToolUpload", () => Controller.UploadSelectionAsync());
-            AddActionButton(CryoIcons.Record, "Capture_ToolRecord", () => Controller.BeginRecording());
+            if (IsOverlayActionVisible("Upload", screenshotOnly))
+            {
+                AddActionButton(CryoIcons.CloudUpload, "Capture_ToolUpload", () => Controller.UploadSelectionAsync());
+            }
+            if (IsOverlayActionVisible("Record", screenshotOnly))
+            {
+                AddActionButton(CryoIcons.Record, "Capture_ToolRecord", () => Controller.BeginRecording());
+            }
             AddActionButton(CryoIcons.Scroll, "Capture_ToolScroll", () => Controller.StartScrollingCapture());
             AddActionSeparator();
             AddActionButton(CryoIcons.Ocr, "Capture_ToolOcr", () => Controller.OcrSelection());
             AddActionButton(CryoIcons.QrCode, "Capture_ToolQr", () => Controller.QrSelection());
-            AddActionButton(CryoIcons.Pin, "Capture_ToolPin", () => Controller.PinSelection());
+            if (IsOverlayActionVisible("Pin", screenshotOnly))
+            {
+                AddActionButton(CryoIcons.Pin, "Capture_ToolPin", () => Controller.PinSelection());
+            }
             AddActionButton(CryoIcons.Print, "Capture_ToolPrint", () => Controller.PrintSelection());
             AddActionSeparator();
             AddActionButton(CryoIcons.Close, "Capture_ToolClose", () => Controller.CloseAll());
 
             UpdateToolStyles();
+        }
+
+        internal static bool IsOverlayActionVisible(string actionName, bool screenshotOnly)
+        {
+            if (!screenshotOnly)
+            {
+                return true;
+            }
+
+            return !string.Equals(actionName, "Upload", StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(actionName, "Record", StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(actionName, "Pin", StringComparison.OrdinalIgnoreCase);
         }
 
         private void AddToolButton(
@@ -618,6 +642,17 @@ namespace CryoUtils.Views
 
             if (e.ClickCount == 2 && Controller.Tool == CaptureTool.Select)
             {
+                var hitText = Controller.Selection.HasValue && Controller.Selection.Value.Contains(global)
+                    ? HitTestAnnotation(global)
+                    : null;
+                if (hitText != null && hitText.Kind == AnnotationKind.Text)
+                {
+                    SelectAnnotation(hitText);
+                    ShowTextEditor(hitText.Rect.TopLeft, hitText);
+                    e.Handled = true;
+                    return;
+                }
+
                 SelectWindowUnderCursor(global);
                 e.Handled = true;
                 return;
@@ -1184,17 +1219,29 @@ namespace CryoUtils.Views
         private void Surface_MouseWheel(object sender, MouseWheelEventArgs e)
         {
             double step = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 0.5 : 1;
-            Controller.SetThickness(Controller.Thickness + (e.Delta > 0 ? step : -step));
-            ShowThicknessPreview(e.GetPosition(Surface));
+            double delta = e.Delta > 0 ? step : -step;
+            if (Controller.Tool == CaptureTool.Select &&
+                Controller.SelectedAnnotation != null &&
+                Controller.Annotations.Contains(Controller.SelectedAnnotation))
+            {
+                double nextThickness = Math.Clamp(Controller.SelectedAnnotation.Thickness + delta, 1, 24);
+                Controller.UpdateSelectedAnnotationStyle(thickness: nextThickness, coalesceUndo: true);
+                ShowThicknessPreview(e.GetPosition(Surface), nextThickness);
+                e.Handled = true;
+                return;
+            }
+
+            Controller.SetThickness(Controller.Thickness + delta);
+            ShowThicknessPreview(e.GetPosition(Surface), Controller.Thickness);
             e.Handled = true;
         }
 
-        private void ShowThicknessPreview(Point local)
+        private void ShowThicknessPreview(Point local, double thickness)
         {
             ThicknessText.Text = LocalizationService.Format(
                 "Capture_SizePreview",
-                Math.Round(Controller.Thickness, 1));
-            double dot = Math.Clamp(Controller.Thickness * 1.2, 3, 20);
+                Math.Round(thickness, 1));
+            double dot = Math.Clamp(thickness * 1.2, 3, 20);
             ThicknessDot.Width = dot;
             ThicknessDot.Height = dot;
             ThicknessPreview.Visibility = Visibility.Visible;
@@ -1569,6 +1616,7 @@ namespace CryoUtils.Views
                 button.Click += (_, _) =>
                 {
                     Controller.SetColor(hex);
+                    Controller.UpdateSelectedAnnotationStyle(color: hex);
                     SettingsService.Instance.Current.AnnotationColor = hex;
                     SettingsService.Instance.Save();
                     if (_colorPopup != null)
@@ -1618,41 +1666,42 @@ namespace CryoUtils.Views
 
         private void PickCustomColor()
         {
-            using var dialog = new System.Windows.Forms.ColorDialog
-            {
-                FullOpen = true,
-                Color = System.Drawing.Color.FromArgb(
-                    AnnotationRenderer.ParseColor(Controller.CurrentColor).R,
-                    AnnotationRenderer.ParseColor(Controller.CurrentColor).G,
-                    AnnotationRenderer.ParseColor(Controller.CurrentColor).B)
-            };
-            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
+            string? hex = ColorDialogHelper.PickColorHex(this, Controller.CurrentColor);
+            if (string.IsNullOrEmpty(hex))
             {
                 return;
             }
 
-            string hex = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
             Controller.SetColor(hex);
+            Controller.UpdateSelectedAnnotationStyle(color: hex);
             SettingsService.Instance.Current.AnnotationColor = hex;
             SettingsService.Instance.Save();
         }
 
         // ============================ Text tool ============================
-        private void ShowTextEditor(Point global)
+        private void ShowTextEditor(Point global, Annotation? existing = null)
         {
-            _textAnchorPhysical = global;
-            var local = ToLocalDip(global);
-            TextEditor.Text = "";
-            TextEditor.FontSize = Math.Max(11, Controller.Thickness * 6 / Scale);
-            TextEditor.Foreground = new SolidColorBrush(AnnotationRenderer.ParseColor(Controller.CurrentColor));
-            TextEditor.FlowDirection = FlowDirection.LeftToRight;
-            TextEditor.TextAlignment = TextAlignment.Left;
+            _editingTextAnnotation = existing;
+            _textAnchorPhysical = existing != null ? existing.Rect.TopLeft : global;
+            var local = ToLocalDip(_textAnchorPhysical);
+            string colorHex = existing?.Color ?? Controller.CurrentColor;
+            double fontSize = existing != null
+                ? Math.Max(11, existing.FontSize / Scale)
+                : Math.Max(11, Controller.Thickness * 6 / Scale);
+
+            TextEditor.Text = existing?.Text ?? "";
+            TextEditor.FontSize = fontSize;
+            TextEditor.Foreground = new SolidColorBrush(AnnotationRenderer.ParseColor(colorHex));
+            bool rtl = existing?.IsRtl ?? ContainsArabic(TextEditor.Text);
+            TextEditor.FlowDirection = rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+            TextEditor.TextAlignment = rtl ? TextAlignment.Right : TextAlignment.Left;
             TextEditor.Visibility = Visibility.Visible;
             TextEditor.Width = Math.Max(140, Math.Min(320, ActualWidth - local.X - 20));
             Canvas.SetLeft(TextEditor, Math.Clamp(local.X, 4, Math.Max(4, ActualWidth - TextEditor.Width - 8)));
             Canvas.SetTop(TextEditor, Math.Clamp(local.Y, 4, Math.Max(4, ActualHeight - 40)));
             TextEditor.Focus();
             Keyboard.Focus(TextEditor);
+            TextEditor.CaretIndex = TextEditor.Text.Length;
         }
 
         private void TextEditor_TextChanged(object sender, TextChangedEventArgs e)
@@ -1713,8 +1762,16 @@ namespace CryoUtils.Views
             try
             {
                 string text = TextEditor.Text.Trim();
+                var editingTarget = _editingTextAnnotation;
+                _editingTextAnnotation = null;
                 TextEditor.Visibility = Visibility.Collapsed;
                 TextEditor.Text = "";
+                if (editingTarget != null)
+                {
+                    Controller.UpdateSelectedText(editingTarget, text, ContainsArabic(text));
+                    return;
+                }
+
                 if (string.IsNullOrEmpty(text))
                 {
                     return;
@@ -1740,6 +1797,7 @@ namespace CryoUtils.Views
         private void CancelText()
         {
             _textCommitting = true;
+            _editingTextAnnotation = null;
             TextEditor.Visibility = Visibility.Collapsed;
             TextEditor.Text = "";
             _textCommitting = false;

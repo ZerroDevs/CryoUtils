@@ -1,17 +1,10 @@
 using System;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
-using Windows.Graphics;
-using Windows.Graphics.Capture;
-using Windows.Graphics.DirectX;
-using Windows.Graphics.DirectX.Direct3D11;
-using Windows.Graphics.Imaging;
-using WinRT;
 
 namespace CryoUtils.Services.Recording
 {
@@ -28,27 +21,24 @@ namespace CryoUtils.Services.Recording
     }
 
     /// <summary>
-    /// Windows.Graphics.Capture monitor capture with a CPU readback. The monitor
-    /// frame is cropped to the selected physical region before it is handed to
-    /// the encoder. WGC is deliberately kept behind this small interface so a
-    /// GDI fallback can be used on older or blocked systems.
+    /// Windows.Graphics.Capture monitor capture with CPU readback via WinRtBridge,
+    /// eliminating the 24.2 MB Microsoft.Windows.SDK.NET projection.
     /// </summary>
     internal sealed class WgcCaptureEngine : ICaptureEngine
     {
-        private static readonly Guid GraphicsCaptureItemGuid =
-            new("79C3F95B-31F7-4EC2-A464-632EF5D30760");
-
         private readonly IntPtr _monitor;
         private readonly NativeMethods.RECT _monitorBounds;
-        private readonly System.Windows.Int32Rect _region;
+        private readonly Int32Rect _region;
         private const int FramePoolBufferCount = 4;
         private const int FrameQueueCapacity = 4;
         private readonly SemaphoreSlim _copyGate = new(1, 1);
         private BlockingCollection<CaptureFrame>? _frames;
         private Thread? _worker;
-        private Direct3D11CaptureFramePool? _framePool;
-        private GraphicsCaptureSession? _session;
-        private IDirect3DDevice? _device;
+        private IntPtr _framePool;
+        private IntPtr _session;
+        private IntPtr _device;
+        private WinRtBridge.AgileTypedEventHandler? _frameHandler;
+        private long _frameToken;
         private D3D11Readback? _readback;
         private bool _running;
         private volatile bool _paused;
@@ -63,7 +53,7 @@ namespace CryoUtils.Services.Recording
         public bool IsUsingWgc => true;
         public int DroppedFrames => Volatile.Read(ref _dropped);
 
-        public WgcCaptureEngine(IntPtr monitor, NativeMethods.RECT monitorBounds, System.Windows.Int32Rect region)
+        public WgcCaptureEngine(IntPtr monitor, NativeMethods.RECT monitorBounds, Int32Rect region)
         {
             _monitor = monitor;
             _monitorBounds = monitorBounds;
@@ -85,51 +75,52 @@ namespace CryoUtils.Services.Recording
             };
             _worker.Start();
 
-            var item = CreateItem(_monitor);
-            var size = item.Size;
-            if (size.Width <= 0 || size.Height <= 0)
+            IntPtr item = WinRtBridge.CreateCaptureItemForMonitor(_monitor, out var size);
+            try
             {
-                size = new SizeInt32
+                if (size.Width <= 0 || size.Height <= 0)
                 {
-                    Width = Math.Max(1, _monitorBounds.Width),
-                    Height = Math.Max(1, _monitorBounds.Height)
-                };
-            }
+                    size = new WinRtBridge.SizeInt32
+                    {
+                        Width = Math.Max(1, _monitorBounds.Width),
+                        Height = Math.Max(1, _monitorBounds.Height)
+                    };
+                }
 
-            var device = CreateDevice(size.Width, size.Height);
-            _device = device.Device;
-            _readback = device.Readback;
-            _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-                _device,
-                DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                FramePoolBufferCount,
-                size);
-            _session = _framePool.CreateCaptureSession(item);
-            _session.IsCursorCaptureEnabled = true;
-            _framePool.FrameArrived += FramePool_FrameArrived;
-            _running = true;
-            _session.StartCapture();
+                var device = CreateDevice(size.Width, size.Height);
+                _device = device.DevicePtr;
+                _readback = device.Readback;
+                _framePool = WinRtBridge.CreateFreeThreadedFramePool(_device, FramePoolBufferCount, size);
+                _session = WinRtBridge.CreateCaptureSession(_framePool, item);
+                _frameHandler = new WinRtBridge.AgileTypedEventHandler(OnFrameArrived);
+                _frameToken = WinRtBridge.AddFrameArrivedHandler(_framePool, _frameHandler.ComPointer);
+                _running = true;
+                WinRtBridge.StartCaptureSession(_session);
+            }
+            finally
+            {
+                WinRtBridge.SafeRelease(ref item);
+            }
         }
 
-        private async void FramePool_FrameArrived(Direct3D11CaptureFramePool sender, object args)
+        private async void OnFrameArrived()
         {
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
-            if (!_running)
+            IntPtr pool = _framePool;
+            if (!_running || pool == IntPtr.Zero)
             {
                 return;
             }
 
-            var frame = sender.TryGetNextFrame();
-            if (frame == null)
+            IntPtr frame = WinRtBridge.TryGetNextCaptureFrame(pool);
+            if (frame == IntPtr.Zero)
             {
                 return;
             }
 
             if (_paused)
             {
-                // Keep draining the pool while paused. Leaving a frame pending
-                // fills the pool and stops FrameArrived from ever firing again.
-                frame.Dispose();
+                WinRtBridge.CloseAndRelease(ref frame);
                 return;
             }
 
@@ -137,58 +128,50 @@ namespace CryoUtils.Services.Recording
             if (!await _copyGate.WaitAsync(50).ConfigureAwait(false))
             {
                 Interlocked.Increment(ref _dropped);
-                frame.Dispose();
+                WinRtBridge.CloseAndRelease(ref frame);
                 return;
             }
 
             LastWaitTicks = System.Diagnostics.Stopwatch.GetTimestamp() - waitStarted;
+            IntPtr surface = IntPtr.Zero;
             try
             {
-                using (frame)
+                surface = WinRtBridge.GetCaptureFrameSurface(frame);
+                if (surface == IntPtr.Zero)
                 {
-                    if (_readback != null)
-                    {
-                        long readStarted = System.Diagnostics.Stopwatch.GetTimestamp();
-                        bool read = _readback.TryRead(
-                            frame.Surface,
-                            out var gpuPixels,
-                            out int gpuWidth,
-                            out int gpuHeight);
-                        LastReadTicks = System.Diagnostics.Stopwatch.GetTimestamp() - readStarted;
-                        if (read)
-                        {
-                            EnqueuePixels(gpuPixels, gpuWidth, gpuHeight);
-                            return;
-                        }
-                    }
+                    return;
+                }
 
-                    using var bitmap = await SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface);
-                    if (bitmap == null)
+                if (_readback != null)
+                {
+                    long readStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+                    bool read = _readback.TryRead(
+                        surface,
+                        out var gpuPixels,
+                        out int gpuWidth,
+                        out int gpuHeight);
+                    LastReadTicks = System.Diagnostics.Stopwatch.GetTimestamp() - readStarted;
+                    if (read)
                     {
+                        EnqueuePixels(gpuPixels, gpuWidth, gpuHeight);
                         return;
                     }
+                }
 
-                    int width = bitmap.PixelWidth;
-                    int height = bitmap.PixelHeight;
-                    int stride = width * 4;
-                    var pixels = new byte[stride * height];
-                    var buffer = new Windows.Storage.Streams.Buffer((uint)pixels.Length);
-                    bitmap.CopyToBuffer(buffer);
-                    using (var reader = Windows.Storage.Streams.DataReader.FromBuffer(buffer))
-                    {
-                        reader.ReadBytes(pixels);
-                    }
-
-                    EnqueuePixels(pixels, width, height);
+                var fallback = await WinRtBridge.ReadSurfaceFallbackAsync(surface).ConfigureAwait(false);
+                if (fallback.HasValue)
+                {
+                    EnqueuePixels(fallback.Value.Pixels, fallback.Value.Width, fallback.Value.Height);
                 }
             }
             catch
             {
-                // A transient frame or readback failure must not stop a recording.
                 Interlocked.Increment(ref _dropped);
             }
             finally
             {
+                WinRtBridge.SafeRelease(ref surface);
+                WinRtBridge.CloseAndRelease(ref frame);
                 LastTotalTicks = System.Diagnostics.Stopwatch.GetTimestamp() - started;
                 _copyGate.Release();
             }
@@ -290,22 +273,7 @@ namespace CryoUtils.Services.Recording
             return result;
         }
 
-        private static GraphicsCaptureItem CreateItem(IntPtr monitor)
-        {
-            var interop = GraphicsCaptureItem.As<IGraphicsCaptureItemInterop>();
-            Guid iid = GraphicsCaptureItemGuid;
-            IntPtr pointer = interop.CreateForMonitor(monitor, ref iid);
-            try
-            {
-                return GraphicsCaptureItem.FromAbi(pointer);
-            }
-            finally
-            {
-                Marshal.Release(pointer);
-            }
-        }
-
-        private static (IDirect3DDevice Device, D3D11Readback? Readback) CreateDevice(
+        private static (IntPtr DevicePtr, D3D11Readback? Readback) CreateDevice(
             int width,
             int height)
         {
@@ -343,14 +311,7 @@ namespace CryoUtils.Services.Recording
                 }
 
                 var readback = D3D11Readback.TryCreate(d3dDevice, context, width, height);
-                try
-                {
-                    return (MarshalInterface<IDirect3DDevice>.FromAbi(inspectable), readback);
-                }
-                finally
-                {
-                    Marshal.Release(inspectable);
-                }
+                return (inspectable, readback);
             }
             finally
             {
@@ -384,18 +345,15 @@ namespace CryoUtils.Services.Recording
 
             try
             {
-                if (_framePool != null)
-                {
-                    _framePool.FrameArrived -= FramePool_FrameArrived;
-                }
-                _session?.Dispose();
-                _framePool?.Dispose();
+                WinRtBridge.RemoveFrameArrivedHandler(_framePool, _frameToken);
+                _frameToken = 0;
+                WinRtBridge.CloseAndRelease(ref _session);
+                WinRtBridge.CloseAndRelease(ref _framePool);
+                _frameHandler?.Dispose();
+                _frameHandler = null;
                 _readback?.Dispose();
                 _readback = null;
-                _device?.Dispose();
-                _session = null;
-                _framePool = null;
-                _device = null;
+                WinRtBridge.CloseAndRelease(ref _device);
                 _worker?.Join(3000);
                 _worker = null;
                 _frames = null;
@@ -412,8 +370,6 @@ namespace CryoUtils.Services.Recording
         public void Dispose()
         {
             Stop();
-            // A frame copy can still complete after Stop. Leave the semaphore
-            // alive so its finally block can release it safely.
         }
 
         private sealed class CaptureFrame
@@ -428,15 +384,6 @@ namespace CryoUtils.Services.Recording
             public byte[] Pixels { get; }
             public int Width { get; }
             public int Height { get; }
-        }
-
-        [ComImport]
-        [Guid("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356")]
-        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-        private interface IGraphicsCaptureItemInterop
-        {
-            IntPtr CreateForWindow([In] IntPtr window, [In] ref Guid iid);
-            IntPtr CreateForMonitor([In] IntPtr monitor, [In] ref Guid iid);
         }
 
         [DllImport("d3d11.dll", ExactSpelling = true)]

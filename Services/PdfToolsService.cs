@@ -4,38 +4,27 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using SkiaSharp;
-using Windows.Data.Pdf;
-using Windows.Storage;
-using Windows.Storage.Streams;
 
 namespace CryoUtils.Services
 {
     public static class PdfToolsService
     {
-        private static readonly float[] GrayscaleMatrix =
-        {
-            0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-            0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-            0.2126f, 0.7152f, 0.0722f, 0f, 0f,
-            0f,      0f,      0f,      1f, 0f
-        };
-
         public static async Task<int> PdfToImagesAsync(string pdfPath, string outputDir, string format = "PNG")
         {
             Directory.CreateDirectory(outputDir);
             string ext = format.ToLowerInvariant().Contains("jp") ? "jpg" : "png";
-            var encFormat = ext == "jpg" ? SKEncodedImageFormat.Jpeg : SKEncodedImageFormat.Png;
 
             int rendered = 0;
             await ForEachRenderedPageAsync(pdfPath, 2.0, (pageIndex, bitmap) =>
             {
                 string outPath = Path.Combine(outputDir, $"page_{pageIndex + 1:D3}.{ext}");
-                using var outFs = File.Create(outPath);
-                using var image = SKImage.FromBitmap(bitmap);
-                using var encoded = image.Encode(encFormat, 90);
-                encoded.SaveTo(outFs);
+                byte[] encoded = ext == "jpg"
+                    ? ImageIO.EncodeJpeg(bitmap, 90)
+                    : ImageIO.EncodePng(bitmap);
+                File.WriteAllBytes(outPath, encoded);
                 rendered++;
             }).ConfigureAwait(false);
 
@@ -52,7 +41,7 @@ namespace CryoUtils.Services
 
             EnsureParentDir(outputPath);
             using var outStream = File.Create(outputPath);
-            using var doc = SKDocument.CreatePdf(outStream);
+            using var writer = new SimplePdfWriter(outStream);
 
             int count = 0;
             foreach (var imgPath in list)
@@ -62,19 +51,12 @@ namespace CryoUtils.Services
                     continue;
                 }
 
-                using var bitmap = SKBitmap.Decode(imgPath);
-                if (bitmap == null)
-                {
-                    continue;
-                }
-
-                using var canvas = doc.BeginPage(bitmap.Width, bitmap.Height);
-                canvas.DrawBitmap(bitmap, 0, 0);
-                doc.EndPage();
+                var bitmap = ImageIO.LoadFileBitmap(imgPath);
+                writer.AddBitmapPage(bitmap, preferJpeg: false);
                 count++;
             }
 
-            doc.Close();
+            writer.Finish();
             return count;
         }
 
@@ -99,7 +81,7 @@ namespace CryoUtils.Services
 
             EnsureParentDir(outputPath);
             using var outStream = File.Create(outputPath);
-            using var outDoc = SKDocument.CreatePdf(outStream);
+            using var writer = new SimplePdfWriter(outStream);
             await ForEachRenderedPageAsync(pdfPath, 2.0, (pageIndex, bitmap) =>
             {
                 if (!pages.Contains((int)pageIndex))
@@ -107,12 +89,9 @@ namespace CryoUtils.Services
                     return;
                 }
 
-                using var canvas = outDoc.BeginPage(bitmap.Width, bitmap.Height);
-                using var image = SKImage.FromBitmap(bitmap);
-                canvas.DrawBitmap(bitmap, 0, 0);
-                outDoc.EndPage();
+                writer.AddBitmapPage(bitmap, preferJpeg: false);
             }, pages.Select(page => (uint)page).ToHashSet()).ConfigureAwait(false);
-            outDoc.Close();
+            writer.Finish();
             return pages.Count;
         }
 
@@ -131,20 +110,17 @@ namespace CryoUtils.Services
 
             EnsureParentDir(outputPath);
             using var outStream = File.Create(outputPath);
-            using var outDoc = SKDocument.CreatePdf(outStream);
+            using var writer = new SimplePdfWriter(outStream);
             int pages = 0;
             foreach (string input in inputs)
             {
                 await ForEachRenderedPageAsync(input, 2.0, (_, bitmap) =>
                 {
-                    using var canvas = outDoc.BeginPage(bitmap.Width, bitmap.Height);
-                    using var image = SKImage.FromBitmap(bitmap);
-                    canvas.DrawBitmap(bitmap, 0, 0);
-                    outDoc.EndPage();
+                    writer.AddBitmapPage(bitmap, preferJpeg: false);
                     pages++;
                 }).ConfigureAwait(false);
             }
-            outDoc.Close();
+            writer.Finish();
             return pages;
         }
 
@@ -180,14 +156,12 @@ namespace CryoUtils.Services
                     return;
                 }
 
-                using var image = SKImage.FromBitmap(bitmap);
-                using var png = image.Encode(SKEncodedImageFormat.Png, 100);
-                rendered[(int)pageIndex] = ImageIO.DecodeBytes(png.ToArray());
+                rendered[(int)pageIndex] = bitmap;
             }, order.Select(page => (uint)page).ToHashSet()).ConfigureAwait(false);
 
             EnsureParentDir(outputPath);
             using var outStream = File.Create(outputPath);
-            using var outDoc = SKDocument.CreatePdf(outStream);
+            using var writer = new SimplePdfWriter(outStream);
             int pages = 0;
             foreach (int pageIndex in order)
             {
@@ -195,14 +169,10 @@ namespace CryoUtils.Services
                 {
                     continue;
                 }
-                using var canvas = outDoc.BeginPage(bitmap.PixelWidth, bitmap.PixelHeight);
-                using var skBitmap = ToSkBitmap(bitmap);
-                using var image = SKImage.FromBitmap(skBitmap);
-                canvas.DrawImage(image, 0, 0);
-                outDoc.EndPage();
+                writer.AddBitmapPage(bitmap, preferJpeg: false);
                 pages++;
             }
-            outDoc.Close();
+            writer.Finish();
             return pages;
         }
 
@@ -219,9 +189,7 @@ namespace CryoUtils.Services
                     return;
                 }
 
-                using var image = SKImage.FromBitmap(bitmap);
-                using var png = image.Encode(SKEncodedImageFormat.Png, 100);
-                rendered.Add((pageIndex, ImageIO.DecodeBytes(png.ToArray())));
+                rendered.Add((pageIndex, bitmap));
             }, pages.Select(page => (uint)page).ToHashSet()).ConfigureAwait(false);
 
             foreach (var page in rendered)
@@ -285,9 +253,7 @@ namespace CryoUtils.Services
             {
                 throw new FileNotFoundException("PDF file not found", pdfPath);
             }
-            var file = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(pdfPath));
-            var doc = await PdfDocument.LoadFromFileAsync(file);
-            return doc.PageCount;
+            return await WinRtBridge.GetPdfPageCountAsync(Path.GetFullPath(pdfPath)).ConfigureAwait(false);
         }
 
         private static async Task<long> TransformPdfPagesAsync(
@@ -307,39 +273,29 @@ namespace CryoUtils.Services
             EnsureParentDir(outputPath);
 
             using var outStream = File.Create(outputPath);
-            using var outDoc = SKDocument.CreatePdf(outStream);
-            using var paint = grayscale
-                ? new SKPaint { ColorFilter = SKColorFilter.CreateColorMatrix(GrayscaleMatrix) }
-                : null;
+            using var writer = new SimplePdfWriter(outStream);
 
             await ForEachRenderedPageAsync(pdfPath, scale, (_, bitmap) =>
             {
-                bool swapDims = rotationDegrees == 90 || rotationDegrees == 270;
-                int pageW = swapDims ? bitmap.Height : bitmap.Width;
-                int pageH = swapDims ? bitmap.Width : bitmap.Height;
-
-                using var canvas = outDoc.BeginPage(pageW, pageH);
-                using var srcImage = SKImage.FromBitmap(bitmap);
-                using var jpegData = srcImage.Encode(SKEncodedImageFormat.Jpeg, quality);
-                using var compressedBitmap = SKBitmap.Decode(jpegData);
+                BitmapSource processed = bitmap;
+                if (grayscale)
+                {
+                    var gray = new FormatConvertedBitmap(processed, PixelFormats.Gray8, null, 0);
+                    gray.Freeze();
+                    processed = gray;
+                }
 
                 if (rotationDegrees != 0)
                 {
-                    canvas.Save();
-                    canvas.Translate(pageW / 2f, pageH / 2f);
-                    canvas.RotateDegrees(rotationDegrees);
-                    canvas.DrawBitmap(compressedBitmap, -bitmap.Width / 2f, -bitmap.Height / 2f, paint);
-                    canvas.Restore();
-                }
-                else
-                {
-                    canvas.DrawBitmap(compressedBitmap, 0, 0, paint);
+                    var rotated = new TransformedBitmap(processed, new RotateTransform(rotationDegrees));
+                    rotated.Freeze();
+                    processed = rotated;
                 }
 
-                outDoc.EndPage();
+                writer.AddBitmapPage(processed, preferJpeg: true, jpegQuality: quality);
             }).ConfigureAwait(false);
 
-            outDoc.Close();
+            writer.Finish();
             long newSize = new FileInfo(outputPath).Length;
             return originalSize - newSize;
         }
@@ -347,7 +303,7 @@ namespace CryoUtils.Services
         private static async Task ForEachRenderedPageAsync(
             string pdfPath,
             double scale,
-            Action<uint, SKBitmap> onPage,
+            Action<uint, BitmapSource> onPage,
             ISet<uint>? pages = null)
         {
             if (!File.Exists(pdfPath))
@@ -355,34 +311,11 @@ namespace CryoUtils.Services
                 throw new FileNotFoundException("PDF file not found", pdfPath);
             }
 
-            var file = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(pdfPath));
-            var doc = await PdfDocument.LoadFromFileAsync(file);
-
-            for (uint i = 0; i < doc.PageCount; i++)
-            {
-                if (pages != null && !pages.Contains(i))
-                {
-                    continue;
-                }
-                using var page = doc.GetPage(i);
-                using var stream = new InMemoryRandomAccessStream();
-
-                var options = new PdfPageRenderOptions
-                {
-                    DestinationWidth = (uint)Math.Max(100, page.Size.Width * scale),
-                    DestinationHeight = (uint)Math.Max(100, page.Size.Height * scale)
-                };
-
-                await page.RenderToStreamAsync(stream, options);
-
-                using var netStream = stream.AsStreamForRead();
-                using var skData = SKData.Create(netStream);
-                using var bitmap = SKBitmap.Decode(skData);
-                if (bitmap != null)
-                {
-                    onPage(i, bitmap);
-                }
-            }
+            await WinRtBridge.RenderPdfPagesAsync(
+                Path.GetFullPath(pdfPath),
+                scale,
+                (pageIndex, pngBytes) => onPage(pageIndex, ImageIO.DecodeBytes(pngBytes)),
+                pages).ConfigureAwait(false);
         }
 
         private static void EnsureParentDir(string outputPath)
@@ -403,16 +336,6 @@ namespace CryoUtils.Services
             {
                 throw new InvalidOperationException("The output path must be different from the source PDF.");
             }
-        }
-
-        private static SKBitmap ToSkBitmap(BitmapSource source)
-        {
-            using var stream = new MemoryStream();
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(source));
-            encoder.Save(stream);
-            return SKBitmap.Decode(stream.ToArray())
-                ?? throw new InvalidOperationException("Could not encode a PDF page.");
         }
     }
 }

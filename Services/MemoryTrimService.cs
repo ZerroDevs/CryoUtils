@@ -1,7 +1,7 @@
 using System;
+using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
-using CryoUtils.Services;
 
 namespace CryoUtils.Services
 {
@@ -41,9 +41,11 @@ namespace CryoUtils.Services
 
             try
             {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+                GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
                 GC.WaitForPendingFinalizers();
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+                GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
                 NativeMethods.EmptyWorkingSet(NativeMethods.GetCurrentProcess());
             }
             catch

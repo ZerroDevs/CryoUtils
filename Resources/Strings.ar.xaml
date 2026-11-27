@@ -947,4 +947,16 @@
     <sys:String x:Key="Dev_Ready">جاهز</sys:String>
     <sys:String x:Key="Dev_MatchCount">{0} تطابق</sys:String>
     <sys:String x:Key="Dev_Error">إدخال غير صالح</sys:String>
+
+    <sys:String x:Key="General_ScreenshotOnly">وضع التصوير فقط (خفيف)</sys:String>
+    <sys:String x:Key="General_ScreenshotOnlyDesc">يشغّل لقطات الشاشة فقط بقائمة تراي مبسطة ويعطّل تسجيل الفيديو والريبلاي وسجل الحافظة وتثبيت النوافذ والفحص التلقائي للتحديثات.</sys:String>
+    <sys:String x:Key="Tray_ScreenshotOnly">وضع التصوير فقط</sys:String>
+    <sys:String x:Key="Tray_RepeatLastRegion">تصوير آخر منطقة</sys:String>
+    <sys:String x:Key="Capture_NoLastRegion">لا توجد منطقة تصوير سابقة محفوظة بعد.</sys:String>
+    <sys:String x:Key="Main_ScreenshotOnlyBadge">التصوير فقط</sys:String>
+    <sys:String x:Key="Overview_ScreenshotOnlyTitle">وضع التصوير فقط (الخفيف) مُفعّل</sys:String>
+    <sys:String x:Key="Overview_ScreenshotOnlyBody">الضغط على أيقونة التراي يلتقط الشاشة فوراً، وتم إيقاف الريبلاي وسجل الحافظة وتثبيت النوافذ والأدوات الإضافية لتقليل الرام.</sys:String>
+    <sys:String x:Key="Overview_RestoreFullMode">استعادة الوضع الكامل</sys:String>
+    <sys:String x:Key="Toast_ScreenshotOnlyEnabled">تم تفعيل وضع التصوير فقط — ضغطة التراي تصوّر مباشرة وتم إيقاف الوحدات الإضافية.</sys:String>
+    <sys:String x:Key="Module_PausedInLite">متوقف في وضع التصوير فقط</sys:String>
 </ResourceDictionary>

@@ -337,5 +337,270 @@ namespace CryoUtils.Services
             {
             }
         }
+
+        // Hidden message / tray host windowing
+        public static readonly IntPtr HWND_MESSAGE = new(-3);
+        public const uint WS_POPUP = 0x80000000;
+        public const uint WS_EX_TOOLWINDOW_STYLE = 0x00000080;
+        public const int WM_NULL = 0x0000;
+        public const int WM_DESTROY = 0x0002;
+        public const int WM_COMMAND = 0x0111;
+        public const int WM_DRAWITEM = 0x002B;
+        public const int WM_MEASUREITEM = 0x002C;
+        public const int WM_CONTEXTMENU = 0x007B;
+        public const int WM_LBUTTONUP = 0x0202;
+        public const int WM_LBUTTONDBLCLK = 0x0203;
+        public const int WM_RBUTTONUP = 0x0205;
+        public const int SM_CXSMICON = 49;
+
+        public delegate IntPtr WndProcDelegate(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct WNDCLASSEXW
+        {
+            public uint cbSize;
+            public uint style;
+            public IntPtr lpfnWndProc;
+            public int cbClsExtra;
+            public int cbWndExtra;
+            public IntPtr hInstance;
+            public IntPtr hIcon;
+            public IntPtr hCursor;
+            public IntPtr hbrBackground;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? lpszMenuName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string lpszClassName;
+            public IntPtr hIconSm;
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr GetModuleHandleW(string? lpModuleName);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern ushort RegisterClassExW(ref WNDCLASSEXW lpWndClass);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool UnregisterClassW(string lpClassName, IntPtr hInstance);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateWindowExW(
+            uint dwExStyle,
+            string lpClassName,
+            string lpWindowName,
+            uint dwStyle,
+            int x,
+            int y,
+            int nWidth,
+            int nHeight,
+            IntPtr hWndParent,
+            IntPtr hMenu,
+            IntPtr hInstance,
+            IntPtr lpParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DestroyWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern IntPtr DefWindowProcW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool PostMessageW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern uint RegisterWindowMessageW(string lpString);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        // Shell_NotifyIconW
+        public const uint NIM_ADD = 0x00000000;
+        public const uint NIM_MODIFY = 0x00000001;
+        public const uint NIM_DELETE = 0x00000002;
+        public const uint NIF_MESSAGE = 0x00000001;
+        public const uint NIF_ICON = 0x00000002;
+        public const uint NIF_TIP = 0x00000004;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct NOTIFYICONDATAW
+        {
+            public uint cbSize;
+            public IntPtr hWnd;
+            public uint uID;
+            public uint uFlags;
+            public uint uCallbackMessage;
+            public IntPtr hIcon;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string szTip;
+            public uint dwState;
+            public uint dwStateMask;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+            public string szInfo;
+            public uint uVersion;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+            public string szInfoTitle;
+            public uint dwInfoFlags;
+            public Guid guidItem;
+            public IntPtr hBalloonIcon;
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        public static extern bool Shell_NotifyIconW(uint dwMessage, ref NOTIFYICONDATAW lpData);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DestroyIcon(IntPtr hIcon);
+
+        // Native popup menus & owner-draw GDI primitives
+        public const uint MIIM_STATE = 0x00000001;
+        public const uint MIIM_ID = 0x00000002;
+        public const uint MIIM_SUBMENU = 0x00000004;
+        public const uint MIIM_DATA = 0x00000020;
+        public const uint MIIM_FTYPE = 0x00000100;
+        public const uint MFT_SEPARATOR = 0x00000800;
+        public const uint MFT_OWNERDRAW = 0x00000100;
+        public const uint MFS_ENABLED = 0x00000000;
+        public const uint MFS_DISABLED = 0x00000003;
+        public const uint ODT_MENU = 1;
+        public const uint ODS_SELECTED = 0x0001;
+        public const uint ODS_GRAYED = 0x0002;
+        public const uint ODS_DISABLED = 0x0004;
+        public const uint TPM_LEFTALIGN = 0x0000;
+        public const uint TPM_RIGHTBUTTON = 0x0002;
+        public const uint TPM_BOTTOMALIGN = 0x0020;
+        public const uint TPM_RETURNCMD = 0x0100;
+        public const int TRANSPARENT = 1;
+        public const int PS_SOLID = 0;
+        public const int PS_ENDCAP_ROUND = 0x00000000;
+        public const int PS_JOIN_ROUND = 0x00000000;
+        public const int PS_GEOMETRIC = 0x00010000;
+        public const int DT_LEFT = 0x00000000;
+        public const int DT_RIGHT = 0x00000002;
+        public const int DT_VCENTER = 0x00000004;
+        public const int DT_SINGLELINE = 0x00000020;
+        public const int DT_CALCRECT = 0x00000400;
+        public const int DT_NOPREFIX = 0x00000800;
+        public const int DT_END_ELLIPSIS = 0x00008000;
+        public const int DT_RTLREADING = 0x00020000;
+        public const int CLEARTYPE_QUALITY = 5;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct MENUITEMINFOW
+        {
+            public uint cbSize;
+            public uint fMask;
+            public uint fType;
+            public uint fState;
+            public uint wID;
+            public IntPtr hSubMenu;
+            public IntPtr hbmpChecked;
+            public IntPtr hbmpUnchecked;
+            public IntPtr dwItemData;
+            public IntPtr dwTypeData;
+            public uint cch;
+            public IntPtr hbmpItem;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MEASUREITEMSTRUCT
+        {
+            public uint CtlType;
+            public uint CtlID;
+            public uint itemID;
+            public uint itemWidth;
+            public uint itemHeight;
+            public IntPtr itemData;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DRAWITEMSTRUCT
+        {
+            public uint CtlType;
+            public uint CtlID;
+            public uint itemID;
+            public uint itemAction;
+            public uint itemState;
+            public IntPtr hwndItem;
+            public IntPtr hDC;
+            public RECT rcItem;
+            public IntPtr itemData;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr CreatePopupMenu();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DestroyMenu(IntPtr hMenu);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool InsertMenuItemW(IntPtr hMenu, uint item, bool fByPosition, ref MENUITEMINFOW lpmi);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern uint TrackPopupMenuEx(IntPtr hMenu, uint uFlags, int x, int y, IntPtr hwnd, IntPtr lptpm);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int DrawTextW(IntPtr hdc, string lpchText, int cchText, ref RECT lprc, uint format);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateSolidBrush(uint color);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreatePen(int iStyle, int cWidth, uint color);
+
+        [DllImport("user32.dll")]
+        public static extern int FillRect(IntPtr hDC, ref RECT lprc, IntPtr hbr);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool RoundRect(IntPtr hdc, int left, int top, int right, int bottom, int width, int height);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool MoveToEx(IntPtr hdc, int x, int y, IntPtr lppt);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool LineTo(IntPtr hdc, int x, int y);
+
+        [DllImport("gdi32.dll")]
+        public static extern int SetBkMode(IntPtr hdc, int mode);
+
+        [DllImport("gdi32.dll")]
+        public static extern uint SetTextColor(IntPtr hdc, uint color);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr SelectObject(IntPtr hdc, IntPtr h);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteObject(IntPtr ho);
+
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+        public static extern IntPtr CreateFontW(
+            int cHeight, int cWidth, int cEscapement, int cOrientation, int cWeight,
+            uint bItalic, uint bUnderline, uint bStrikeOut, uint iCharSet,
+            uint iOutPrecision, uint iClipPrecision, uint iQuality, uint iPitchAndFamily,
+            string pszFaceName);
+
+        [DllImport("uxtheme.dll", EntryPoint = "#135")]
+        public static extern int SetPreferredAppMode(int appMode);
+
+        [DllImport("uxtheme.dll", EntryPoint = "#136")]
+        public static extern void FlushMenuThemes();
+
+        // Win32 ChooseColorW common dialog (comdlg32.dll)
+        public const uint CC_RGBINIT = 0x00000001;
+        public const uint CC_FULLOPEN = 0x00000002;
+        public const uint CC_ANYCOLOR = 0x00000100;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct CHOOSECOLORW
+        {
+            public uint lStructSize;
+            public IntPtr hwndOwner;
+            public IntPtr hInstance;
+            public uint rgbResult;
+            public IntPtr lpCustColors;
+            public uint Flags;
+            public IntPtr lCustData;
+            public IntPtr lpfnHook;
+            [MarshalAs(UnmanagedType.LPWStr)] public string? lpTemplateName;
+        }
+
+        [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern bool ChooseColorW(ref CHOOSECOLORW lpcc);
     }
 }

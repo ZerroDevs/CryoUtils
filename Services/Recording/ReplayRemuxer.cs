@@ -3,9 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using Windows.Media.Editing;
-using Windows.Media.Transcoding;
-using Windows.Storage;
 
 namespace CryoUtils.Services.Recording
 {
@@ -313,41 +310,16 @@ namespace CryoUtils.Services.Recording
         /// <summary>
         /// Re-encoding fallback for a rare compressed-pass-through failure.
         /// </summary>
-        public static async Task ReencodeAsync(
+        public static Task ReencodeAsync(
             IReadOnlyList<ReplaySegmentInfo> segments,
             string outputPath)
         {
-            var composition = new MediaComposition();
+            var paths = new List<string>(segments.Count);
             foreach (var segment in segments)
             {
-                var file = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(segment.Path));
-                var clip = await MediaClip.CreateFromFileAsync(file);
-                composition.Clips.Add(clip);
+                paths.Add(Path.GetFullPath(segment.Path));
             }
-
-            string fullPath = Path.GetFullPath(outputPath);
-            string directory = Path.GetDirectoryName(fullPath) ?? ".";
-            Directory.CreateDirectory(directory);
-            var folder = await StorageFolder.GetFolderFromPathAsync(directory);
-            var destination = await folder.CreateFileAsync(
-                Path.GetFileName(fullPath),
-                CreationCollisionOption.ReplaceExisting);
-            var profile = composition.CreateDefaultEncodingProfile();
-            var status = await composition.RenderToFileAsync(
-                destination,
-                MediaTrimmingPreference.Fast,
-                profile);
-            if (status != TranscodeFailureReason.None)
-            {
-                try
-                {
-                    File.Delete(fullPath);
-                }
-                catch
-                {
-                }
-                throw new InvalidOperationException($"Replay encoding failed: {status}");
-            }
+            return Task.Run(() => MediaConversionService.MergeSegmentsReencode(paths, outputPath));
         }
 
         private static void TryDelete(string path)

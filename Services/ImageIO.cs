@@ -3,7 +3,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using SkiaSharp;
 
 namespace CryoUtils.Services
 {
@@ -17,7 +16,9 @@ namespace CryoUtils.Services
             {
                 case ".jpg":
                 case ".jpeg":
+                case ".jfif":
                     encoder = new JpegBitmapEncoder { QualityLevel = 92 };
+                    bitmap = FlattenOnWhiteIfTransparent(bitmap);
                     break;
                 case ".webp":
                     SaveWebP(bitmap, path, 92);
@@ -56,25 +57,8 @@ namespace CryoUtils.Services
             File.WriteAllBytes(path, data);
         }
 
-        public static byte[] EncodeWebP(BitmapSource bitmap, int quality)
-        {
-            int width = bitmap.PixelWidth;
-            int height = bitmap.PixelHeight;
-            int stride = width * 4;
-            var pixels = new byte[stride * height];
-            var converted = bitmap.Format == PixelFormats.Bgra32
-                ? bitmap
-                : new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-            converted.CopyPixels(pixels, stride, 0);
-
-            var info = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
-            using var skBitmap = new SKBitmap(info);
-            System.Runtime.InteropServices.Marshal.Copy(
-                pixels, 0, skBitmap.GetPixels(), pixels.Length);
-            using var image = SKImage.FromBitmap(skBitmap);
-            using var encoded = image.Encode(SKEncodedImageFormat.Webp, Math.Clamp(quality, 1, 100));
-            return encoded.ToArray();
-        }
+        public static byte[] EncodeWebP(BitmapSource bitmap, int quality) =>
+            SimpleWebpEncoder.Encode(bitmap);
 
         public static byte[] EncodePng(BitmapSource bitmap)
         {
@@ -83,6 +67,46 @@ namespace CryoUtils.Services
             using var stream = new MemoryStream();
             encoder.Save(stream);
             return stream.ToArray();
+        }
+
+        public static byte[] EncodeJpeg(BitmapSource bitmap, int quality = 92)
+        {
+            var encoder = new JpegBitmapEncoder { QualityLevel = Math.Clamp(quality, 1, 100) };
+            encoder.Frames.Add(BitmapFrame.Create(FlattenOnWhiteIfTransparent(bitmap)));
+            using var stream = new MemoryStream();
+            encoder.Save(stream);
+            return stream.ToArray();
+        }
+
+        public static byte[] EncodeBmp(BitmapSource bitmap)
+        {
+            var encoder = new BmpBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var stream = new MemoryStream();
+            encoder.Save(stream);
+            return stream.ToArray();
+        }
+
+        public static BitmapSource FlattenOnWhiteIfTransparent(BitmapSource source)
+        {
+            var fmt = source.Format;
+            if (fmt == PixelFormats.Bgr24 || fmt == PixelFormats.Bgr32 || fmt == PixelFormats.Gray8)
+            {
+                return source;
+            }
+
+            int w = Math.Max(1, source.PixelWidth);
+            int h = Math.Max(1, source.PixelHeight);
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, w, h));
+                dc.DrawImage(source, new Rect(0, 0, w, h));
+            }
+            var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            rtb.Freeze();
+            return rtb;
         }
 
         public static BitmapSource DecodeBytes(byte[] data)
@@ -95,6 +119,17 @@ namespace CryoUtils.Services
             var frame = decoder.Frames[0];
             frame.Freeze();
             return frame;
+        }
+
+        public static BitmapSource LoadFileBitmap(string path)
+        {
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException("Image file not found", path);
+            }
+
+            byte[] bytes = File.ReadAllBytes(path);
+            return DecodeBytes(bytes);
         }
 
         public static string FormatBytes(long bytes)
@@ -117,81 +152,76 @@ namespace CryoUtils.Services
                 return source;
             }
 
-            var transformed = new TransformedBitmap(
-                source,
-                new ScaleTransform(scale, scale));
-            transformed.Freeze();
-            return transformed;
+            int w = Math.Max(1, (int)Math.Round(source.PixelWidth * scale));
+            int h = Math.Max(1, (int)Math.Round(source.PixelHeight * scale));
+            return ResizeToExact(source, w, h);
+        }
+
+        public static BitmapSource ResizeToExact(BitmapSource source, int width, int height)
+        {
+            int w = Math.Max(1, width);
+            int h = Math.Max(1, height);
+            if (w == source.PixelWidth && h == source.PixelHeight)
+            {
+                return source;
+            }
+
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+                dc.DrawImage(source, new Rect(0, 0, w, h));
+            }
+
+            var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            rtb.Freeze();
+            return rtb;
         }
 
         public static BitmapSource LoadThumbnail(string path, int maxWidth = 180)
         {
-            string ext = Path.GetExtension(path);
-            if (!string.Equals(ext, ".webp", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-                    bitmap.DecodePixelWidth = Math.Max(1, maxWidth);
-                    bitmap.StreamSource = stream;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-                    return bitmap;
-                }
-                catch
-                {
-                    // Fall back to SkiaSharp below if WIC cannot decode the file.
-                }
-            }
-
-            byte[] bytes = File.ReadAllBytes(path);
-            using var skBitmap = SKBitmap.Decode(bytes) ?? throw new InvalidOperationException("Unsupported image.");
-            if (skBitmap.Width <= maxWidth)
-            {
-                return SkiaBitmapToWpf(skBitmap);
-            }
-
-            int targetW = maxWidth;
-            int targetH = Math.Max(1, (int)Math.Round(skBitmap.Height * (maxWidth / (double)skBitmap.Width)));
-            using var scaled = skBitmap.Resize(
-                new SKImageInfo(targetW, targetH, SKColorType.Bgra8888, SKAlphaType.Premul),
-                SKFilterQuality.Medium);
-            return SkiaBitmapToWpf(scaled ?? skBitmap);
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            bitmap.DecodePixelWidth = Math.Max(1, maxWidth);
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
         }
 
         public static BitmapSource CreateVideoThumbnailPlaceholder(int width = 180, int height = 102)
         {
-            using var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
-            using (var canvas = new SKCanvas(bitmap))
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
             {
-                canvas.Clear(new SKColor(18, 22, 24));
-                using var paint = new SKPaint
-                {
-                    Color = new SKColor(43, 136, 216),
-                    IsAntialias = true,
-                    Style = SKPaintStyle.Fill
-                };
-                using var playPath = new SKPath();
-                float cx = width / 2f;
-                float cy = height / 2f;
-                playPath.MoveTo(cx - 10, cy - 12);
-                playPath.LineTo(cx + 14, cy);
-                playPath.LineTo(cx - 10, cy + 12);
-                playPath.Close();
-                canvas.DrawPath(playPath, paint);
-            }
-            return SkiaBitmapToWpf(bitmap);
-        }
+                var bg = new SolidColorBrush(Color.FromRgb(18, 22, 24));
+                bg.Freeze();
+                dc.DrawRectangle(bg, null, new Rect(0, 0, width, height));
 
-        private static BitmapSource SkiaBitmapToWpf(SKBitmap bitmap)
-        {
-            using var img = SKImage.FromBitmap(bitmap);
-            using var encoded = img.Encode(SKEncodedImageFormat.Png, 100);
-            return DecodeBytes(encoded.ToArray());
+                double cx = width / 2.0;
+                double cy = height / 2.0;
+                var triangle = new StreamGeometry();
+                using (var ctx = triangle.Open())
+                {
+                    ctx.BeginFigure(new Point(cx - 10, cy - 12), isFilled: true, isClosed: true);
+                    ctx.LineTo(new Point(cx + 14, cy), isStroked: false, isSmoothJoin: false);
+                    ctx.LineTo(new Point(cx - 10, cy + 12), isStroked: false, isSmoothJoin: false);
+                }
+                triangle.Freeze();
+
+                var accent = new SolidColorBrush(Color.FromRgb(43, 136, 216));
+                accent.Freeze();
+                dc.DrawGeometry(accent, null, triangle);
+            }
+
+            var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            rtb.Freeze();
+            return rtb;
         }
     }
 }

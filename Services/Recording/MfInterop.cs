@@ -35,13 +35,21 @@ namespace CryoUtils.Services.Recording
         public static readonly Guid MFAudioFormat_AAC = new("000000A6-0000-0010-8000-00AA00389B71");
         public static readonly Guid MFAudioFormat_ADTS = new("00001610-0000-0010-8000-00AA00389B71");
         public static readonly Guid MFAudioFormat_PCM = new("00000001-0000-0010-8000-00AA00389B71");
+        public static readonly Guid MFAudioFormat_MP3 = new("00000055-0000-0010-8000-00AA00389B71");
+        public static readonly Guid MFVideoFormat_NV12 = new("3231564E-0000-0010-8000-00AA00389B71");
 
         public static readonly Guid MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS = new("a634a91c-822b-41b9-a494-4de4643612b0");
+        public static readonly Guid MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING = new("fb394f3d-ccf1-42ee-bbb3-f9b845d56e1d");
+        public static readonly Guid MF_PD_DURATION = new("6c990d33-bb8e-477a-8598-0d5d96fcd88a");
+        public static readonly Guid MF_MT_DEFAULT_STRIDE = new("644b4e48-1e02-4516-b0eb-c01ca9d49ac6");
+        public static readonly Guid MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE = new("c60ac5fe-252a-478f-a0ef-bc8fa5f7cad3");
+        public static readonly Guid MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID = new("8ac3587a-4dae-4d8d-954c-d2efee10b3ec");
 
         public const int MF_VERSION = 0x00020070;
         public const int MFSTARTUP_FULL = 0;
         public const int MF_SOURCE_READER_FIRST_VIDEO_STREAM = unchecked((int)0xFFFFFFFC);
         public const int MF_SOURCE_READER_FIRST_AUDIO_STREAM = unchecked((int)0xFFFFFFFD);
+        public const int MF_SOURCE_READER_MEDIASOURCE = unchecked((int)0xFFFFFFFF);
         public const int MF_SOURCE_READER_ALL_STREAMS = unchecked((int)0xFFFFFFFE);
         public const int MF_SOURCE_READER_ANY_STREAM = unchecked((int)0xFFFFFFFE);
         public const int MF_SOURCE_READERF_ENDOFSTREAM = 0x00000002;
@@ -124,6 +132,29 @@ namespace CryoUtils.Services.Recording
             [MarshalAs(UnmanagedType.LPWStr)] string url,
             IMFAttributes? attributes,
             out IMFSourceReader sourceReader);
+
+        [DllImport("mfreadwrite.dll", ExactSpelling = true)]
+        public static extern int MFCreateSourceReaderFromMediaSource(
+            IMFMediaSource mediaSource,
+            IMFAttributes? attributes,
+            out IMFSourceReader sourceReader);
+
+        [DllImport("mf.dll", ExactSpelling = true)]
+        public static extern int MFEnumDeviceSources(
+            IMFAttributes attributes,
+            out IntPtr sourceActivateArray,
+            out uint sourceActivateCount);
+
+        [DllImport("ole32.dll", ExactSpelling = true)]
+        public static extern int PropVariantClear(IntPtr pvar);
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    internal struct MfPropVariant
+    {
+        [FieldOffset(0)] public ushort vt;
+        [FieldOffset(8)] public long hVal;
+        [FieldOffset(8)] public ulong uhVal;
     }
 
     [ComImport]
@@ -308,5 +339,34 @@ namespace CryoUtils.Services.Recording
         [PreserveSig] int Flush(uint streamIndex);
         [PreserveSig] int GetServiceForStream(uint streamIndex, ref Guid service, ref Guid riid, out IntPtr value);
         [PreserveSig] int GetPresentationAttribute(uint streamIndex, ref Guid attribute, IntPtr value);
+    }
+
+    [ComImport]
+    [Guid("7FEE9E9A-4A89-47a6-899C-B6A53A70FB67")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IMFActivate : IMFAttributes
+    {
+        [PreserveSig] int ActivateObject(ref Guid riid, out IntPtr ppv);
+        [PreserveSig] int ShutdownObject();
+        [PreserveSig] int DetachObject();
+    }
+
+    [ComImport]
+    [Guid("279A808D-AEC7-40C8-9C6B-A6B492C78A66")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IMFMediaSource
+    {
+        // IMFMediaEventGenerator methods
+        [PreserveSig] int GetEvent(uint flags, out IntPtr mediaEvent);
+        [PreserveSig] int BeginGetEvent(IntPtr callback, [MarshalAs(UnmanagedType.IUnknown)] object state);
+        [PreserveSig] int EndGetEvent(IntPtr result, out IntPtr mediaEvent);
+        [PreserveSig] int QueueEvent(uint met, ref Guid extendedType, int status, IntPtr value);
+        // IMFMediaSource methods
+        [PreserveSig] int GetCharacteristics(out uint characteristics);
+        [PreserveSig] int CreatePresentationDescriptor(out IntPtr presentationDescriptor);
+        [PreserveSig] int Start(IntPtr presentationDescriptor, IntPtr guidTimeFormat, IntPtr startPosition);
+        [PreserveSig] int Stop();
+        [PreserveSig] int Pause();
+        [PreserveSig] int Shutdown();
     }
 }

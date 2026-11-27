@@ -17,8 +17,8 @@ using System.Windows.Threading;
 using CryoUtils.Models;
 using CryoUtils.Services;
 using CryoUtils.Services.Recording;
+using CryoUtils.Views.Tabs;
 using Microsoft.Win32;
-using MessageBox = System.Windows.MessageBox;
 using IOPath = System.IO.Path;
 
 namespace CryoUtils.Views
@@ -28,13 +28,12 @@ namespace CryoUtils.Views
         private bool _initializing = true;
         private bool _loading;
         private bool _allowClose;
-        private bool _searchingUpdates;
-        private bool _downloadingUpdate;
         private string _currentTab = "Overview";
-        private string? _compressSourcePath;
-        private CompressionResult? _compressResult;
-        private UpdateInfo? _availableUpdate;
         private DispatcherTimer? _replayTimer;
+        private CaptureTabView? _captureTab;
+        private ToolsTabView? _toolsTab;
+        private HotkeysTabView? _hotkeysTab;
+        private GeneralTabView? _generalTab;
 
         public MainWindow()
         {
@@ -137,68 +136,17 @@ namespace CryoUtils.Views
             try
             {
                 var settings = SettingsService.Instance.Current;
-                ChkQuickSave.IsChecked = settings.QuickSave;
-                TxtSaveFolder.Text = SettingsService.Instance.EffectiveSaveFolder;
-                TxtSaveFolder.FlowDirection = FlowDirection.LeftToRight;
-                ChkAutoCopy.IsChecked = settings.AutoCopyCapture;
-                ChkCaptureSound.IsChecked = settings.CaptureSound;
-                ChkShowLoupe.IsChecked = settings.ShowCaptureLoupe;
-                ChkArchiveCopied.IsChecked = settings.ArchiveCopiedCaptures;
-                ChkCloudUpload.IsChecked = settings.CloudUploadEnabled;
-                SelectTag(CmbImageFormat, settings.ImageFormat);
-                SelectTag(CmbCaptureDelay, settings.CaptureDelaySeconds.ToString());
-                SelectTag(CmbFps, settings.GifFps.ToString());
-                SelectTag(CmbRecFormat, settings.RecorderFormat);
-                SelectTag(CmbMaxSeconds, settings.MaxRecordingSeconds.ToString());
-                ChkCopyOnStop.IsChecked = settings.RecorderCopyOnStop;
-                RefreshRecorderSummary();
-                RefreshReplayCard();
-
-                SldThickness.Value = Math.Clamp(settings.AnnotationThickness, 1, 20);
-                TxtThickness.Text = ((int)SldThickness.Value).ToString(CultureInfo.InvariantCulture);
-                TxtStepStart.Text = Math.Clamp(settings.StepStartNumber, 1, 99).ToString(CultureInfo.InvariantCulture);
-                TxtDefaultColor.Text = settings.AnnotationColor;
-                DefaultColorSwatch.Background = new SolidColorBrush(
-                    AnnotationRenderer.ParseColor(settings.AnnotationColor));
-
                 ChkModuleCapture.IsChecked = settings.CaptureEnabled;
                 ChkModuleColor.IsChecked = settings.ColorPickerEnabled;
                 ChkModulePinner.IsChecked = settings.WindowPinnerEnabled;
                 ChkModuleCompressor.IsChecked = settings.CompressorEnabled;
                 ChkModuleClipboard.IsChecked = settings.ClipboardHistoryEnabled;
 
-                SelectTag(CmbTheme, settings.Theme);
-                SelectTag(CmbLanguage, settings.Language);
-                ChkStartWithWindows.IsChecked = settings.StartWithWindows;
-                ChkLaunchBackground.IsChecked = settings.LaunchInBackground;
-                ChkNotifications.IsChecked = settings.NotificationsEnabled;
-                SelectTag(
-                    CmbTrayClick,
-                    string.Equals(settings.TrayLeftClickAction, "Capture", StringComparison.OrdinalIgnoreCase)
-                        ? "Capture"
-                        : "Dashboard");
-                ChkPinnedFrame.IsChecked = settings.ShowPinnedBorder;
-                ChkPinnedSound.IsChecked = settings.PinnedBorderSound;
-                ChkContextMenu.IsChecked = settings.ContextMenuEnabled;
-                TxtSavedLimit.Text = Math.Clamp(settings.SavedCapturesLimit, 0, 10000).ToString(CultureInfo.InvariantCulture);
                 SelectTag(
                     CmbRecentScope,
                     string.Equals(settings.RecentCapturesScope, "AllTime", StringComparison.OrdinalIgnoreCase)
                         ? "AllTime"
                         : "Session");
-                ChkAutoUpdates.IsChecked = settings.AutomaticUpdateChecks;
-                ChkSaveRollback.IsChecked = settings.SaveRollbackOnUpdate;
-
-                SelectTag(CmbPreset, settings.CompressorPreset);
-                SldQuality.Value = Math.Clamp(settings.CompressorQuality, 20, 100);
-                SldScale.Value = Math.Clamp(settings.CompressorScale, 20, 100);
-                TxtQualityValue.Text = $"{(int)SldQuality.Value}%";
-                TxtScaleValue.Text = $"{(int)SldScale.Value}%";
-                SldPinnedOpacity.Value = Math.Clamp(settings.PinnedOpacity, 20, 100);
-                TxtPinnedOpacity.Text = $"{(int)SldPinnedOpacity.Value}%";
-                ChkPinnedClickThrough.IsChecked = settings.PinnedClickThrough;
-                UpdatePresetSliderState();
-                UpdateDashboardContrast();
             }
             finally
             {
@@ -208,48 +156,25 @@ namespace CryoUtils.Views
             string version = $"v{UpdaterService.CurrentVersion}";
             TxtTitleVersion.Text = version;
             TxtStatusVersion.Text = version;
-            TxtAboutVersion.Text = LocalizationService.Format("About_Version", version);
-            RefreshHotkeyRows();
-            RefreshRecentColors();
+            _captureTab?.LoadFromSettings();
+            _toolsTab?.LoadFromSettings();
+            _hotkeysTab?.RefreshRows();
+            _generalTab?.LoadFromSettings();
+
             ApplyRecentExpanded(SettingsService.Instance.Current.RecentCapturesExpanded, reload: false);
             ApplyActivityCenterExpanded(SettingsService.Instance.Current.ActivityCenterExpanded, refresh: false);
             ApplyRecentScope();
             RefreshPinnedState();
             RefreshClipboardState();
-            RefreshRollbackUi();
             UpdateModuleSummary();
             UpdateHotkeyStatus();
-            UpdateCompressionAvailability();
+            ApplyScreenshotOnlyUi();
             ShowTab(_currentTab);
-            TxtLastChecked.Text = SettingsService.Instance.Current.LastUpdateCheckUtc is DateTime checkedUtc
-                ? checkedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)
-                : LocalizationService.Get("About_Never");
-            if (!string.IsNullOrEmpty(SettingsService.Instance.Current.LastUpdateVersion) &&
-                SettingsService.Instance.Current.LastUpdateOutcome == "available")
-            {
-                TxtUpdateStatus.Text = LocalizationService.Format(
-                    "About_UpdateAvailable",
-                    SettingsService.Instance.Current.LastUpdateVersion);
-            }
         }
 
-        private static void SelectTag(ComboBox comboBox, string? tag)
-        {
-            foreach (var item in comboBox.Items)
-            {
-                if (item is ComboBoxItem comboItem &&
-                    string.Equals(comboItem.Tag as string, tag, StringComparison.OrdinalIgnoreCase))
-                {
-                    comboBox.SelectedItem = comboItem;
-                    return;
-                }
-            }
-        }
+        private static void SelectTag(ComboBox comboBox, string? tag) => MainTabHelpers.SelectTag(comboBox, tag);
 
-        private static string? SelectedTag(ComboBox comboBox)
-        {
-            return (comboBox.SelectedItem as ComboBoxItem)?.Tag as string;
-        }
+        private static string? SelectedTag(ComboBox comboBox) => MainTabHelpers.SelectedTag(comboBox);
 
         // ============================ Window chrome ============================
         private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -318,10 +243,7 @@ namespace CryoUtils.Views
 
         private void BtnClose_Click(object sender, RoutedEventArgs e)
         {
-            if (TxtSavedLimit != null && TxtSavedLimit.IsKeyboardFocusWithin)
-            {
-                TxtSavedLimit_LostFocus(TxtSavedLimit, new RoutedEventArgs());
-            }
+            Keyboard.ClearFocus();
             ResetQuitConfirmState();
             SaveWindowPosition();
             Close();
@@ -343,9 +265,8 @@ namespace CryoUtils.Views
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter && TxtSavedLimit != null && TxtSavedLimit.IsKeyboardFocusWithin)
+            if (e.Key == Key.Enter && Keyboard.FocusedElement is TextBox)
             {
-                TxtSavedLimit_LostFocus(TxtSavedLimit, new RoutedEventArgs());
                 Keyboard.ClearFocus();
                 e.Handled = true;
                 return;
@@ -368,19 +289,70 @@ namespace CryoUtils.Views
             ShowTab(tag);
         }
 
+        private CaptureTabView EnsureCaptureTab()
+        {
+            if (_captureTab != null) return _captureTab;
+            _captureTab = new CaptureTabView();
+            _captureTab.SaveFolderChanged += ApplyRecentScope;
+            _captureTab.HotkeyStatusChanged += UpdateHotkeyStatus;
+            _captureTab.RecorderSettingsClosed += RefreshReplayCard;
+            HostCapture.Content = _captureTab;
+            _captureTab.LoadFromSettings();
+            return _captureTab;
+        }
+
+        private ToolsTabView EnsureToolsTab()
+        {
+            if (_toolsTab != null) return _toolsTab;
+            _toolsTab = new ToolsTabView();
+            HostTools.Content = _toolsTab;
+            _toolsTab.LoadFromSettings();
+            return _toolsTab;
+        }
+
+        private HotkeysTabView EnsureHotkeysTab()
+        {
+            if (_hotkeysTab != null) return _hotkeysTab;
+            _hotkeysTab = new HotkeysTabView();
+            _hotkeysTab.HotkeysChanged += UpdateHotkeyStatus;
+            HostHotkeys.Content = _hotkeysTab;
+            _hotkeysTab.RefreshRows();
+            return _hotkeysTab;
+        }
+
+        private GeneralTabView EnsureGeneralTab()
+        {
+            if (_generalTab != null) return _generalTab;
+            _generalTab = new GeneralTabView();
+            _generalTab.FullReloadRequested += ReloadUi;
+            _generalTab.SavedLimitChanged += ApplyRecentScope;
+            HostGeneral.Content = _generalTab;
+            _generalTab.LoadFromSettings();
+            return _generalTab;
+        }
+
         public void ShowTab(string tab)
         {
             _currentTab = string.IsNullOrWhiteSpace(tab) ? "Overview" : tab;
-            if (_currentTab == "About")
+            if (_currentTab == "About") _currentTab = "General";
+            if (SettingsService.Instance.Current.ScreenshotOnlyMode && _currentTab == "Tools")
             {
-                _currentTab = "General";
+                _currentTab = "Overview";
             }
 
             PanelOverview.Visibility = _currentTab == "Overview" ? Visibility.Visible : Visibility.Collapsed;
-            PanelCapture.Visibility = _currentTab == "Capture" ? Visibility.Visible : Visibility.Collapsed;
-            PanelTools.Visibility = _currentTab == "Tools" ? Visibility.Visible : Visibility.Collapsed;
-            PanelHotkeys.Visibility = _currentTab == "Hotkeys" ? Visibility.Visible : Visibility.Collapsed;
-            PanelGeneral.Visibility = _currentTab == "General" ? Visibility.Visible : Visibility.Collapsed;
+            HostCapture.Visibility = _currentTab == "Capture" ? Visibility.Visible : Visibility.Collapsed;
+            HostTools.Visibility = _currentTab == "Tools" ? Visibility.Visible : Visibility.Collapsed;
+            HostHotkeys.Visibility = _currentTab == "Hotkeys" ? Visibility.Visible : Visibility.Collapsed;
+            HostGeneral.Visibility = _currentTab == "General" ? Visibility.Visible : Visibility.Collapsed;
+
+            switch (_currentTab)
+            {
+                case "Capture": EnsureCaptureTab(); break;
+                case "Tools": EnsureToolsTab(); RefreshReplayCard(); break;
+                case "Hotkeys": EnsureHotkeysTab(); break;
+                case "General": EnsureGeneralTab(); break;
+            }
 
             RadioButton? target = _currentTab switch
             {
@@ -390,19 +362,12 @@ namespace CryoUtils.Views
                 "General" => TabGeneral,
                 _ => TabOverview
             };
-            if (target != null && target.IsChecked != true)
-            {
-                target.IsChecked = true;
-            }
+            if (target != null && target.IsChecked != true) target.IsChecked = true;
 
             if (!_initializing && _currentTab == "Overview")
             {
                 ApplyRecentScope();
                 RefreshActivityCenter();
-            }
-            if (_currentTab == "Tools")
-            {
-                RefreshReplayCard();
             }
 
             MainContentScroll?.ScrollToTop();
@@ -488,7 +453,7 @@ namespace CryoUtils.Views
             SettingsService.Instance.Save();
             UpdateModuleSummary();
             UpdateHotkeyStatus();
-            UpdateCompressionAvailability();
+            _toolsTab?.UpdateCompressionAvailability();
             RefreshClipboardState();
         }
 
@@ -505,6 +470,12 @@ namespace CryoUtils.Views
         private void UpdateModuleSummary()
         {
             var settings = SettingsService.Instance.Current;
+            if (settings.ScreenshotOnlyMode)
+            {
+                TxtModuleCount.Text = LocalizationService.Get("Main_ScreenshotOnlyBadge");
+                return;
+            }
+
             int enabled = 0;
             if (settings.CaptureEnabled) enabled++;
             if (settings.ColorPickerEnabled) enabled++;
@@ -514,74 +485,38 @@ namespace CryoUtils.Views
             TxtModuleCount.Text = LocalizationService.Format("Main_ActiveModules", enabled);
         }
 
-        // ============================ Settings ============================
-        private void Setting_Changed(object sender, RoutedEventArgs e)
+        private void ApplyScreenshotOnlyUi()
         {
-            if (_loading || _initializing)
+            bool lite = SettingsService.Instance.Current.ScreenshotOnlyMode;
+            UpdateModuleSummary();
+
+            if (BtnTitleRecord != null) BtnTitleRecord.Visibility = lite ? Visibility.Collapsed : Visibility.Visible;
+            if (BtnHeroRecord != null) BtnHeroRecord.Visibility = lite ? Visibility.Collapsed : Visibility.Visible;
+            if (ScreenshotOnlyBanner != null) ScreenshotOnlyBanner.Visibility = lite ? Visibility.Visible : Visibility.Collapsed;
+            if (TabTools != null) TabTools.Visibility = lite ? Visibility.Collapsed : Visibility.Visible;
+
+            if (BtnQuickRecordTile != null) { BtnQuickRecordTile.IsEnabled = !lite; BtnQuickRecordTile.Opacity = lite ? 0.45 : 1.0; }
+            if (BtnQuickColorTile != null) { BtnQuickColorTile.IsEnabled = !lite; BtnQuickColorTile.Opacity = lite ? 0.45 : 1.0; }
+            if (CardColorModule != null) { CardColorModule.IsEnabled = !lite; CardColorModule.Opacity = lite ? 0.45 : 1.0; }
+            if (CardPinnerModule != null) { CardPinnerModule.IsEnabled = !lite; CardPinnerModule.Opacity = lite ? 0.45 : 1.0; }
+            if (CardCompressorModule != null) { CardCompressorModule.IsEnabled = !lite; CardCompressorModule.Opacity = lite ? 0.45 : 1.0; }
+            if (CardClipboardModule != null) { CardClipboardModule.IsEnabled = !lite; CardClipboardModule.Opacity = lite ? 0.45 : 1.0; }
+
+            if (lite && _currentTab == "Tools")
             {
-                return;
+                ShowTab("Overview");
             }
 
-            var settings = SettingsService.Instance.Current;
-            ReadModuleToggles();
-            settings.QuickSave = ChkQuickSave.IsChecked == true;
-            settings.SaveFolder = TxtSaveFolder.Text == SettingsService.Instance.DefaultSaveFolder
-                ? ""
-                : TxtSaveFolder.Text;
-            settings.AutoCopyCapture = ChkAutoCopy.IsChecked == true;
-            settings.CaptureSound = ChkCaptureSound.IsChecked == true;
-            settings.ShowCaptureLoupe = ChkShowLoupe.IsChecked == true;
-            settings.ArchiveCopiedCaptures = ChkArchiveCopied.IsChecked == true;
-            settings.CloudUploadEnabled = ChkCloudUpload.IsChecked == true;
-            settings.ImageFormat = SelectedTag(CmbImageFormat) ?? "PNG";
-            settings.CaptureDelaySeconds = int.TryParse(SelectedTag(CmbCaptureDelay), out int delay) ? delay : 0;
-            settings.GifFps = Math.Clamp(int.TryParse(SelectedTag(CmbFps), out int fps) ? fps : 15, 5, 30);
-            settings.RecorderFormat = SelectedTag(CmbRecFormat) ?? "GIF";
-            settings.MaxRecordingSeconds = int.TryParse(SelectedTag(CmbMaxSeconds), out int seconds) ? seconds : 300;
-            settings.RecorderCopyOnStop = ChkCopyOnStop.IsChecked == true;
-            settings.StartWithWindows = ChkStartWithWindows.IsChecked == true;
-            settings.LaunchInBackground = ChkLaunchBackground.IsChecked == true;
-            settings.NotificationsEnabled = ChkNotifications.IsChecked == true;
-            settings.TrayLeftClickAction = SelectedTag(CmbTrayClick) ?? "Dashboard";
-            settings.ShowPinnedBorder = ChkPinnedFrame.IsChecked == true;
-            settings.PinnedBorderSound = ChkPinnedSound.IsChecked == true;
-            settings.ContextMenuEnabled = ChkContextMenu.IsChecked == true;
-            settings.AutomaticUpdateChecks = ChkAutoUpdates.IsChecked == true;
-            settings.SaveRollbackOnUpdate = ChkSaveRollback.IsChecked == true;
-            settings.CompressorPreset = SelectedTag(CmbPreset) ?? settings.CompressorPreset;
-
-            // App.ApplyAllSettings synchronizes Explorer registration exactly once.
-            StartupService.SetEnabled(settings.StartWithWindows);
-            SettingsService.Instance.Save();
-            UpdateCompressionAvailability();
-            TopmostService.Instance.ApplySettings();
-            RefreshPinnedState();
+            _captureTab?.ApplyScreenshotOnlyUi();
+            _hotkeysTab?.RefreshRows();
+            _generalTab?.ApplyScreenshotOnlyUi();
         }
 
-        private void CmbTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void BtnRestoreFullMode_Click(object sender, RoutedEventArgs e)
         {
-            if (_loading || _initializing)
-            {
-                return;
-            }
-
-            string theme = SelectedTag(CmbTheme) ?? "Dark";
-            SettingsService.Instance.Current.Theme = theme;
-            ThemeService.Apply(theme);
+            SettingsService.Instance.Current.ScreenshotOnlyMode = false;
             SettingsService.Instance.Save();
-        }
-
-        private void CmbLanguage_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_loading || _initializing)
-            {
-                return;
-            }
-
-            string language = SelectedTag(CmbLanguage) ?? "English";
-            SettingsService.Instance.Current.Language = language;
-            LocalizationService.Instance.Apply(language);
-            SettingsService.Instance.Save();
+            ReloadUi();
         }
 
         private void OnLanguageChanged()
@@ -589,12 +524,14 @@ namespace CryoUtils.Views
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 LocalizationService.Instance.ApplyWindow(this);
-                RefreshHotkeyRows();
+                _hotkeysTab?.RefreshRows();
                 RefreshPinnedState();
                 RefreshClipboardState();
                 UpdateModuleSummary();
                 UpdateHotkeyStatus();
-                RefreshRecentColors();
+                _toolsTab?.RefreshRecentColors();
+                _captureTab?.RefreshRecorderSummary();
+                _generalTab?.RefreshRollbackUi();
             }));
         }
 
@@ -602,336 +539,10 @@ namespace CryoUtils.Views
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                RefreshHotkeyRows();
-                RefreshRecentColors();
-                UpdateCompressionAvailability();
+                _hotkeysTab?.RefreshRows();
+                _toolsTab?.RefreshRecentColors();
+                _toolsTab?.UpdateCompressionAvailability();
             }));
-        }
-
-        private void Thickness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (TxtThickness == null)
-            {
-                return;
-            }
-
-            TxtThickness.Text = ((int)Math.Round(e.NewValue)).ToString(CultureInfo.InvariantCulture);
-            if (_loading || _initializing)
-            {
-                return;
-            }
-
-            SettingsService.Instance.Current.AnnotationThickness = (int)Math.Round(e.NewValue);
-            SettingsService.Instance.SaveWithoutNotification();
-        }
-
-        private void TxtStepStart_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (!int.TryParse(TxtStepStart.Text, out int step))
-            {
-                step = 1;
-            }
-            step = Math.Clamp(step, 1, 99);
-            TxtStepStart.Text = step.ToString(CultureInfo.InvariantCulture);
-            SettingsService.Instance.Current.StepStartNumber = step;
-            SettingsService.Instance.SaveWithoutNotification();
-        }
-
-        private void BtnDefaultColor_Click(object sender, RoutedEventArgs e)
-        {
-            using var dialog = new System.Windows.Forms.ColorDialog
-            {
-                FullOpen = true,
-                Color = System.Drawing.Color.FromArgb(
-                    AnnotationRenderer.ParseColor(SettingsService.Instance.Current.AnnotationColor).R,
-                    AnnotationRenderer.ParseColor(SettingsService.Instance.Current.AnnotationColor).G,
-                    AnnotationRenderer.ParseColor(SettingsService.Instance.Current.AnnotationColor).B)
-            };
-            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK)
-            {
-                return;
-            }
-
-            string hex = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
-            SettingsService.Instance.Current.AnnotationColor = hex;
-            SettingsService.Instance.Save();
-            TxtDefaultColor.Text = hex;
-            DefaultColorSwatch.Background = new SolidColorBrush(
-                Color.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B));
-        }
-
-        private void BtnBrowseFolder_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new OpenFolderDialog
-            {
-                Title = LocalizationService.Get("Capture_Folder"),
-                InitialDirectory = SettingsService.Instance.EffectiveSaveFolder
-            };
-            if (dialog.ShowDialog(this) != true)
-            {
-                return;
-            }
-
-            TxtSaveFolder.Text = dialog.FolderName;
-            SettingsService.Instance.Current.SaveFolder = dialog.FolderName;
-            SettingsService.Instance.Save();
-            ApplyRecentScope();
-        }
-
-        private void TxtSavedLimit_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (_loading || _initializing)
-            {
-                return;
-            }
-
-            int previousLimit = SettingsService.Instance.Current.SavedCapturesLimit;
-            if (!int.TryParse(TxtSavedLimit.Text, out int limit))
-            {
-                limit = 50;
-            }
-            limit = Math.Clamp(limit, 0, 10000);
-            TxtSavedLimit.Text = limit.ToString(CultureInfo.InvariantCulture);
-
-            if (limit > 0)
-            {
-                int deleteCount = Math.Max(0, ScreenCaptureService.GetManagedCaptureFiles().Count - limit);
-                if (deleteCount > 0)
-                {
-                    var choice = MessageBox.Show(
-                        this,
-                        LocalizationService.Format("SavedLimit_ConfirmFmt", deleteCount),
-                        LocalizationService.Get("General_SavedLimit"),
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Warning,
-                        MessageBoxResult.No);
-                    if (choice != MessageBoxResult.Yes)
-                    {
-                        TxtSavedLimit.Text = previousLimit.ToString(CultureInfo.InvariantCulture);
-                        return;
-                    }
-                }
-            }
-
-            SettingsService.Instance.Current.SavedCapturesLimit = limit;
-            SettingsService.Instance.SaveWithoutNotification();
-            ScreenCaptureService.EnforceSavedCaptureLimit();
-            ApplyRecentScope();
-        }
-
-        private void BtnUseFallback_Click(object sender, RoutedEventArgs e)
-        {
-            var settings = SettingsService.Instance.Current;
-            settings.CaptureHotkeyModifiers = "Ctrl+Shift";
-            settings.CaptureHotkeyKey = "S";
-            settings.PrintScreenFallbackSuggested = false;
-            SettingsService.Instance.Save();
-            PrintScreenBanner.Visibility = Visibility.Collapsed;
-            UpdateHotkeyStatus();
-        }
-
-        // ============================ Hotkeys ============================
-        private void RefreshHotkeyRows()
-        {
-            HotkeyRowsPanel.Children.Clear();
-            var settings = SettingsService.Instance.Current;
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_Capture"),
-                LocalizationService.Get("Module_CaptureDesc"),
-                settings.CaptureHotkeyModifiers,
-                settings.CaptureHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.CaptureHotkeyModifiers = modifiers;
-                    settings.CaptureHotkeyKey = key;
-                });
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_ColorPicker"),
-                LocalizationService.Get("Module_ColorDesc"),
-                settings.ColorPickerHotkeyModifiers,
-                settings.ColorPickerHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.ColorPickerHotkeyModifiers = modifiers;
-                    settings.ColorPickerHotkeyKey = key;
-                });
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_Pinner"),
-                LocalizationService.Get("Module_PinnerDesc"),
-                settings.WindowPinnerHotkeyModifiers,
-                settings.WindowPinnerHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.WindowPinnerHotkeyModifiers = modifiers;
-                    settings.WindowPinnerHotkeyKey = key;
-                });
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_PlainPaste"),
-                LocalizationService.Get("Module_ClipboardDesc"),
-                settings.PlainPasteHotkeyModifiers,
-                settings.PlainPasteHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.PlainPasteHotkeyModifiers = modifiers;
-                    settings.PlainPasteHotkeyKey = key;
-                });
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_History"),
-                LocalizationService.Get("Module_ClipboardDesc"),
-                settings.ClipboardHotkeyModifiers,
-                settings.ClipboardHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.ClipboardHotkeyModifiers = modifiers;
-                    settings.ClipboardHotkeyKey = key;
-                });
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_Workbench"),
-                LocalizationService.Get("PowerTools_Subtitle"),
-                settings.WorkbenchHotkeyModifiers,
-                settings.WorkbenchHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.WorkbenchHotkeyModifiers = modifiers;
-                    settings.WorkbenchHotkeyKey = key;
-                });
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_LiveDraw"),
-                LocalizationService.Get("Tools_LiveDrawDesc"),
-                settings.LiveDrawHotkeyModifiers,
-                settings.LiveDrawHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.LiveDrawHotkeyModifiers = modifiers;
-                    settings.LiveDrawHotkeyKey = key;
-                });
-
-            AddHotkeyRow(
-                LocalizationService.Get("Hotkeys_Replay"),
-                LocalizationService.Get("Rec_ReplayHotkeyHint"),
-                settings.ReplayHotkeyModifiers,
-                settings.ReplayHotkeyKey,
-                (modifiers, key) =>
-                {
-                    settings.ReplayHotkeyModifiers = modifiers;
-                    settings.ReplayHotkeyKey = key;
-                });
-        }
-
-        private void AddHotkeyRow(
-            string title,
-            string description,
-            string modifiers,
-            string key,
-            Action<string, string> apply)
-        {
-            var row = new Border
-            {
-                BorderBrush = ThemeService.GetBrush("DividerBrush"),
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                Padding = new Thickness(12, 10, 12, 10)
-            };
-
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            textStack.Children.Add(new TextBlock
-            {
-                Text = title,
-                Style = (Style)FindResource("CardTitle")
-            });
-            textStack.Children.Add(new TextBlock
-            {
-                Text = description,
-                Style = (Style)FindResource("MutedText"),
-                Margin = new Thickness(0, 3, 0, 0),
-                MaxWidth = 500,
-                TextWrapping = TextWrapping.Wrap,
-                HorizontalAlignment = HorizontalAlignment.Left
-            });
-            grid.Children.Add(textStack);
-
-            var pill = new Border
-            {
-                Style = (Style)FindResource("HotkeyPill"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 12, 0)
-            };
-            pill.Child = new TextBlock
-            {
-                Text = GlobalHotkeyService.FormatShortcutDisplay(modifiers, key),
-                Foreground = ThemeService.GetBrush("TextSecondaryBrush"),
-                FontFamily = (FontFamily)FindResource("CryoMono"),
-                FontSize = 10.5,
-                FlowDirection = FlowDirection.LeftToRight
-            };
-            Grid.SetColumn(pill, 1);
-            grid.Children.Add(pill);
-
-            var change = new Button
-            {
-                Content = LocalizationService.Get("Common_Change"),
-                Style = (Style)FindResource("SecondaryButton"),
-                MinWidth = 78
-            };
-            change.Click += (_, _) =>
-            {
-                var dialog = new HotkeyCaptureWindow(modifiers, key)
-                {
-                    Owner = this
-                };
-                if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.KeyToken))
-                {
-                    return;
-                }
-
-                apply(dialog.ModifiersToken, dialog.KeyToken);
-                SettingsService.Instance.Save();
-                (Application.Current as App)?.ApplyHotkeys();
-                RefreshHotkeyRows();
-                UpdateHotkeyStatus();
-            };
-            Grid.SetColumn(change, 2);
-            grid.Children.Add(change);
-
-            row.Child = grid;
-            HotkeyRowsPanel.Children.Add(row);
-        }
-
-        private void BtnResetHotkeys_Click(object sender, RoutedEventArgs e)
-        {
-            var defaults = new AppSettings();
-            var settings = SettingsService.Instance.Current;
-            settings.CaptureHotkeyModifiers = defaults.CaptureHotkeyModifiers;
-            settings.CaptureHotkeyKey = defaults.CaptureHotkeyKey;
-            settings.ColorPickerHotkeyModifiers = defaults.ColorPickerHotkeyModifiers;
-            settings.ColorPickerHotkeyKey = defaults.ColorPickerHotkeyKey;
-            settings.WindowPinnerHotkeyModifiers = defaults.WindowPinnerHotkeyModifiers;
-            settings.WindowPinnerHotkeyKey = defaults.WindowPinnerHotkeyKey;
-            settings.PlainPasteHotkeyModifiers = defaults.PlainPasteHotkeyModifiers;
-            settings.PlainPasteHotkeyKey = defaults.PlainPasteHotkeyKey;
-            settings.ClipboardHotkeyModifiers = defaults.ClipboardHotkeyModifiers;
-            settings.ClipboardHotkeyKey = defaults.ClipboardHotkeyKey;
-            settings.WorkbenchHotkeyModifiers = defaults.WorkbenchHotkeyModifiers;
-            settings.WorkbenchHotkeyKey = defaults.WorkbenchHotkeyKey;
-            settings.LiveDrawHotkeyModifiers = defaults.LiveDrawHotkeyModifiers;
-            settings.LiveDrawHotkeyKey = defaults.LiveDrawHotkeyKey;
-            settings.ReplayHotkeyModifiers = defaults.ReplayHotkeyModifiers;
-            settings.ReplayHotkeyKey = defaults.ReplayHotkeyKey;
-            settings.PrintScreenFallbackSuggested = false;
-            SettingsService.Instance.Save();
-            RefreshHotkeyRows();
-            UpdateHotkeyStatus();
         }
 
         private void UpdateHotkeyStatus()
@@ -948,14 +559,7 @@ namespace CryoUtils.Views
                 settings.WindowPinnerHotkeyModifiers, settings.WindowPinnerHotkeyKey);
             TxtHotkeyClipboard.Text = GlobalHotkeyService.FormatShortcutDisplay(
                 settings.ClipboardHotkeyModifiers, settings.ClipboardHotkeyKey);
-
-            bool printScreen = string.Equals(
-                settings.CaptureHotkeyKey,
-                "PrintScreen",
-                StringComparison.OrdinalIgnoreCase);
-            bool contested = settings.CaptureEnabled && printScreen &&
-                !GlobalHotkeyService.Instance.IsRegistered(GlobalHotkeyService.CaptureHotkeyId);
-            PrintScreenBanner.Visibility = contested ? Visibility.Visible : Visibility.Collapsed;
+            _captureTab?.UpdateContestedBanner();
         }
 
         // ============================ Recent ============================
@@ -1239,7 +843,7 @@ namespace CryoUtils.Views
                 }
             }
 
-            LoadCompressionSource(path);
+            EnsureToolsTab().LoadCompressionSource(path);
             ShowTab("Tools");
             Activate();
         }
@@ -1334,326 +938,10 @@ namespace CryoUtils.Views
         }
 
         // ============================ Compression ============================
-        private void DropZone_DragOver(object sender, DragEventArgs e)
-        {
-            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
-                ? DragDropEffects.Copy
-                : DragDropEffects.None;
-            e.Handled = true;
-        }
-
-        private void DropZone_Drop(object sender, DragEventArgs e)
-        {
-            DropZone.BorderBrush = ThemeService.GetBrush("BorderStrongBrush");
-            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
-            {
-                LoadCompressionSource(files[0]);
-            }
-        }
-
-        private void DropZone_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            BrowseCompressionFile();
-        }
-
-        private void BtnBrowseCompress_Click(object sender, RoutedEventArgs e)
-        {
-            BrowseCompressionFile();
-        }
-
-        private void BrowseCompressionFile()
-        {
-            var dialog = new OpenFileDialog
-            {
-                Title = LocalizationService.Get("Tools_Dropzone"),
-                Filter = LocalizationService.Get("Common_ImageFilter"),
-                CheckFileExists = true
-            };
-            if (dialog.ShowDialog(this) == true)
-            {
-                LoadCompressionSource(dialog.FileName);
-            }
-        }
-
-        private void LoadCompressionSource(string path)
-        {
-            string extension = IOPath.GetExtension(path).ToLowerInvariant();
-            if (extension is not (".png" or ".jpg" or ".jpeg" or ".webp" or ".gif"))
-            {
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("Tools_CompressFailed"));
-                return;
-            }
-
-            _compressSourcePath = path;
-            _compressResult = null;
-            BtnSaveCompressed.IsEnabled = false;
-            BtnCopyCompressed.IsEnabled = false;
-            TxtCompressFileName.Text = IOPath.GetFileName(path);
-            TxtCompressStatus.Text = LocalizationService.Get("Tools_NoResult");
-            TxtBeforeSize.Text = ImageIO.FormatBytes(new FileInfo(path).Length);
-            TxtAfterSize.Text = "--";
-            TxtSaved.Text = "--";
-            try
-            {
-                var bytes = File.ReadAllBytes(path);
-                ImgCompressedPreview.Source = ImageIO.DecodeBytes(bytes);
-            }
-            catch
-            {
-                ImgCompressedPreview.Source = null;
-            }
-            UpdateCompressionAvailability();
-        }
-
-        private void CmbPreset_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_loading || _initializing || TxtQualityValue == null)
-            {
-                return;
-            }
-
-            string preset = SelectedTag(CmbPreset) ?? "Discord";
-            _loading = true;
-            try
-            {
-                switch (preset)
-                {
-                    case "Discord":
-                        SldQuality.Value = 88;
-                        SldScale.Value = 100;
-                        break;
-                    case "WhatsApp":
-                        SldQuality.Value = 70;
-                        SldScale.Value = 80;
-                        break;
-                }
-                TxtQualityValue.Text = $"{(int)SldQuality.Value}%";
-                TxtScaleValue.Text = $"{(int)SldScale.Value}%";
-            }
-            finally
-            {
-                _loading = false;
-            }
-
-            SettingsService.Instance.Current.CompressorPreset = preset;
-            SettingsService.Instance.SaveWithoutNotification();
-            UpdatePresetSliderState();
-        }
-
-        private void UpdatePresetSliderState()
-        {
-            bool custom = SelectedTag(CmbPreset) == "Custom";
-            SldQuality.IsEnabled = custom;
-            SldScale.IsEnabled = custom;
-        }
-
-        private void Compression_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (TxtQualityValue == null || TxtScaleValue == null)
-            {
-                return;
-            }
-
-            TxtQualityValue.Text = $"{(int)Math.Round(SldQuality.Value)}%";
-            TxtScaleValue.Text = $"{(int)Math.Round(SldScale.Value)}%";
-
-            if (_loading || _initializing)
-            {
-                return;
-            }
-
-            var settings = SettingsService.Instance.Current;
-            settings.CompressorQuality = (int)Math.Round(SldQuality.Value);
-            settings.CompressorScale = (int)Math.Round(SldScale.Value);
-            SettingsService.Instance.SaveWithoutNotification();
-        }
-
-        private void UpdateCompressionAvailability()
-        {
-            bool enabled = SettingsService.Instance.Current.CompressorEnabled;
-            bool custom = SelectedTag(CmbPreset) == "Custom";
-            BtnCompress.IsEnabled = enabled && !string.IsNullOrEmpty(_compressSourcePath);
-            CmbPreset.IsEnabled = enabled;
-            SldQuality.IsEnabled = enabled && custom;
-            SldScale.IsEnabled = enabled && custom;
-        }
-
-        private async void BtnCompress_Click(object sender, RoutedEventArgs e)
-        {
-            if (string.IsNullOrEmpty(_compressSourcePath) || !File.Exists(_compressSourcePath))
-            {
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("Tools_NoResult"));
-                return;
-            }
-            if (!SettingsService.Instance.Current.CompressorEnabled)
-            {
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("Module_OffNote"));
-                return;
-            }
-
-            string preset = SelectedTag(CmbPreset) ?? "Discord";
-            int quality = (int)Math.Round(SldQuality.Value);
-            int scale = (int)Math.Round(SldScale.Value);
-            var settings = SettingsService.Instance.Current;
-            settings.CompressorPreset = preset;
-            settings.CompressorQuality = quality;
-            settings.CompressorScale = scale;
-            SettingsService.Instance.SaveWithoutNotification();
-
-            SetCompressionBusy(true);
-            TxtCompressStatus.Text = LocalizationService.Get("Tools_CompressBusy");
-            try
-            {
-                var result = await CompressionService.CompressAsync(
-                    _compressSourcePath,
-                    preset,
-                    quality,
-                    scale);
-                _compressResult = result;
-                ImgCompressedPreview.Source = result.Preview;
-                TxtBeforeSize.Text = ImageIO.FormatBytes(result.OriginalBytes);
-                TxtAfterSize.Text = ImageIO.FormatBytes(result.CompressedBytes);
-                TxtSaved.Text = result.SavedPercent > 0
-                    ? $"{(int)Math.Round(result.SavedPercent)}%"
-                    : "0%";
-                TxtCompressStatus.Text = LocalizationService.Format(
-                    "Tools_Result",
-                    ImageIO.FormatBytes(result.OriginalBytes),
-                    ImageIO.FormatBytes(result.CompressedBytes),
-                    TxtSaved.Text);
-                BtnSaveCompressed.IsEnabled = true;
-                BtnCopyCompressed.IsEnabled = true;
-            }
-            catch (Exception ex)
-            {
-                TxtCompressStatus.Text = LocalizationService.Get("Tools_CompressFailed");
-                (Application.Current as App)?.ShowToast(
-                    LocalizationService.Format("Error_Body", ex.Message));
-            }
-            finally
-            {
-                SetCompressionBusy(false);
-            }
-        }
-
-        private void SetCompressionBusy(bool busy)
-        {
-            BtnCompress.IsEnabled = !busy && SettingsService.Instance.Current.CompressorEnabled &&
-                !string.IsNullOrEmpty(_compressSourcePath);
-            BtnSaveCompressed.IsEnabled = !busy && _compressResult != null;
-            BtnCopyCompressed.IsEnabled = !busy && _compressResult != null;
-        }
-
-        private void BtnSaveCompressed_Click(object sender, RoutedEventArgs e)
-        {
-            if (_compressResult == null)
-            {
-                return;
-            }
-
-            var dialog = new SaveFileDialog
-            {
-                Title = LocalizationService.Get("Tools_SaveAs"),
-                Filter = LocalizationService.Get("Common_ImageFilter"),
-                DefaultExt = _compressResult.Extension,
-                AddExtension = true,
-                FileName = ScreenCaptureService.CreateTimestampedFileName(_compressResult.Extension),
-                InitialDirectory = SettingsService.Instance.EffectiveSaveFolder
-            };
-            if (dialog.ShowDialog(this) != true)
-            {
-                return;
-            }
-
-            try
-            {
-                File.WriteAllBytes(dialog.FileName, _compressResult.Data);
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("General_ExportDone"));
-            }
-            catch (Exception ex)
-            {
-                (Application.Current as App)?.ShowToast(
-                    LocalizationService.Format("Error_Body", ex.Message));
-            }
-        }
-
-        private void BtnCopyCompressed_Click(object sender, RoutedEventArgs e)
-        {
-            if (_compressResult == null)
-            {
-                return;
-            }
-
-            try
-            {
-                string folder = IOPath.Combine(IOPath.GetTempPath(), "CryoUtils");
-                Directory.CreateDirectory(folder);
-                string path = IOPath.Combine(
-                    folder,
-                    ScreenCaptureService.CreateTimestampedFileName(_compressResult.Extension));
-                File.WriteAllBytes(path, _compressResult.Data);
-                Clipboard.SetFileDropList(new StringCollection { path });
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
-            }
-            catch (Exception ex)
-            {
-                (Application.Current as App)?.ShowToast(
-                    LocalizationService.Format("Error_Body", ex.Message));
-            }
-        }
-
-        // ============================ Tools cards ============================
-        private void RefreshRecentColors()
-        {
-            RecentColorsPanel.Children.Clear();
-            var colors = SettingsService.Instance.Current.RecentColors;
-            TxtRecentColorsEmpty.Visibility = colors.Count == 0
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-
-            foreach (string hex in colors)
-            {
-                var button = new Button
-                {
-                    Width = 26,
-                    Height = 22,
-                    Margin = new Thickness(0, 0, 6, 6),
-                    Padding = new Thickness(0),
-                    Style = (Style)FindResource("SecondaryButton"),
-                    Background = new SolidColorBrush(AnnotationRenderer.ParseColor(hex)),
-                    BorderBrush = ThemeService.GetBrush("BorderStrongBrush"),
-                    ToolTip = hex
-                };
-                System.Windows.Automation.AutomationProperties.SetName(button, hex);
-                button.Click += (_, _) =>
-                {
-                    try
-                    {
-                        Clipboard.SetText(hex);
-                        (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
-                    }
-                    catch
-                    {
-                    }
-                };
-                RecentColorsPanel.Children.Add(button);
-            }
-        }
-
         private void RefreshPinnedState()
         {
+            _toolsTab?.RefreshPinnedState();
             var topmost = TopmostService.Instance;
-            if (TxtPinnedWindow != null)
-            {
-                TxtPinnedWindow.Text = topmost.IsPinned
-                    ? LocalizationService.Format("Tools_PinnedActive", topmost.PinnedTitle)
-                    : LocalizationService.Get("Tools_PinnedNone");
-            }
-            if (BtnUnpin != null)
-            {
-                BtnUnpin.IsEnabled = topmost.IsPinned;
-            }
-
             if (BtnOverviewUnpin != null)
             {
                 BtnOverviewUnpin.Visibility = topmost.IsPinned ? Visibility.Visible : Visibility.Collapsed;
@@ -1669,315 +957,12 @@ namespace CryoUtils.Views
             }
         }
 
-        private void BtnPowerTools_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.OpenWorkbench();
-        }
+        private void BtnUnpin_Click(object sender, RoutedEventArgs e) => TopmostService.Instance.Unpin();
 
-        private void BtnUnpin_Click(object sender, RoutedEventArgs e)
-        {
-            TopmostService.Instance.Unpin();
-        }
+        private void RefreshClipboardState() => _toolsTab?.RefreshClipboardState();
 
-        private void BtnResetPinner_Click(object sender, RoutedEventArgs e)
-        {
-            TopmostService.Instance.ForceClearAll();
-        }
-
-        private void PinnedOpacity_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (TxtPinnedOpacity == null) return;
-            TxtPinnedOpacity.Text = $"{(int)Math.Round(SldPinnedOpacity.Value)}%";
-            if (_loading || _initializing) return;
-            SettingsService.Instance.Current.PinnedOpacity = (int)Math.Round(SldPinnedOpacity.Value);
-            SettingsService.Instance.SaveWithoutNotification();
-            TopmostService.Instance.ApplySettings();
-        }
-
-        private void PinnedClickThrough_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_loading || _initializing) return;
-            SettingsService.Instance.Current.PinnedClickThrough = ChkPinnedClickThrough.IsChecked == true;
-            SettingsService.Instance.SaveWithoutNotification();
-            TopmostService.Instance.ApplySettings();
-        }
-
-        private void ContrastColor_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (_loading || _initializing) return;
-            UpdateDashboardContrast();
-        }
-
-        private void BtnSwapContrastColors_Click(object sender, RoutedEventArgs e)
-        {
-            string temp = TxtContrastA.Text;
-            TxtContrastA.Text = TxtContrastB.Text;
-            TxtContrastB.Text = temp;
-        }
-
-        private void UpdateDashboardContrast()
-        {
-            if (TxtContrastA == null || TxtContrastB == null || SwatchContrastA == null || SwatchContrastB == null || TxtDashboardContrastRatio == null)
-            {
-                return;
-            }
-
-            var colorA = AnnotationRenderer.ParseColor(TxtContrastA.Text.Trim());
-            var colorB = AnnotationRenderer.ParseColor(TxtContrastB.Text.Trim());
-            SwatchContrastA.Background = new SolidColorBrush(colorA);
-            SwatchContrastB.Background = new SolidColorBrush(colorB);
-
-            double ratio = ColorContrastService.CalculateRatio(colorA, colorB);
-            TxtDashboardContrastRatio.Text = ColorContrastService.FormatRatio(ratio);
-            var eval = ColorContrastService.Evaluate(ratio);
-
-            string passText = LocalizationService.Get("Tools_WcagPass");
-            string failText = LocalizationService.Get("Tools_WcagFail");
-            string normalLabel = LocalizationService.Get("Tools_WcagNormalText");
-            string largeLabel = LocalizationService.Get("Tools_WcagLargeText");
-
-            TxtWcagAaNormal.Text = $"{normalLabel}: {(eval.AaNormal ? passText : failText)}";
-            BadgeWcagAaNormal.Background = eval.AaNormal ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
-            TxtWcagAaNormal.Foreground = eval.AaNormal ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
-
-            TxtWcagAaLarge.Text = $"{largeLabel}: {(eval.AaLarge ? passText : failText)}";
-            BadgeWcagAaLarge.Background = eval.AaLarge ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
-            TxtWcagAaLarge.Foreground = eval.AaLarge ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
-
-            TxtWcagAaaNormal.Text = $"{normalLabel}: {(eval.AaaNormal ? passText : failText)}";
-            BadgeWcagAaaNormal.Background = eval.AaaNormal ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
-            TxtWcagAaaNormal.Foreground = eval.AaaNormal ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
-
-            TxtWcagAaaLarge.Text = $"{largeLabel}: {(eval.AaaLarge ? passText : failText)}";
-            BadgeWcagAaaLarge.Background = eval.AaaLarge ? ThemeService.GetBrush("SuccessMutedBrush") : ThemeService.GetBrush("InsetBackgroundBrush");
-            TxtWcagAaaLarge.Foreground = eval.AaaLarge ? ThemeService.GetBrush("SuccessBrush") : ThemeService.GetBrush("TextMutedBrush");
-        }
-
-        private void TxtQrInput_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            RegenerateDashboardQr();
-        }
-
-        private void CmbQrCorrection_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            RegenerateDashboardQr();
-        }
-
-        private void RegenerateDashboardQr()
-        {
-            if (TxtQrInput == null || ImgQrPreview == null || BtnCopyQr == null || BtnSaveQr == null)
-            {
-                return;
-            }
-
-            string text = TxtQrInput.Text;
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                ImgQrPreview.Source = null;
-                BtnCopyQr.IsEnabled = false;
-                BtnSaveQr.IsEnabled = false;
-                return;
-            }
-
-            string levelStr = (CmbQrCorrection.SelectedItem as ComboBoxItem)?.Tag as string ?? "M";
-            var level = levelStr switch
-            {
-                "L" => ZXing.QrCode.Internal.ErrorCorrectionLevel.L,
-                "Q" => ZXing.QrCode.Internal.ErrorCorrectionLevel.Q,
-                "H" => ZXing.QrCode.Internal.ErrorCorrectionLevel.H,
-                _ => ZXing.QrCode.Internal.ErrorCorrectionLevel.M
-            };
-
-            try
-            {
-                var bitmap = QrCodeService.Encode(text, 256, level);
-                ImgQrPreview.Source = bitmap;
-                BtnCopyQr.IsEnabled = true;
-                BtnSaveQr.IsEnabled = true;
-            }
-            catch
-            {
-                ImgQrPreview.Source = null;
-                BtnCopyQr.IsEnabled = false;
-                BtnSaveQr.IsEnabled = false;
-            }
-        }
-
-        private void BtnCopyQr_Click(object sender, RoutedEventArgs e)
-        {
-            if (ImgQrPreview.Source is BitmapSource bitmap)
-            {
-                try
-                {
-                    Clipboard.SetImage(bitmap);
-                    RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Tools_QrTitle"));
-                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
-                }
-                catch
-                {
-                }
-            }
-        }
-
-        private void BtnSaveQr_Click(object sender, RoutedEventArgs e)
-        {
-            if (ImgQrPreview.Source is not BitmapSource bitmap)
-            {
-                return;
-            }
-
-            var dialog = new SaveFileDialog
-            {
-                Title = LocalizationService.Get("Tools_QrSave"),
-                Filter = LocalizationService.Get("Common_PngFilter"),
-                DefaultExt = ".png",
-                FileName = $"CryoUtils_QRCode_{DateTime.Now:yyyyMMdd_HHmmss}.png"
-            };
-            if (dialog.ShowDialog(this) == true)
-            {
-                try
-                {
-                    byte[] bytes = ImageIO.EncodePng(bitmap);
-                    File.WriteAllBytes(dialog.FileName, bytes);
-                    RecentCaptureService.Instance.Add(bitmap, dialog.FileName, LocalizationService.Get("Tools_QrTitle"));
-                    (Application.Current as App)?.ShowToast(LocalizationService.Get("General_ExportDone"));
-                }
-                catch (Exception ex)
-                {
-                    (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
-                }
-            }
-        }
-
-        private void BtnQrScanScreen_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.StartCapture();
-        }
-
-        private void BtnQrScanFile_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new OpenFileDialog
-            {
-                Title = LocalizationService.Get("Tools_QrScanFile"),
-                Filter = LocalizationService.Get("Common_ImageFilter")
-            };
-            if (dialog.ShowDialog(this) == true)
-            {
-                try
-                {
-                    var uri = new Uri(dialog.FileName, UriKind.Absolute);
-                    var bitmap = new BitmapImage(uri);
-                    var decoded = QrCodeService.Decode(bitmap);
-                    if (decoded == null || string.IsNullOrWhiteSpace(decoded.Text))
-                    {
-                        (Application.Current as App)?.ShowToast(LocalizationService.Get("Qr_NotFound"));
-                        return;
-                    }
-
-                    // Add scanned image to Recent Captures strip
-                    RecentCaptureService.Instance.Add(bitmap, dialog.FileName, LocalizationService.Get("Tools_QrTitle"));
-
-                    var window = new QrResultWindow(decoded.Text, decoded.FormatName, bitmap);
-                    window.Show();
-                    window.Activate();
-                }
-                catch (Exception ex)
-                {
-                    (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
-                }
-            }
-        }
-
-        private void RefreshClipboardState()
-        {
-            if (TxtClipboardCount == null)
-            {
-                return;
-            }
-
-            var settings = SettingsService.Instance.Current;
-            if (!settings.ClipboardHistoryEnabled)
-            {
-                TxtClipboardCount.Text = LocalizationService.Get("Tools_ClipboardDisabled");
-                TxtClipboardNote.Text = LocalizationService.Get("Tools_ClipboardDesc");
-                return;
-            }
-
-            int count = ClipboardService.Instance.Items.Count;
-            TxtClipboardCount.Text = count == 0
-                ? LocalizationService.Get("Tools_ClipboardEmpty")
-                : LocalizationService.Format("Tools_ClipboardCount", count);
-            TxtClipboardNote.Text = settings.ClipboardAutoClearSensitive
-                ? LocalizationService.Format("Tools_ClipboardSensitive", settings.ClipboardAutoClearSeconds)
-                : LocalizationService.Get("Tools_ClipboardDesc");
-        }
-
-        private void BtnClipboardOpen_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.OpenClipboardHistory();
-        }
-
-        private void BtnClipboardClear_Click(object sender, RoutedEventArgs e)
-        {
-            ClipboardService.Instance.Clear();
-            RefreshClipboardState();
-        }
-
-        // ============================ Launchers ============================
-        private void BtnHeroCapture_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.StartCapture();
-        }
-
-        private void BtnRecordNow_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.StartRecording();
-        }
-
-        private void BtnRecorderSettings_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.OpenRecorderSettings();
-            RefreshRecorderSummary();
-            RefreshReplayCard();
-        }
-
-        private void BtnReplayToggle_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.ToggleReplayBuffer();
-            RefreshReplayCard();
-        }
-
-        private void BtnReplaySave_Click(object sender, RoutedEventArgs e)
-        {
-            App.CurrentApp?.SaveReplay();
-        }
-
-        private void RefreshRecorderSummary()
-        {
-            if (TxtRecorderSummary == null)
-            {
-                return;
-            }
-
-            var settings = SettingsService.Instance.Current;
-            if (string.Equals(settings.RecorderFormat, "GIF", StringComparison.OrdinalIgnoreCase))
-            {
-                TxtRecorderSummary.Text = LocalizationService.Format(
-                    "Rec_SummaryGif",
-                    Math.Clamp(settings.GifFps, 5, 30),
-                    settings.MaxRecordingSeconds);
-                return;
-            }
-
-            TxtRecorderSummary.Text = LocalizationService.Format(
-                "Rec_SummaryMp4",
-                settings.RecorderResolution,
-                settings.RecorderFps,
-                settings.RecorderQuality,
-                settings.RecorderBitrateMbps > 0
-                    ? $"{settings.RecorderBitrateMbps} Mbps"
-                    : LocalizationService.Get("Rec_BitrateAuto"));
-        }
+        private void BtnHeroCapture_Click(object sender, RoutedEventArgs e) => App.CurrentApp?.StartCapture();
+        private void BtnRecordNow_Click(object sender, RoutedEventArgs e) => App.CurrentApp?.StartRecording();
 
         private void OnSettingsChanged()
         {
@@ -1986,29 +971,20 @@ namespace CryoUtils.Views
                 Dispatcher.BeginInvoke(new Action(OnSettingsChanged));
                 return;
             }
-            if (_loading)
-            {
-                return;
-            }
+            if (_loading) return;
 
-            RefreshRecorderSummary();
+            _captureTab?.RefreshRecorderSummary();
             RefreshReplayCard();
             RefreshRecentStrip();
+            ApplyScreenshotOnlyUi();
         }
 
         private void SyncReplayTimer()
         {
-            if (_replayTimer == null)
+            if (_replayTimer == null) return;
+            if (IsVisible && ReplayService.Instance.IsRunning && _toolsTab != null)
             {
-                return;
-            }
-
-            if (IsVisible && ReplayService.Instance.IsRunning)
-            {
-                if (!_replayTimer.IsEnabled)
-                {
-                    _replayTimer.Start();
-                }
+                if (!_replayTimer.IsEnabled) _replayTimer.Start();
             }
             else if (_replayTimer.IsEnabled)
             {
@@ -2018,26 +994,13 @@ namespace CryoUtils.Views
 
         private void RefreshReplayCard()
         {
-            if (BtnReplayToggle == null)
-            {
-                return;
-            }
             if (!Dispatcher.CheckAccess())
             {
                 Dispatcher.BeginInvoke(new Action(RefreshReplayCard));
                 return;
             }
 
-            var replay = ReplayService.Instance;
-            BtnReplayToggle.Content = LocalizationService.Get(
-                replay.IsRunning ? "Rec_ReplayStop" : "Rec_ReplayStart");
-            BtnReplaySave.IsEnabled = replay.IsRunning;
-            TxtReplayStatus.Text = replay.IsRunning
-                ? LocalizationService.Format(
-                    "Rec_ReplayRunning",
-                    $"{replay.BufferedSeconds / 60:00}:{replay.BufferedSeconds % 60:00}",
-                    ImageIO.FormatBytes(replay.BufferedBytes))
-                : LocalizationService.Get("Rec_ReplayOff");
+            _toolsTab?.RefreshReplayCard();
             SyncReplayTimer();
         }
 
@@ -2359,115 +1322,12 @@ namespace CryoUtils.Views
             }
         }
 
-        // ============================ Data ============================
-        private void BtnExportSettings_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new SaveFileDialog
-            {
-                Title = LocalizationService.Get("General_Export"),
-                Filter = LocalizationService.Get("Common_JsonFilter"),
-                DefaultExt = ".json",
-                AddExtension = true,
-                FileName = $"CryoUtils_settings_{DateTime.Now:yyyy-MM-dd}.json"
-            };
-            if (dialog.ShowDialog(this) != true)
-            {
-                return;
-            }
-
-            try
-            {
-                SettingsService.Instance.Export(dialog.FileName);
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("General_ExportDone"));
-            }
-            catch (Exception ex)
-            {
-                (Application.Current as App)?.ShowToast(
-                    LocalizationService.Format("Error_Body", ex.Message));
-            }
-        }
-
-        private void BtnImportSettings_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new OpenFileDialog
-            {
-                Title = LocalizationService.Get("General_Import"),
-                Filter = LocalizationService.Get("Common_JsonFilter"),
-                CheckFileExists = true
-            };
-            if (dialog.ShowDialog(this) != true)
-            {
-                return;
-            }
-
-            if (MessageBox.Show(
-                    this,
-                    LocalizationService.Get("General_ImportConfirm"),
-                    LocalizationService.Get("General_Import"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question,
-                    MessageBoxResult.No) != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                SettingsService.Instance.Import(dialog.FileName);
-                App.CurrentApp?.ApplyAllSettings();
-                ReloadUi();
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("General_ImportDone"));
-            }
-            catch (Exception ex)
-            {
-                (Application.Current as App)?.ShowToast(
-                    LocalizationService.Format("Error_Body", ex.Message));
-            }
-        }
-
-        private void BtnResetSettings_Click(object sender, RoutedEventArgs e)
-        {
-            if (MessageBox.Show(
-                    this,
-                    LocalizationService.Get("General_ResetConfirm"),
-                    LocalizationService.Get("General_Reset"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning,
-                    MessageBoxResult.No) != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            SettingsService.Instance.Reset();
-            App.CurrentApp?.ApplyAllSettings();
-            ReloadUi();
-            (Application.Current as App)?.ShowToast(LocalizationService.Get("General_ResetDone"));
-        }
-
-        // ============================ About / updates ============================
-        private void BtnRepo_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo("https://github.com/ZerroDevs/CryoUtils")
-                {
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
-            }
-        }
-
-        private async void BtnCheckUpdates_Click(object sender, RoutedEventArgs e)
-        {
-            await CheckForUpdatesAsync(silent: false);
-        }
+        private void BtnQrScanScreen_Click(object sender, RoutedEventArgs e) => App.CurrentApp?.StartCapture();
 
         private async void MaybeAutoCheckUpdates()
         {
             var settings = SettingsService.Instance.Current;
-            if (!settings.AutomaticUpdateChecks)
+            if (!settings.AutomaticUpdateChecks || settings.ScreenshotOnlyMode)
             {
                 return;
             }
@@ -2479,240 +1339,27 @@ namespace CryoUtils.Views
             }
 
             await Task.Delay(1200);
-            await CheckForUpdatesAsync(silent: true);
-        }
-
-        private async Task CheckForUpdatesAsync(bool silent)
-        {
-            if (_searchingUpdates || _downloadingUpdate)
-            {
-                return;
-            }
-
-            _searchingUpdates = true;
-            BtnCheckUpdates.IsEnabled = false;
-            if (!silent)
-            {
-                TxtUpdateStatus.Text = LocalizationService.Get("About_Checking");
-            }
-
-            var settings = SettingsService.Instance.Current;
             try
             {
-                _availableUpdate = await UpdaterService.CheckAsync();
+                var info = await UpdaterService.CheckAsync();
                 settings.LastUpdateCheckUtc = DateTime.UtcNow;
-                if (_availableUpdate == null)
+                if (info != null)
                 {
-                    settings.LastUpdateOutcome = "current";
-                    settings.LastUpdateVersion = UpdaterService.CurrentVersion;
-                    TxtUpdateStatus.Text = LocalizationService.Get("About_UpToDate");
-                    UpdateNotesPanel.Visibility = Visibility.Collapsed;
-                    BtnDownloadUpdate.Visibility = Visibility.Collapsed;
+                    settings.LastUpdateOutcome = "available";
+                    settings.LastUpdateVersion = info.Version.ToString();
+                    App.CurrentApp?.ShowToast(LocalizationService.Format("About_UpdateAvailable", info.Version));
                 }
                 else
                 {
-                    settings.LastUpdateOutcome = "available";
-                    settings.LastUpdateVersion = _availableUpdate.Version.ToString();
-                    TxtUpdateStatus.Text = LocalizationService.Format(
-                        "About_UpdateAvailable",
-                        _availableUpdate.Version);
-                    TxtUpdateNotes.Text = string.IsNullOrWhiteSpace(_availableUpdate.Notes)
-                        ? LocalizationService.Get("About_WhatsNew")
-                        : _availableUpdate.Notes;
-                    UpdateNotesPanel.Visibility = Visibility.Visible;
-                    BtnDownloadUpdate.Visibility = Visibility.Visible;
-                    BtnDownloadUpdate.IsEnabled = _availableUpdate.HasAsset;
-                    if (!_availableUpdate.HasAsset)
-                    {
-                        TxtUpdateStatus.Text = LocalizationService.Get("Update_NoAsset");
-                    }
-                    if (silent)
-                    {
-                        (Application.Current as App)?.ShowToast(
-                            LocalizationService.Format("About_UpdateAvailable", _availableUpdate.Version));
-                    }
+                    settings.LastUpdateOutcome = "current";
+                    settings.LastUpdateVersion = UpdaterService.CurrentVersion;
                 }
                 SettingsService.Instance.SaveWithoutNotification();
             }
-            catch (Exception)
+            catch
             {
                 settings.LastUpdateOutcome = "failed";
-                TxtUpdateStatus.Text = LocalizationService.Get("About_CheckFailed");
                 SettingsService.Instance.SaveWithoutNotification();
-            }
-            finally
-            {
-                TxtLastChecked.Text = settings.LastUpdateCheckUtc is DateTime checkedUtc
-                    ? checkedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)
-                    : LocalizationService.Get("About_Never");
-                BtnCheckUpdates.IsEnabled = true;
-                _searchingUpdates = false;
-                RefreshRollbackUi();
-                MemoryTrimService.ScheduleTrim(600);
-            }
-        }
-
-        private async void BtnDownloadUpdate_Click(object sender, RoutedEventArgs e)
-        {
-            if (_availableUpdate == null || _downloadingUpdate)
-            {
-                return;
-            }
-
-            var info = _availableUpdate;
-            if (!info.HasAsset)
-            {
-                TxtUpdateStatus.Text = LocalizationService.Get("Update_NoAsset");
-                BtnDownloadUpdate.IsEnabled = false;
-                return;
-            }
-            if (MessageBox.Show(
-                    this,
-                    LocalizationService.Format("About_DownloadConfirm", info.Version),
-                    LocalizationService.Get("About_Download"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question,
-                    MessageBoxResult.No) != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            if (SettingsService.Instance.Current.SaveRollbackOnUpdate)
-            {
-                try
-                {
-                    UpdaterService.CreateBackup();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(
-                        this,
-                        LocalizationService.Format("Error_Body", ex.Message),
-                        LocalizationService.Get("Error_Title"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
-                    return;
-                }
-            }
-
-            _downloadingUpdate = true;
-            BtnDownloadUpdate.IsEnabled = false;
-            BtnCheckUpdates.IsEnabled = false;
-            UpdateProgress.Visibility = Visibility.Visible;
-            UpdateProgress.Value = 0;
-            try
-            {
-                var progress = new Progress<double>(value =>
-                {
-                    UpdateProgress.Value = Math.Clamp(value * 100, 0, 100);
-                    TxtUpdateStatus.Text = LocalizationService.Format(
-                        "About_Downloading",
-                        (int)Math.Round(value * 100));
-                });
-                string installer = await UpdaterService.DownloadAsync(info, progress);
-                TxtUpdateStatus.Text = LocalizationService.Get("Update_Ready");
-                UpdaterService.ApplyUpdate(installer);
-            }
-            catch (Exception ex)
-            {
-                TxtUpdateStatus.Text = LocalizationService.Get("Update_InstallFailed");
-                MessageBox.Show(
-                    this,
-                    LocalizationService.Format("Error_Body", ex.Message),
-                    LocalizationService.Get("Error_Title"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                BtnDownloadUpdate.IsEnabled = true;
-                BtnCheckUpdates.IsEnabled = true;
-                _downloadingUpdate = false;
-                UpdateProgress.Visibility = Visibility.Collapsed;
-            }
-        }
-
-        private void RefreshRollbackUi()
-        {
-            bool ready = UpdaterService.IsBackupReady;
-            BtnRestore.IsEnabled = ready;
-            BtnDeleteBackup.IsEnabled = ready;
-            if (ready)
-            {
-                TxtRollbackStatus.Text = LocalizationService.Format(
-                    "About_BackupReady",
-                    string.IsNullOrEmpty(UpdaterService.BackupVersion)
-                        ? "?"
-                        : UpdaterService.BackupVersion);
-            }
-            else
-            {
-                TxtRollbackStatus.Text = LocalizationService.Get("About_NoBackup");
-            }
-        }
-
-        private void BtnRestore_Click(object sender, RoutedEventArgs e)
-        {
-            if (!UpdaterService.IsBackupReady)
-            {
-                return;
-            }
-
-            if (MessageBox.Show(
-                    this,
-                    LocalizationService.Get("About_RestoreConfirm"),
-                    LocalizationService.Get("About_Restore"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning,
-                    MessageBoxResult.No) != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                UpdaterService.RestoreBackup();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    this,
-                    LocalizationService.Format("Error_Body", ex.Message),
-                    LocalizationService.Get("Error_Title"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-            }
-        }
-
-        private void BtnDeleteBackup_Click(object sender, RoutedEventArgs e)
-        {
-            if (!UpdaterService.IsBackupReady)
-            {
-                return;
-            }
-
-            if (MessageBox.Show(
-                    this,
-                    LocalizationService.Get("About_DeleteBackup"),
-                    LocalizationService.Get("About_DeleteBackup"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning,
-                    MessageBoxResult.No) != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                UpdaterService.DeleteBackup();
-                RefreshRollbackUi();
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("About_BackupDeleted"));
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    this,
-                    LocalizationService.Format("Error_Body", ex.Message),
-                    LocalizationService.Get("Error_Title"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
             }
         }
 
@@ -2741,9 +1388,15 @@ namespace CryoUtils.Views
             _deleteResetTimer = null;
             if (RecentItems != null) RecentItems.ItemsSource = null;
             ActivitySectionsPanel?.Children.Clear();
-            if (ImgCompressedPreview != null) ImgCompressedPreview.Source = null;
-            if (ImgQrPreview != null) ImgQrPreview.Source = null;
-            _compressResult = null;
+            _toolsTab?.ReleaseResources();
+            HostCapture.Content = null;
+            HostTools.Content = null;
+            HostHotkeys.Content = null;
+            HostGeneral.Content = null;
+            _captureTab = null;
+            _toolsTab = null;
+            _hotkeysTab = null;
+            _generalTab = null;
             base.OnClosed(e);
         }
     }

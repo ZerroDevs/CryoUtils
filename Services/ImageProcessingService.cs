@@ -1,7 +1,8 @@
 using System;
 using System.IO;
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using SkiaSharp;
 
 namespace CryoUtils.Services
 {
@@ -17,7 +18,7 @@ namespace CryoUtils.Services
                 throw new InvalidOperationException("The conversion output must not overwrite the source image.");
             }
 
-            using var bitmap = DecodeSkBitmap(inputPath);
+            var bitmap = ImageIO.LoadFileBitmap(inputPath);
             string fmt = targetFormat.TrimStart('.').ToUpperInvariant();
             if (fmt == "ICO")
             {
@@ -26,99 +27,96 @@ namespace CryoUtils.Services
                 return;
             }
 
-            var skFormat = FormatFromName(fmt);
-            int quality = fmt is "JPG" or "JPEG" or "JFIF" or "WEBP" ? 92 : 100;
-            EncodeAndSave(bitmap, outputPath, skFormat, quality);
+            EncodeAndSave(bitmap, outputPath, fmt, fmt is "JPG" or "JPEG" or "JFIF" or "WEBP" ? 92 : 100);
         }
 
         public static void StripExif(string inputPath, string outputPath)
         {
-            using var bitmap = DecodeSkBitmap(inputPath);
-            var format = FormatFromPath(inputPath);
-            EncodeAndSave(bitmap, outputPath, format, 92);
+            var bitmap = ImageIO.LoadFileBitmap(inputPath);
+            EncodeAndSave(bitmap, outputPath, FormatFromPath(inputPath), 92);
         }
 
         public static void RemoveBackground(string inputPath, string outputPath, byte tolerance = 35)
         {
-            using var srcBitmap = DecodeSkBitmap(inputPath);
-            using var bitmap = ToRgbaBitmap(srcBitmap);
+            var converted = EnsureBgra32(ImageIO.LoadFileBitmap(inputPath));
+            int w = converted.PixelWidth;
+            int h = converted.PixelHeight;
+            int stride = w * 4;
+            byte[] pixels = new byte[stride * h];
+            converted.CopyPixels(pixels, stride, 0);
 
-            int w = bitmap.Width;
-            int h = bitmap.Height;
+            (byte R, byte G, byte B) Sample(int x, int y)
+            {
+                int i = y * stride + x * 4;
+                return (pixels[i + 2], pixels[i + 1], pixels[i]);
+            }
 
-            var c1 = bitmap.GetPixel(0, 0);
-            var c2 = bitmap.GetPixel(Math.Max(0, w - 1), 0);
-            var c3 = bitmap.GetPixel(0, Math.Max(0, h - 1));
-            var c4 = bitmap.GetPixel(Math.Max(0, w - 1), Math.Max(0, h - 1));
+            var c1 = Sample(0, 0);
+            var c2 = Sample(Math.Max(0, w - 1), 0);
+            var c3 = Sample(0, Math.Max(0, h - 1));
+            var c4 = Sample(Math.Max(0, w - 1), Math.Max(0, h - 1));
 
-            int bgR = (c1.Red + c2.Red + c3.Red + c4.Red) / 4;
-            int bgG = (c1.Green + c2.Green + c3.Green + c4.Green) / 4;
-            int bgB = (c1.Blue + c2.Blue + c3.Blue + c4.Blue) / 4;
+            int bgR = (c1.R + c2.R + c3.R + c4.R) / 4;
+            int bgG = (c1.G + c2.G + c3.G + c4.G) / 4;
+            int bgB = (c1.B + c2.B + c3.B + c4.B) / 4;
 
             double tol = Math.Max(10, (int)tolerance);
             double feather = 18.0;
 
-            for (int y = 0; y < h; y++)
+            for (int i = 0; i < pixels.Length; i += 4)
             {
-                for (int x = 0; x < w; x++)
-                {
-                    var px = bitmap.GetPixel(x, y);
-                    int dr = px.Red - bgR;
-                    int dg = px.Green - bgG;
-                    int db = px.Blue - bgB;
-                    double dist = Math.Sqrt(dr * dr + dg * dg + db * db);
+                int dr = pixels[i + 2] - bgR;
+                int dg = pixels[i + 1] - bgG;
+                int db = pixels[i] - bgB;
+                double dist = Math.Sqrt(dr * dr + dg * dg + db * db);
 
-                    if (dist <= tol)
-                    {
-                        bitmap.SetPixel(x, y, new SKColor(px.Red, px.Green, px.Blue, 0));
-                    }
-                    else if (dist < tol + feather)
-                    {
-                        double alphaFactor = (dist - tol) / feather;
-                        byte newAlpha = (byte)Math.Clamp(px.Alpha * alphaFactor, 0, 255);
-                        bitmap.SetPixel(x, y, new SKColor(px.Red, px.Green, px.Blue, newAlpha));
-                    }
+                if (dist <= tol)
+                {
+                    pixels[i + 3] = 0;
+                }
+                else if (dist < tol + feather)
+                {
+                    double alphaFactor = (dist - tol) / feather;
+                    pixels[i + 3] = (byte)Math.Clamp(pixels[i + 3] * alphaFactor, 0, 255);
                 }
             }
 
-            EncodeAndSave(bitmap, outputPath, SKEncodedImageFormat.Png, 100);
+            var result = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+            result.Freeze();
+            EncodeAndSave(result, outputPath, "PNG", 100);
         }
 
         public static (int Width, int Height) ResizePreset(string inputPath, string outputPath, string preset)
         {
-            using var source = DecodeSkBitmap(inputPath);
-            int targetW = source.Width;
-            int targetH = source.Height;
+            var source = ImageIO.LoadFileBitmap(inputPath);
+            int targetW = source.PixelWidth;
+            int targetH = source.PixelHeight;
 
             switch (preset.ToLowerInvariant())
             {
                 case "50pct":
-                    targetW = Math.Max(1, source.Width / 2);
-                    targetH = Math.Max(1, source.Height / 2);
+                    targetW = Math.Max(1, source.PixelWidth / 2);
+                    targetH = Math.Max(1, source.PixelHeight / 2);
                     break;
                 case "w1920":
-                    if (source.Width > 1920)
+                    if (source.PixelWidth > 1920)
                     {
                         targetW = 1920;
-                        targetH = Math.Max(1, (int)Math.Round(source.Height * (1920.0 / source.Width)));
+                        targetH = Math.Max(1, (int)Math.Round(source.PixelHeight * (1920.0 / source.PixelWidth)));
                     }
                     break;
                 case "s512":
-                    int maxSide = Math.Max(source.Width, source.Height);
+                    int maxSide = Math.Max(source.PixelWidth, source.PixelHeight);
                     if (maxSide > 512)
                     {
                         double scale = 512.0 / maxSide;
-                        targetW = Math.Max(1, (int)Math.Round(source.Width * scale));
-                        targetH = Math.Max(1, (int)Math.Round(source.Height * scale));
+                        targetW = Math.Max(1, (int)Math.Round(source.PixelWidth * scale));
+                        targetH = Math.Max(1, (int)Math.Round(source.PixelHeight * scale));
                     }
                     break;
             }
 
-            using var resized = (targetW == source.Width && targetH == source.Height)
-                ? null
-                : source.Resize(new SKImageInfo(targetW, targetH, SKColorType.Rgba8888, SKAlphaType.Premul), SKFilterQuality.High);
-
-            var target = resized ?? source;
+            var target = ImageIO.ResizeToExact(source, targetW, targetH);
             if (Path.GetExtension(outputPath).Equals(".ico", StringComparison.OrdinalIgnoreCase))
             {
                 EnsureParentDir(outputPath);
@@ -129,23 +127,25 @@ namespace CryoUtils.Services
                 EncodeAndSave(target, outputPath, FormatFromPath(outputPath), 92);
             }
 
-            return (target.Width, target.Height);
+            return (target.PixelWidth, target.PixelHeight);
         }
 
         public static (int Width, int Height) TrimTransparentMargins(string inputPath, string outputPath)
         {
-            using var srcBitmap = DecodeSkBitmap(inputPath);
-            using var bitmap = ToRgbaBitmap(srcBitmap);
+            var bitmap = EnsureBgra32(ImageIO.LoadFileBitmap(inputPath));
+            int w = bitmap.PixelWidth;
+            int h = bitmap.PixelHeight;
+            int stride = w * 4;
+            byte[] pixels = new byte[stride * h];
+            bitmap.CopyPixels(pixels, stride, 0);
 
-            int w = bitmap.Width;
-            int h = bitmap.Height;
             int minX = w, minY = h, maxX = -1, maxY = -1;
-
             for (int y = 0; y < h; y++)
             {
+                int row = y * stride;
                 for (int x = 0; x < w; x++)
                 {
-                    if (bitmap.GetPixel(x, y).Alpha > 0)
+                    if (pixels[row + x * 4 + 3] > 0)
                     {
                         if (x < minX) minX = x;
                         if (x > maxX) maxX = x;
@@ -157,37 +157,23 @@ namespace CryoUtils.Services
 
             if (maxX < minX || maxY < minY)
             {
-                EncodeAndSave(bitmap, outputPath, SKEncodedImageFormat.Png, 100);
+                EncodeAndSave(bitmap, outputPath, "PNG", 100);
                 return (w, h);
             }
 
             int cropW = maxX - minX + 1;
             int cropH = maxY - minY + 1;
-            using var cropped = new SKBitmap(cropW, cropH, SKColorType.Rgba8888, SKAlphaType.Premul);
-            using (var canvas = new SKCanvas(cropped))
-            {
-                canvas.Clear(SKColors.Transparent);
-                canvas.DrawBitmap(
-                    bitmap,
-                    new SKRect(minX, minY, maxX + 1, maxY + 1),
-                    new SKRect(0, 0, cropW, cropH));
-            }
-
-            EncodeAndSave(cropped, outputPath, SKEncodedImageFormat.Png, 100);
+            var cropped = new CroppedBitmap(bitmap, new Int32Rect(minX, minY, cropW, cropH));
+            cropped.Freeze();
+            EncodeAndSave(cropped, outputPath, "PNG", 100);
             return (cropW, cropH);
         }
 
         public static void FlattenWhite(string inputPath, string outputPath)
         {
-            using var src = DecodeSkBitmap(inputPath);
-            using var flat = new SKBitmap(src.Width, src.Height, SKColorType.Rgba8888, SKAlphaType.Opaque);
-            using (var canvas = new SKCanvas(flat))
-            {
-                canvas.Clear(SKColors.White);
-                canvas.DrawBitmap(src, 0, 0);
-            }
-
-            EncodeAndSave(flat, outputPath, SKEncodedImageFormat.Jpeg, 92);
+            var src = ImageIO.LoadFileBitmap(inputPath);
+            var flat = ImageIO.FlattenOnWhiteIfTransparent(src);
+            EncodeAndSave(flat, outputPath, "JPG", 92);
         }
 
         public static int ExtractGifFrames(string inputPath, string outputDir)
@@ -199,41 +185,24 @@ namespace CryoUtils.Services
 
             Directory.CreateDirectory(outputDir);
             using var stream = File.OpenRead(inputPath);
-            using var codec = SKCodec.Create(stream) ?? throw new InvalidOperationException("Could not decode GIF.");
+            var decoder = new GifBitmapDecoder(
+                stream,
+                BitmapCreateOptions.PreservePixelFormat,
+                BitmapCacheOption.OnLoad);
 
-            int frameCount = Math.Max(1, codec.FrameCount);
-            var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-            using var frameBuffer = new SKBitmap(info);
-            using var canvasBitmap = new SKBitmap(info);
-            using var canvas = new SKCanvas(canvasBitmap);
-            canvas.Clear(SKColors.Transparent);
-
-            for (int i = 0; i < frameCount; i++)
+            int count = decoder.Frames.Count;
+            if (count == 0)
             {
-                var opts = codec.FrameCount > 0 ? new SKCodecOptions(i) : new SKCodecOptions();
-                var result = codec.GetPixels(info, frameBuffer.GetPixels(), opts);
-                if (result != SKCodecResult.Success && result != SKCodecResult.IncompleteInput)
-                {
-                    continue;
-                }
-
-                bool resetCanvas = i == 0;
-                if (codec.FrameCount > 0 && i < codec.FrameInfo.Length)
-                {
-                    resetCanvas = codec.FrameInfo[i].RequiredFrame == -1;
-                }
-
-                if (resetCanvas)
-                {
-                    canvas.Clear(SKColors.Transparent);
-                }
-
-                canvas.DrawBitmap(frameBuffer, 0, 0);
-                string outPath = Path.Combine(outputDir, $"frame_{i + 1:D3}.png");
-                EncodeAndSave(canvasBitmap, outPath, SKEncodedImageFormat.Png, 100);
+                throw new InvalidOperationException("Could not decode GIF.");
             }
 
-            return frameCount;
+            for (int i = 0; i < count; i++)
+            {
+                string outPath = Path.Combine(outputDir, $"frame_{i + 1:D3}.png");
+                EncodeAndSave(decoder.Frames[i], outPath, "PNG", 100);
+            }
+
+            return count;
         }
 
         public static string ToBase64DataUri(string inputPath)
@@ -258,55 +227,31 @@ namespace CryoUtils.Services
             return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
         }
 
-        public static BitmapSource LoadWpfBitmap(string inputPath)
-        {
-            if (!File.Exists(inputPath))
-            {
-                throw new FileNotFoundException("Image file not found", inputPath);
-            }
+        public static BitmapSource LoadWpfBitmap(string inputPath) =>
+            ImageIO.LoadFileBitmap(inputPath);
 
-            byte[] bytes = File.ReadAllBytes(inputPath);
-            try
+        private static BitmapSource EnsureBgra32(BitmapSource source)
+        {
+            if (source.Format == PixelFormats.Bgra32)
             {
-                return ImageIO.DecodeBytes(bytes);
+                return source;
             }
-            catch
-            {
-                // Fallback via SkiaSharp (handles WebP or exotic bitmaps reliably)
-                using var skBitmap = SKBitmap.Decode(bytes) ?? throw new InvalidOperationException("Unsupported image format.");
-                using var img = SKImage.FromBitmap(skBitmap);
-                using var data = img.Encode(SKEncodedImageFormat.Png, 100);
-                return ImageIO.DecodeBytes(data.ToArray());
-            }
+            var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+            converted.Freeze();
+            return converted;
         }
 
-        private static SKBitmap DecodeSkBitmap(string inputPath)
-        {
-            if (!File.Exists(inputPath))
-            {
-                throw new FileNotFoundException("Image file not found", inputPath);
-            }
-
-            using var inStream = File.OpenRead(inputPath);
-            return SKBitmap.Decode(inStream) ?? throw new InvalidOperationException("Could not decode image format");
-        }
-
-        private static SKBitmap ToRgbaBitmap(SKBitmap source)
-        {
-            var rgba = new SKBitmap(source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
-            using var canvas = new SKCanvas(rgba);
-            canvas.Clear(SKColors.Transparent);
-            canvas.DrawBitmap(source, 0, 0);
-            return rgba;
-        }
-
-        private static void EncodeAndSave(SKBitmap bitmap, string outputPath, SKEncodedImageFormat format, int quality)
+        private static void EncodeAndSave(BitmapSource bitmap, string outputPath, string formatName, int quality)
         {
             EnsureParentDir(outputPath);
-            using var image = SKImage.FromBitmap(bitmap);
-            using var data = image.Encode(format, quality);
-            using var outFs = File.Create(outputPath);
-            data.SaveTo(outFs);
+            byte[] encoded = formatName switch
+            {
+                "JPG" or "JPEG" or "JFIF" => ImageIO.EncodeJpeg(bitmap, quality),
+                "WEBP" => ImageIO.EncodeWebP(bitmap, quality),
+                "BMP" => ImageIO.EncodeBmp(bitmap),
+                _ => ImageIO.EncodePng(bitmap)
+            };
+            File.WriteAllBytes(outputPath, encoded);
         }
 
         private static void EnsureParentDir(string path)
@@ -318,42 +263,34 @@ namespace CryoUtils.Services
             }
         }
 
-        private static SKEncodedImageFormat FormatFromName(string fmt) => fmt switch
-        {
-            "PNG" => SKEncodedImageFormat.Png,
-            "WEBP" => SKEncodedImageFormat.Webp,
-            "BMP" => SKEncodedImageFormat.Bmp,
-            "JFIF" or "JPG" or "JPEG" => SKEncodedImageFormat.Jpeg,
-            _ => SKEncodedImageFormat.Png
-        };
-
-        private static SKEncodedImageFormat FormatFromPath(string path) =>
+        private static string FormatFromPath(string path) =>
             Path.GetExtension(path).ToLowerInvariant() switch
             {
-                ".jpg" or ".jpeg" or ".jfif" => SKEncodedImageFormat.Jpeg,
-                ".webp" => SKEncodedImageFormat.Webp,
-                ".bmp" => SKEncodedImageFormat.Bmp,
-                _ => SKEncodedImageFormat.Png
+                ".jpg" or ".jpeg" or ".jfif" => "JPG",
+                ".webp" => "WEBP",
+                ".bmp" => "BMP",
+                _ => "PNG"
             };
 
-        private static void SaveAsIco(SKBitmap source, string outputPath)
+        private static void SaveAsIco(BitmapSource source, string outputPath)
         {
-            int iconSize = Math.Min(256, Math.Max(source.Width, source.Height));
-            using var resized = new SKBitmap(iconSize, iconSize, SKColorType.Rgba8888, SKAlphaType.Premul);
-            using (var canvas = new SKCanvas(resized))
+            int iconSize = Math.Min(256, Math.Max(source.PixelWidth, source.PixelHeight));
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
             {
-                canvas.Clear(SKColors.Transparent);
-                float scale = Math.Min(iconSize / (float)source.Width, iconSize / (float)source.Height);
-                float targetW = source.Width * scale;
-                float targetH = source.Height * scale;
-                float left = (iconSize - targetW) / 2f;
-                float top = (iconSize - targetH) / 2f;
-                canvas.DrawBitmap(source, new SKRect(left, top, left + targetW, top + targetH));
+                RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+                double scale = Math.Min(iconSize / (double)source.PixelWidth, iconSize / (double)source.PixelHeight);
+                double targetW = source.PixelWidth * scale;
+                double targetH = source.PixelHeight * scale;
+                double left = (iconSize - targetW) / 2.0;
+                double top = (iconSize - targetH) / 2.0;
+                dc.DrawImage(source, new Rect(left, top, targetW, targetH));
             }
 
-            using var image = SKImage.FromBitmap(resized);
-            using var pngData = image.Encode(SKEncodedImageFormat.Png, 100);
-            byte[] pngBytes = pngData.ToArray();
+            var resized = new RenderTargetBitmap(iconSize, iconSize, 96, 96, PixelFormats.Pbgra32);
+            resized.Render(visual);
+            resized.Freeze();
+            byte[] pngBytes = ImageIO.EncodePng(resized);
 
             using var fs = File.Create(outputPath);
             using var bw = new BinaryWriter(fs);

@@ -12,7 +12,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CryoUtils.Models;
 using CryoUtils.Services;
-using WinForms = System.Windows.Forms;
 
 namespace CryoUtils.Views
 {
@@ -1087,15 +1086,15 @@ namespace CryoUtils.Views
 
         private void AddFileActionFolder()
         {
-            using var dialog = new WinForms.FolderBrowserDialog();
-            if (dialog.ShowDialog() != WinForms.DialogResult.OK)
+            var dialog = new Microsoft.Win32.OpenFolderDialog();
+            if (dialog.ShowDialog(this) != true)
             {
                 return;
             }
 
             try
             {
-                AddJob(FileToolsService.CollectSortedImages(dialog.SelectedPath));
+                AddJob(FileToolsService.CollectSortedImages(dialog.FolderName));
             }
             catch (Exception ex)
             {
@@ -1594,8 +1593,8 @@ namespace CryoUtils.Views
 
         private async Task SplitPdfAsync()
         {
-            using var folder = new WinForms.FolderBrowserDialog();
-            if (folder.ShowDialog() != WinForms.DialogResult.OK)
+            var folder = new Microsoft.Win32.OpenFolderDialog();
+            if (folder.ShowDialog(this) != true)
             {
                 return;
             }
@@ -1604,8 +1603,8 @@ namespace CryoUtils.Views
                 var ranges = _pdfRange.Text.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(value => value.Trim())
                     .ToList();
-                int parts = await PdfToolsService.SplitPdfAsync(_pdfSource.Text, folder.SelectedPath, ranges);
-                return LocalizationService.Format("PowerTools_PdfSplitDone", parts, folder.SelectedPath);
+                int parts = await PdfToolsService.SplitPdfAsync(_pdfSource.Text, folder.FolderName, ranges);
+                return LocalizationService.Format("PowerTools_PdfSplitDone", parts, folder.FolderName);
             });
         }
 

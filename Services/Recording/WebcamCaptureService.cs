@@ -1,69 +1,141 @@
 using System;
-using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
-using Windows.Devices.Enumeration;
-using Windows.Media.Capture;
-using Windows.Media.Capture.Frames;
-using Windows.Media.MediaProperties;
-using Windows.Storage.Streams;
 
 namespace CryoUtils.Services.Recording
 {
     /// <summary>
-    /// Optional default-camera preview used for the recording bubble. Camera
-    /// frames stay in memory only and are never written to disk separately.
+    /// Native Media Foundation default-camera preview for the recording bubble,
+    /// avoiding Microsoft.Windows.SDK.NET MediaCapture overhead.
     /// </summary>
     public sealed class WebcamCaptureService : IDisposable
     {
         private readonly object _gate = new();
-        private MediaCapture? _capture;
-        private MediaFrameReader? _reader;
+        private Thread? _thread;
+        private IMFSourceReader? _reader;
+        private IMFMediaSource? _source;
         private byte[]? _latest;
         private int _width;
         private int _height;
-        private bool _running;
+        private volatile bool _running;
 
         public bool IsRunning => _running;
         public string LastError { get; private set; } = "";
 
-        public async Task<bool> StartAsync()
+        public Task<bool> StartAsync()
         {
             if (_running)
             {
-                return true;
+                return Task.FromResult(true);
             }
 
+            return Task.Run(() => StartInternal());
+        }
+
+        private bool StartInternal()
+        {
+            IntPtr ppDevices = IntPtr.Zero;
+            uint count = 0;
             try
             {
-                var devices = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-                var device = devices.FirstOrDefault();
-                if (device == null)
+                MfRuntime.EnsureStarted();
+                int hr = MfApi.MFCreateAttributes(out var enumAttrs, 1);
+                Marshal.ThrowExceptionForHR(hr);
+                try
+                {
+                    enumAttrs.SetGuid(
+                        MfGuids.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+                        MfGuids.MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+                    hr = MfApi.MFEnumDeviceSources(enumAttrs, out ppDevices, out count);
+                    Marshal.ThrowExceptionForHR(hr);
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(enumAttrs);
+                }
+
+                if (count == 0 || ppDevices == IntPtr.Zero)
                 {
                     LastError = "No camera was found.";
                     return false;
                 }
 
-                _capture = new MediaCapture();
-                await _capture.InitializeAsync(new MediaCaptureInitializationSettings
+                IntPtr activatePtr = Marshal.ReadIntPtr(ppDevices, 0);
+                var activate = (IMFActivate)Marshal.GetObjectForIUnknown(activatePtr);
+                try
                 {
-                    VideoDeviceId = device.Id,
-                    StreamingCaptureMode = StreamingCaptureMode.Video,
-                    SharingMode = MediaCaptureSharingMode.SharedReadOnly
-                });
-
-                var source = _capture.FrameSources.Values
-                    .FirstOrDefault(item => item.Info.SourceKind == MediaFrameSourceKind.Color);
-                if (source == null)
+                    Guid iidSource = typeof(IMFMediaSource).GUID;
+                    hr = activate.ActivateObject(ref iidSource, out IntPtr srcPtr);
+                    Marshal.ThrowExceptionForHR(hr);
+                    _source = (IMFMediaSource)Marshal.GetObjectForIUnknown(srcPtr);
+                    Marshal.Release(srcPtr);
+                }
+                finally
                 {
-                    LastError = "The camera did not expose a colour stream.";
-                    Dispose();
-                    return false;
+                    Marshal.ReleaseComObject(activate);
+                    for (uint i = 0; i < count; i++)
+                    {
+                        IntPtr ptr = Marshal.ReadIntPtr(ppDevices, (int)(i * IntPtr.Size));
+                        if (ptr != IntPtr.Zero) Marshal.Release(ptr);
+                    }
+                    Marshal.FreeCoTaskMem(ppDevices);
+                    ppDevices = IntPtr.Zero;
                 }
 
-                _reader = await _capture.CreateFrameReaderAsync(source, MediaEncodingSubtypes.Bgra8);
-                _reader.FrameArrived += Reader_FrameArrived;
-                await _reader.StartAsync();
+                hr = MfApi.MFCreateAttributes(out var readerAttrs, 1);
+                Marshal.ThrowExceptionForHR(hr);
+                try
+                {
+                    readerAttrs.SetUInt32(MfGuids.MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, 1);
+                    hr = MfApi.MFCreateSourceReaderFromMediaSource(_source, readerAttrs, out _reader);
+                    Marshal.ThrowExceptionForHR(hr);
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(readerAttrs);
+                }
+
+                hr = MfApi.MFCreateMediaType(out var rgbType);
+                Marshal.ThrowExceptionForHR(hr);
+                try
+                {
+                    rgbType.SetGuid(MfGuids.MF_MT_MAJOR_TYPE, MfGuids.MFMediaType_Video);
+                    rgbType.SetGuid(MfGuids.MF_MT_SUBTYPE, MfGuids.MFVideoFormat_RGB32);
+                    hr = _reader.SetCurrentMediaType(
+                        unchecked((uint)MfGuids.MF_SOURCE_READER_FIRST_VIDEO_STREAM),
+                        IntPtr.Zero,
+                        rgbType);
+                    Marshal.ThrowExceptionForHR(hr);
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(rgbType);
+                }
+
+                hr = _reader.GetCurrentMediaType(
+                    unchecked((uint)MfGuids.MF_SOURCE_READER_FIRST_VIDEO_STREAM),
+                    out var actualType);
+                Marshal.ThrowExceptionForHR(hr);
+                try
+                {
+                    Guid fsKey = MfGuids.MF_MT_FRAME_SIZE;
+                    actualType.GetUINT64(ref fsKey, out ulong packedSize);
+                    _width = Math.Max(1, (int)(packedSize >> 32));
+                    _height = Math.Max(1, (int)(packedSize & 0xFFFFFFFF));
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(actualType);
+                }
+
                 _running = true;
+                _thread = new Thread(CaptureLoop)
+                {
+                    IsBackground = true,
+                    Name = "CryoUtils Webcam"
+                };
+                _thread.Start();
                 return true;
             }
             catch (Exception ex)
@@ -74,37 +146,77 @@ namespace CryoUtils.Services.Recording
             }
         }
 
-        private void Reader_FrameArrived(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
+        private void CaptureLoop()
         {
-            try
+            while (_running && _reader != null)
             {
-                using var frame = sender.TryAcquireLatestFrame();
-                using var bitmap = frame?.VideoMediaFrame?.SoftwareBitmap;
-                if (bitmap == null)
+                try
                 {
-                    return;
-                }
+                    int hr = _reader.ReadSample(
+                        unchecked((uint)MfGuids.MF_SOURCE_READER_FIRST_VIDEO_STREAM),
+                        0,
+                        out _,
+                        out uint flags,
+                        out _,
+                        out var sample);
+                    if (hr < 0 || (flags & MfGuids.MF_SOURCE_READERF_ENDOFSTREAM) != 0)
+                    {
+                        break;
+                    }
 
-                int width = bitmap.PixelWidth;
-                int height = bitmap.PixelHeight;
-                int stride = width * 4;
-                var pixels = new byte[stride * height];
-                var buffer = new Windows.Storage.Streams.Buffer((uint)pixels.Length);
-                bitmap.CopyToBuffer(buffer);
-                using (var reader = DataReader.FromBuffer(buffer))
-                {
-                    reader.ReadBytes(pixels);
-                }
+                    if (sample == null)
+                    {
+                        Thread.Sleep(10);
+                        continue;
+                    }
 
-                lock (_gate)
-                {
-                    _latest = pixels;
-                    _width = width;
-                    _height = height;
+                    try
+                    {
+                        sample.ConvertToContiguousBuffer(out var buffer);
+                        if (buffer != null)
+                        {
+                            try
+                            {
+                                buffer.Lock(out IntPtr ptr, out _, out uint len);
+                                try
+                                {
+                                    int expected = _width * _height * 4;
+                                    if (len >= expected && expected > 0)
+                                    {
+                                        var pixels = new byte[expected];
+                                        Marshal.Copy(ptr, pixels, 0, expected);
+                                        // Force alpha opaque on RGB32 webcam output
+                                        for (int i = 3; i < expected; i += 4)
+                                        {
+                                            pixels[i] = 255;
+                                        }
+                                        lock (_gate)
+                                        {
+                                            _latest = pixels;
+                                        }
+                                    }
+                                }
+                                finally
+                                {
+                                    buffer.Unlock();
+                                }
+                            }
+                            finally
+                            {
+                                Marshal.ReleaseComObject(buffer);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        Marshal.ReleaseComObject(sample);
+                    }
                 }
-            }
-            catch
-            {
+                catch
+                {
+                    if (!_running) break;
+                    Thread.Sleep(20);
+                }
             }
         }
 
@@ -127,50 +239,28 @@ namespace CryoUtils.Services.Recording
             }
         }
 
-        public async Task StopAsync()
+        public Task StopAsync()
         {
-            _running = false;
-            if (_reader != null)
-            {
-                _reader.FrameArrived -= Reader_FrameArrived;
-                try
-                {
-                    await _reader.StopAsync();
-                }
-                catch
-                {
-                }
-                _reader.Dispose();
-                _reader = null;
-            }
-
-            _capture?.Dispose();
-            _capture = null;
-            lock (_gate)
-            {
-                _latest = null;
-            }
+            Dispose();
+            return Task.CompletedTask;
         }
 
         public void Dispose()
         {
             _running = false;
+            _thread?.Join(700);
+            _thread = null;
+
             if (_reader != null)
             {
-                _reader.FrameArrived -= Reader_FrameArrived;
-                try
-                {
-                    _ = _reader.StopAsync();
-                }
-                catch
-                {
-                }
-                _reader.Dispose();
+                try { Marshal.ReleaseComObject(_reader); } catch { }
                 _reader = null;
             }
-
-            _capture?.Dispose();
-            _capture = null;
+            if (_source != null)
+            {
+                try { _source.Shutdown(); Marshal.ReleaseComObject(_source); } catch { }
+                _source = null;
+            }
             lock (_gate)
             {
                 _latest = null;

@@ -19,6 +19,7 @@ namespace CryoUtils.Models
         public int PinnedOpacity { get; set; } = 100;
         public bool PinnedClickThrough { get; set; } = false;
         public bool ContextMenuEnabled { get; set; } = false;
+        public bool ScreenshotOnlyMode { get; set; } = false;
 
         // Module switches
         public bool CaptureEnabled { get; set; } = true;
@@ -65,6 +66,10 @@ namespace CryoUtils.Models
         public string ColorFormat { get; set; } = "HEX";
         public int AnnotationThickness { get; set; } = 3;
         public int StepStartNumber { get; set; } = 1;
+        public double? LastCaptureX { get; set; }
+        public double? LastCaptureY { get; set; }
+        public double? LastCaptureWidth { get; set; }
+        public double? LastCaptureHeight { get; set; }
 
         // GIF / recorder
         public int GifFps { get; set; } = 15;
