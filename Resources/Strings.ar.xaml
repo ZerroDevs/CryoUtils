@@ -959,4 +959,28 @@
     <sys:String x:Key="Overview_RestoreFullMode">استعادة الوضع الكامل</sys:String>
     <sys:String x:Key="Toast_ScreenshotOnlyEnabled">تم تفعيل وضع التصوير فقط — ضغطة التراي تصوّر مباشرة وتم إيقاف الوحدات الإضافية.</sys:String>
     <sys:String x:Key="Module_PausedInLite">متوقف في وضع التصوير فقط</sys:String>
+
+    <sys:String x:Key="Update_ChecksumMissing">لم ينشر هذا الإصدار ملف تحقق SHA-256.</sys:String>
+    <sys:String x:Key="Update_ChecksumMalformed">تعذّرت قراءة ملف SHA-256 أو مطابقته.</sys:String>
+    <sys:String x:Key="Update_ChecksumMismatch">فشل التحقق من SHA-256 لملف التثبيت وتم حذفه للأمان.</sys:String>
+
+    <sys:String x:Key="Hotkeys_SnapWindow">التقاط النافذة النشطة فوراً</sys:String>
+    <sys:String x:Key="Hotkeys_SnapWindowDesc">التقاط فوري للنافذة النشطة خلال 0 مللي ثانية إلى الحافظة أو الحفظ التلقائي بدون شاشة تحديد.</sys:String>
+    <sys:String x:Key="Tray_SnapWindow">التقاط النافذة النشطة</sys:String>
+    <sys:String x:Key="Tray_RestoreGhostPins">إلغاء النقر عبر المثبتات</sys:String>
+    <sys:String x:Key="Tray_ClosePins">إغلاق النوافذ المثبتة</sys:String>
+
+    <sys:String x:Key="Pin_ClickThrough">وضع الشبح للنقر من خلالها (G)</sys:String>
+    <sys:String x:Key="Pin_GhostEnabled">النافذة المثبتة أصبحت قابلة للنقر من خلالها — يمكنك استعادتها من قائمة التراي.</sys:String>
+
+    <sys:String x:Key="Capture_PrettyFrame">إطار ناعم وزوايا دائرية عند التصدير</sys:String>
+    <sys:String x:Key="Capture_PrettyFrameDesc">يضيف هوامش متدرجة وزوايا دائرية وظلاً خفيفاً للقطات المنسوخة والمحفوظة والمسحوبة.</sys:String>
+    <sys:String x:Key="Capture_ToolFrame">تبديل الإطار الجمالي (F)</sys:String>
+    <sys:String x:Key="Capture_ToolDrag">سحب اللقطة إلى تطبيق آخر</sys:String>
+    <sys:String x:Key="Capture_ToolOcrCopy">استخراج النص ونسخه مباشرة (Shift+O)</sys:String>
+    <sys:String x:Key="Capture_OcrCopied">تم نسخ النص المستخرج إلى الحافظة</sys:String>
+    <sys:String x:Key="Capture_Dragged">تم إفلات اللقطة كملف PNG</sys:String>
+    <sys:String x:Key="Capture_SnapEmpty">تعذّر التقاط النافذة النشطة.</sys:String>
+    <sys:String x:Key="Capture_Snapped">تم نسخ النافذة النشطة إلى الحافظة</sys:String>
+    <sys:String x:Key="Capture_SnappedSaved">تم نسخ النافذة النشطة وحفظها: {0}</sys:String>
 </ResourceDictionary>

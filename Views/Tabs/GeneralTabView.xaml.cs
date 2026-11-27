@@ -83,6 +83,7 @@ namespace CryoUtils.Views.Tabs
         {
             if (_loading) return;
 
+            MemoryTrimService.PauseForInteraction();
             var settings = SettingsService.Instance.Current;
             settings.StartWithWindows = ChkStartWithWindows.IsChecked == true;
             settings.LaunchInBackground = ChkLaunchBackground.IsChecked == true;

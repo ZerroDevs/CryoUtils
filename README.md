@@ -4,7 +4,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-blue" alt="Windows 10 / 11">
-  <img src="https://img.shields.io/badge/.NET-10.0%20WPF%20%2B%20WinForms-purple" alt=".NET 10.0 WPF + WinForms">
+  <img src="https://img.shields.io/badge/.NET-10.0%20WPF-purple" alt=".NET 10.0 WPF">
   <img src="https://img.shields.io/badge/License-Apache--2.0-blue" alt="Apache-2.0">
 </p>
 
@@ -14,7 +14,7 @@
 
 CryoUtils keeps screenshot capture, annotation, OCR, color picking, image compression, clipboard history, and window pinning in one small tray application. Capture a region or a window, mark it up, copy or save it, pull text out of it locally, or record it as a GIF or MP4. The Cryo Workbench adds a capture library, recipes, file actions, privacy controls, color tools, PDF/media jobs, and diagnostics without a second app. It runs as a standard user, keeps its data on the machine except for explicitly consented uploads, and has no account, telemetry, or background service.
 
-The current baseline is `0.0.100`. The application runs locally from the tray and does not require administrator elevation.
+The current baseline is `0.0.101`. The application runs locally from the tray and does not require administrator elevation.
 
 ## Contents
 
@@ -49,7 +49,7 @@ The current baseline is `0.0.100`. The application runs locally from the tray an
 | Item | Details |
 | --- | --- |
 | Platform | Windows 10 version 2004 (build 19041) or Windows 11, x64 |
-| Runtime | .NET 10 with WPF and Windows Forms |
+| Runtime | .NET 10 with pure WPF (zero WinForms / SkiaSharp / Windows.SDK.NET) |
 | Privileges | Standard user (`asInvoker`); no UAC and no service |
 | Capture | Multi-monitor freeze frame, region or window selection, `1–0` tool shortcuts, draggable annotation handles |
 | Recording | Region GIF & native WGC/D3D11/Media Foundation MP4, WASAPI system audio + mic pickers, webcam bubble, cursor/click effects, trim editor, and disk-backed Instant Replay (`Ctrl+Shift+R`) |
@@ -199,16 +199,16 @@ The About tab checks the latest GitHub release for `ZerroDevs/CryoUtils`. When a
 The release assets include SHA-256 checksum files. Verify a downloaded installer or portable archive manually if you want a stronger integrity check before running it:
 
 ```powershell
-Get-FileHash .\CryoUtils-Setup-0.0.100.exe -Algorithm SHA256
+Get-FileHash .\CryoUtils-Setup-0.0.101.exe -Algorithm SHA256
 ```
 
-The in-app updater relies on HTTPS GitHub delivery; it does not currently verify the checksum or Authenticode signature itself. Signing is applied to release assets when the optional signing secrets are configured in GitHub Actions.
+The in-app updater relies on HTTPS GitHub delivery; it selects the matching `Full` (`CryoUtils-Setup-<version>.exe`) or `Lite` (`CryoUtils-Setup-Lite-<version>.exe`) installer based on whether `coreclr.dll` is present. Signing is applied to release assets when the optional signing secrets are configured in GitHub Actions.
 
 ## Install and run
 
 ### Installer
 
-Download `CryoUtils-Setup-<version>.exe` from [GitHub Releases](https://github.com/ZerroDevs/CryoUtils/releases), optionally verify its `.sha256` file, and run it.
+Download `CryoUtils-Setup-<version>.exe` (**Offline Full**, zero extra downloads) or `CryoUtils-Setup-Lite-<version>.exe` (**Lite**, smallest download; automatically installs `.NET 10 Desktop Runtime x64` if missing) from [GitHub Releases](https://github.com/ZerroDevs/CryoUtils/releases), optionally verify its `.sha256` file, and run it.
 
 The installer is per-user and installs to:
 
@@ -216,24 +216,24 @@ The installer is per-user and installs to:
 %LOCALAPPDATA%\Programs\CryoUtils
 ```
 
-It creates Start Menu and optional desktop shortcuts and does not request administrator elevation. It closes a running CryoUtils process before replacing files. Uninstalling removes the application and shortcuts; `%APPDATA%\CryoUtils\settings.json` is left in place.
+It creates Start Menu and optional desktop shortcuts, compresses the installed folder silently via `compact.exe`, and does not request administrator elevation. It closes a running CryoUtils process before replacing files. Uninstalling runs `--uninstall-cleanup` and removes the application and shortcuts; `%APPDATA%\CryoUtils\settings.json` is left in place.
 
 ### Portable zip
 
-Download `CryoUtils-<version>-win-x64.zip`, verify its `.sha256` file, and extract it. The release is self-contained for win-x64, so a separate .NET runtime is not required. Run `CryoUtils.exe` from the extracted folder.
+Download `CryoUtils-<version>-win-x64.zip` (self-contained Offline Full) or `CryoUtils-Lite-<version>-win-x64.zip` (framework-dependent Lite requiring `.NET 10 Desktop Runtime x64`), verify its `.sha256` file, and extract it. Run `CryoUtils.exe` from the extracted folder (or `CryoUtils.exe --capture` for zero-idle one-shot screenshots).
 
-The portable archive includes `VERSION`, `LICENSE`, and `NOTICE`. The in-app update path downloads the per-user installer rather than replacing a portable folder in place.
+The portable archive includes `VERSION`, `LICENSE`, and `NOTICE`. The in-app update path downloads the matching per-user installer rather than replacing a portable folder in place.
 
 ### Requirements
 
 - Windows 10 version 2004 (build 19041) or newer, or Windows 11, x64.
 - No administrator privileges.
 - Optional: additional Windows OCR language packs for OCR in those languages.
-- Internet access only for update checks and downloads.
+- Internet access only for update checks, consented uploads, or Lite runtime bootstrap if `.NET 10 Desktop Runtime` is absent.
 
 ### First run
 
-The first launch starts in the tray when **Run in background** is enabled (the default). Open the dashboard from the tray icon, or disable **Run in background** in General to open it on launch.
+The first launch starts in the tray when **Run in background** is enabled (the default). Open the dashboard from the tray icon, or disable **Run in background** in Settings to open it on launch.
 
 ## Build from source
 
@@ -253,14 +253,15 @@ dotnet build CryoUtils.csproj -c Release
 The debug executable is written to:
 
 ```text
-bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe
+bin\Debug\net10.0-windows\CryoUtils.exe
 ```
 
-Run a local debug build directly, or start it in the tray:
+Run a local debug build directly, start it in the tray, or run a one-shot capture:
 
 ```powershell
-.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe
-.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe --background
+.\bin\Debug\net10.0-windows\CryoUtils.exe
+.\bin\Debug\net10.0-windows\CryoUtils.exe --background
+.\bin\Debug\net10.0-windows\CryoUtils.exe --capture
 ```
 
 ### Build the installer and portable zip
@@ -268,25 +269,27 @@ Run a local debug build directly, or start it in the tray:
 With Inno Setup available:
 
 ```powershell
-.\build-installer.ps1
+.\build-installer.ps1 -Variant All
 ```
 
-The script publishes a self-contained win-x64 build and creates:
+The script publishes Full and Lite win-x64 builds and creates:
 
 ```text
 Installer\Output\CryoUtils-Setup-<version>.exe
+Installer\Output\CryoUtils-Setup-Lite-<version>.exe
 release\CryoUtils-<version>-win-x64.zip
+release\CryoUtils-Lite-<version>-win-x64.zip
 ```
 
-Both files receive a matching `.sha256` checksum. The Inno script is `Installer\CryoUtils.iss`; it packages the publish output plus `LICENSE`, `NOTICE`, and `VERSION`.
+Each file receives a matching `.sha256` checksum. The Inno script is `Installer\CryoUtils.iss`; it packages the publish output plus `LICENSE`, `NOTICE`, and `VERSION`.
 
 ## Versioning and releases
 
 The root `VERSION` file contains exactly three numeric parts. `CryoUtils.csproj` reads it into the assembly, file, and informational versions.
 
-- Current baseline: `0.0.100`.
-- Next releases: `0.0.101`, `0.0.102`, and so on.
-- Tags: `v0.0.100`, `v0.0.101`, and so on.
+- Current baseline: `0.0.101`.
+- Next releases: `0.0.102`, `0.0.103`, and so on.
+- Tags: `v0.0.101`, `v0.0.102`, and so on.
 
 A push to `main` that changes `VERSION`, or a manual **Release** workflow run, validates the version, builds the Release application, publishes a self-contained win-x64 payload, compiles the Inno installer with Inno Setup, creates checksummed setup and portable assets, and publishes a GitHub release for the matching tag.
 
@@ -395,26 +398,26 @@ Key choices:
 ## Project layout
 
 ```text
-CryoUtils.csproj                  .NET 10 WPF/WinForms project and metadata
+CryoUtils.csproj                  .NET 10 pure WPF + Win32/WinRT project and metadata
 VERSION                           release version consumed by MSBuild and the installer
 LICENSE                           Apache License 2.0
 NOTICE                            attribution and redistribution notice
 app.manifest                      asInvoker and per-monitor DPI settings
-build-installer.ps1               self-contained publish, Inno compile, portable zip
-Installer/CryoUtils.iss           per-user Inno Setup definition
+build-installer.ps1               Full Offline and Lite publish, Inno compile, portable zip
+Installer/CryoUtils.iss           per-user Inno Setup definition (Full + Lite variants)
 .github/workflows/release.yml     Windows release packaging and GitHub release publication
 Models/                           settings, capture tools, annotations
-Services/                         capture, OCR, image, clipboard, updates, settings
-Tray/                             system tray icon and menu
-Views/                            dashboard, overlays, result and tool windows
-Resources/                       XAML controls and English/Arabic dictionaries
-Images/                           application icon
-Tests/                            dependency-free service tests
+Services/                         capture, OCR, WIC/Media Foundation, clipboard, updates, trim
+Tray/                             Win32 system tray icon and owner-drawn menu
+Views/                            dashboard, lazy-loaded tabs, overlays, result and tool windows
+Resources/                        XAML controls and English/Arabic dictionaries
+Images/                           compressed application and tray icons
+Tests/                            service and behavior verification suite
 ```
 
 ## Limitations
 
-- **Windows only.** The application depends on WPF, Windows Forms, Windows OCR, Media Foundation, and Win32 APIs.
+- **Windows only.** The application depends on WPF, Windows Imaging Component (WIC), Windows OCR, Windows Data PDF, Media Foundation, and Win32 APIs (zero WinForms / SkiaSharp / Microsoft.Windows.SDK.NET).
 - **OCR language packs vary.** Windows OCR can only recognize languages installed for OCR; a missing pack causes a localized OCR failure.
 - **PrintScreen is often reserved.** Use the suggested `Ctrl+Shift+S` fallback or another combination when registration fails.
 - **Mixed-DPI capture has not been fully exercised.** The test environment uses two 1920 x 1080 monitors at 100% scaling.
@@ -428,7 +431,7 @@ Tests/                            dependency-free service tests
 - **Pinner restore is best effort.** It matches saved titles and process names; a renamed tab, closed application, or changed process will not restore.
 - **Recipes are post-capture.** They run after **Copy** or **Save**, not merely after a selection is drawn, so annotation can finish before a file is produced.
 - **Workbench UI is not covered by automated tests.** The Release build and service tests pass, but the Workbench tabs, clipboard persistence, pinner, PDF, and video paths were not clicked through in this environment.
-- **Update integrity is manual.** The in-app updater downloads the release setup over HTTPS but does not enforce the published checksum or a signature. Verify downloads manually when needed.
+- **Update integrity uses `.sha256` verification.** The in-app updater downloads the published `.sha256` asset over HTTPS and verifies the setup executable before launch; Authenticode enforcement remains optional when repository signing secrets are configured.
 - **Portable updates install per-user.** A portable copy does not update its own folder in place; the update button starts the per-user setup.
 - **Markdown is source text.** The OCR result window opens and edits Markdown but does not render it.
 - **No fan, GPU, power, or driver control.** CryoUtils is a desktop utility, not a hardware-control tool.
@@ -440,7 +443,7 @@ Tests/                            dependency-free service tests
 | Capture hotkey does nothing | If `PrintScreen` is owned by Windows, use the dashboard fallback `Ctrl+Shift+S` or choose another key in Hotkeys. |
 | Only one monitor appears | Confirm Windows is extending the desktop and both monitors are active; overlays are created per active monitor. |
 | OCR reports no text | Check that the selected region contains readable text and the required Windows OCR language pack is installed. |
-| OCR window looks like an old fixed-height dialog | Rebuild/run the current `0.0.100` build; the current window auto-sizes to its content. |
+| OCR window looks like an old fixed-height dialog | Rebuild/run the current `0.0.101` build; the current window auto-sizes to its content. |
 | GIF or MP4 is empty | Keep the recording above one frame and confirm the selected region is non-zero. |
 | Clipboard history is empty | Enable the clipboard module. History is memory-only unless encrypted persistence is enabled in the clipboard window. |
 | Tray icon is hidden | Open the Windows notification-area overflow and enable the CryoUtils icon. |

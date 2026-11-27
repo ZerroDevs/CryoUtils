@@ -89,6 +89,8 @@
                     <CheckBox x:Name="ChkCaptureSound" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_Sound}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                     <CheckBox x:Name="ChkShowLoupe" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_Loupe}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                     <TextBlock Text="{DynamicResource Capture_LoupeDesc}" Style="{StaticResource MutedText}" Margin="22,3,0,0"/>
+                    <CheckBox x:Name="ChkPrettyFrame" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_PrettyFrame}" Margin="0,10,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                    <TextBlock Text="{DynamicResource Capture_PrettyFrameDesc}" Style="{StaticResource MutedText}" Margin="22,3,0,0"/>
                     <CheckBox x:Name="ChkArchiveCopied" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_ArchiveCopied}" Margin="0,12,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                     <TextBlock Text="{DynamicResource Capture_ArchiveCopiedDesc}" Style="{StaticResource MutedText}" Margin="22,3,0,0"/>
                     <CheckBox x:Name="ChkCloudUpload" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_CloudUpload}" Margin="0,12,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>

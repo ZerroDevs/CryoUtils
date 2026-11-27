@@ -19,6 +19,8 @@ namespace CryoUtils.Services
         public string ReleaseUrl { get; init; } = "";
         public string AssetName { get; init; } = "";
         public string AssetUrl { get; init; } = "";
+        public string ChecksumName { get; init; } = "";
+        public string ChecksumUrl { get; init; } = "";
         public DateTime PublishedAt { get; init; }
         public bool HasAsset => !string.IsNullOrEmpty(AssetUrl);
     }
@@ -44,7 +46,7 @@ namespace CryoUtils.Services
                     return plus >= 0 ? informational[..plus] : informational;
                 }
 
-                return assembly.GetName().Version?.ToString(3) ?? "0.0.100";
+                return assembly.GetName().Version?.ToString(3) ?? "0.0.101";
             }
         }
 
@@ -114,6 +116,8 @@ namespace CryoUtils.Services
 
             string assetName = "";
             string assetUrl = "";
+            string checksumName = "";
+            string checksumUrl = "";
             if (root.TryGetProperty("assets", out var assets) &&
                 assets.ValueKind == JsonValueKind.Array)
             {
@@ -135,6 +139,10 @@ namespace CryoUtils.Services
                 (assetName, assetUrl) = SelectPreferredAsset(
                     candidates,
                     IsSelfContainedInstallation(AppContext.BaseDirectory));
+                if (!string.IsNullOrEmpty(assetName))
+                {
+                    (checksumName, checksumUrl) = SelectChecksumAsset(candidates, assetName);
+                }
             }
 
             DateTime published = DateTime.MinValue;
@@ -159,6 +167,8 @@ namespace CryoUtils.Services
                     : "",
                 AssetName = assetName,
                 AssetUrl = assetUrl,
+                ChecksumName = checksumName,
+                ChecksumUrl = checksumUrl,
                 PublishedAt = published
             };
         }
@@ -170,6 +180,11 @@ namespace CryoUtils.Services
             if (!info.HasAsset)
             {
                 throw new InvalidOperationException("This release has no installer asset.");
+            }
+            if (string.IsNullOrEmpty(info.ChecksumUrl))
+            {
+                throw new InvalidOperationException(
+                    LocalizationService.Get("Update_ChecksumMissing"));
             }
 
             string folder = Path.Combine(Path.GetTempPath(), "CryoUtils", "update");
@@ -186,29 +201,157 @@ namespace CryoUtils.Services
                 HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             long total = response.Content.Headers.ContentLength ?? -1;
-            await using var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-            await using var output = new FileStream(
+            await using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+            await using (var output = new FileStream(
                 path,
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.None,
                 81920,
-                true);
-
-            var buffer = new byte[81920];
-            long received = 0;
-            int read;
-            while ((read = await input.ReadAsync(buffer).ConfigureAwait(false)) > 0)
+                true))
             {
-                await output.WriteAsync(buffer.AsMemory(0, read)).ConfigureAwait(false);
-                received += read;
-                if (total > 0)
+                var buffer = new byte[81920];
+                long received = 0;
+                int read;
+                while ((read = await input.ReadAsync(buffer).ConfigureAwait(false)) > 0)
                 {
-                    progress?.Report(received / (double)total);
+                    await output.WriteAsync(buffer.AsMemory(0, read)).ConfigureAwait(false);
+                    received += read;
+                    if (total > 0)
+                    {
+                        progress?.Report(received / (double)total);
+                    }
                 }
             }
 
+            try
+            {
+                string checksumText = await Http.GetStringAsync(info.ChecksumUrl).ConfigureAwait(false);
+                if (checksumText.Length > 64 * 1024)
+                {
+                    throw new InvalidOperationException(
+                        LocalizationService.Get("Update_ChecksumMalformed"));
+                }
+
+                string? expectedHex = ParseExpectedSha256(checksumText, info.AssetName);
+                if (string.IsNullOrEmpty(expectedHex))
+                {
+                    throw new InvalidOperationException(
+                        LocalizationService.Get("Update_ChecksumMalformed"));
+                }
+
+                if (!await VerifyFileSha256Async(path, expectedHex).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException(
+                        LocalizationService.Get("Update_ChecksumMismatch"));
+                }
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
+                }
+                catch
+                {
+                }
+                throw;
+            }
+
             return path;
+        }
+
+        internal static (string Name, string Url) SelectChecksumAsset(
+            IEnumerable<(string Name, string Url)> assets,
+            string assetName)
+        {
+            if (string.IsNullOrWhiteSpace(assetName))
+            {
+                return ("", "");
+            }
+
+            string expected = assetName + ".sha256";
+            foreach (var (name, url) in assets)
+            {
+                if (string.Equals(name, expected, StringComparison.OrdinalIgnoreCase) &&
+                    Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                    uri.Scheme == Uri.UriSchemeHttps)
+                {
+                    return (name, url);
+                }
+            }
+
+            return ("", "");
+        }
+
+        internal static string? ParseExpectedSha256(string checksumContent, string? assetName)
+        {
+            if (string.IsNullOrWhiteSpace(checksumContent))
+            {
+                return null;
+            }
+
+            foreach (string rawLine in checksumContent.Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (string.IsNullOrEmpty(line))
+                {
+                    continue;
+                }
+
+                string[] parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 0 || !IsSha256Hex(parts[0]))
+                {
+                    continue;
+                }
+
+                if (parts.Length == 1 ||
+                    string.IsNullOrWhiteSpace(assetName) ||
+                    string.Equals(Path.GetFileName(parts[^1].TrimStart('*')), assetName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return parts[0].ToLowerInvariant();
+                }
+            }
+
+            return null;
+        }
+
+        internal static async Task<bool> VerifyFileSha256Async(string filePath, string expectedHex)
+        {
+            if (!IsSha256Hex(expectedHex) || !File.Exists(filePath))
+            {
+                return false;
+            }
+
+            byte[] expected = Convert.FromHexString(expectedHex);
+            byte[] actual;
+            await using var stream = File.OpenRead(filePath);
+            actual = await System.Security.Cryptography.SHA256.HashDataAsync(stream).ConfigureAwait(false);
+            return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(expected, actual);
+        }
+
+        private static bool IsSha256Hex(string value)
+        {
+            if (value.Length != 64)
+            {
+                return false;
+            }
+
+            foreach (char c in value)
+            {
+                bool hex = (c >= '0' && c <= '9') ||
+                           (c >= 'a' && c <= 'f') ||
+                           (c >= 'A' && c <= 'F');
+                if (!hex)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public static void CreateBackup()

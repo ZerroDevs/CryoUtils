@@ -45,6 +45,8 @@ namespace CryoUtils.Models
         public string ReplayHotkeyKey { get; set; } = "R";
         public string LiveDrawHotkeyModifiers { get; set; } = "Ctrl+Shift";
         public string LiveDrawHotkeyKey { get; set; } = "D";
+        public string ActiveWindowSnapHotkeyModifiers { get; set; } = "Ctrl+Alt";
+        public string ActiveWindowSnapHotkeyKey { get; set; } = "S";
         public bool PrintScreenFallbackSuggested { get; set; } = false;
 
         // Capture
@@ -53,6 +55,7 @@ namespace CryoUtils.Models
         public int SavedCapturesLimit { get; set; } = 50;
         public string RecentCapturesScope { get; set; } = "Session"; // "Session" or "AllTime"
         public string ImageFormat { get; set; } = "PNG"; // PNG, JPG, WEBP
+        public bool PrettyFrameExport { get; set; } = false;
         public bool AutoCopyCapture { get; set; } = true;
         public bool CaptureSound { get; set; } = false;
         public bool ShowCaptureLoupe { get; set; } = false;

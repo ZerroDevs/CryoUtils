@@ -22,6 +22,7 @@ namespace CryoUtils.Views
         private bool _starting;
         private bool _recordAfterSelection;
         private bool _oneShotExit;
+        private bool? _sessionPrettyFrameOverride;
         private Annotation? _lastWheelStyledAnnotation;
 
         public NativeMethods.RECT VirtualBounds { get; private set; }
@@ -41,6 +42,7 @@ namespace CryoUtils.Views
         public bool IsActive { get; private set; }
         public bool IsClosing { get; private set; }
         public bool ShowCrosshair { get; set; } = true;
+        public bool UsePrettyFrame => _sessionPrettyFrameOverride ?? SettingsService.Instance.Current.PrettyFrameExport;
         public bool RecordAfterSelection
         {
             get => _recordAfterSelection;
@@ -51,6 +53,12 @@ namespace CryoUtils.Views
 
         private CaptureController()
         {
+        }
+
+        public void TogglePrettyFrame()
+        {
+            _sessionPrettyFrameOverride = !UsePrettyFrame;
+            NotifyChanged();
         }
 
         public void Start(bool oneShotExit = false)
@@ -89,6 +97,7 @@ namespace CryoUtils.Views
 
             _oneShotExit = false;
             _recordAfterSelection = false;
+            _sessionPrettyFrameOverride = null;
             _ = StartForImageAsync(image, originalPath);
         }
 
@@ -106,6 +115,7 @@ namespace CryoUtils.Views
             }
 
             _recordAfterSelection = recordMode;
+            _sessionPrettyFrameOverride = null;
             _ = StartAsync(presetSelection);
         }
 
@@ -602,7 +612,7 @@ namespace CryoUtils.Views
             return new Int32Rect(x, y, Math.Max(1, width), Math.Max(1, height));
         }
 
-        public BitmapSource? RenderSelection()
+        public BitmapSource? RenderSelection(bool allowFrame = true)
         {
             if (VirtualBitmap == null || !Selection.HasValue)
             {
@@ -639,7 +649,64 @@ namespace CryoUtils.Views
                 PixelFormats.Pbgra32);
             target.Render(visual);
             target.Freeze();
-            return target;
+
+            return allowFrame && UsePrettyFrame
+                ? ApplyPrettyFrame(target)
+                : target;
+        }
+
+        internal static BitmapSource ApplyPrettyFrame(BitmapSource source)
+        {
+            int w = Math.Max(1, source.PixelWidth);
+            int h = Math.Max(1, source.PixelHeight);
+            int minDim = Math.Min(w, h);
+            int pad = Math.Clamp((int)Math.Round(minDim * 0.06), 20, 56);
+            int radius = Math.Clamp((int)Math.Round(minDim * 0.02), 8, 18);
+            int outW = w + (pad * 2);
+            int outH = h + (pad * 2);
+
+            var bgBrush = new LinearGradientBrush(
+                Color.FromRgb(0x18, 0x22, 0x35),
+                Color.FromRgb(0x0D, 0x13, 0x1F),
+                new Point(0, 0),
+                new Point(1, 1));
+            bgBrush.Freeze();
+
+            var outerStroke = new Pen(new SolidColorBrush(Color.FromArgb(46, 255, 255, 255)), 1);
+            outerStroke.Freeze();
+            var innerStroke = new Pen(new SolidColorBrush(Color.FromArgb(68, 255, 255, 255)), 1);
+            innerStroke.Freeze();
+
+            var visual = new DrawingVisual();
+            RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+            using (var dc = visual.RenderOpen())
+            {
+                dc.DrawRectangle(bgBrush, outerStroke, new Rect(0.5, 0.5, outW - 1, outH - 1));
+
+                // Soft multi-pass ambient drop shadow under the shot card (pure vector, zero GPU effect overhead).
+                for (int i = 4; i >= 1; i--)
+                {
+                    byte alpha = (byte)(18 + (5 - i) * 7);
+                    var shadowBrush = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0));
+                    double expand = i * 3.0;
+                    double dy = i * 2.5;
+                    var shadowRect = new Rect(pad - expand * 0.5, pad + dy, w + expand, h + expand * 0.8);
+                    dc.DrawRoundedRectangle(shadowBrush, null, shadowRect, radius + 2, radius + 2);
+                }
+
+                var shotRect = new Rect(pad, pad, w, h);
+                var clip = new RectangleGeometry(shotRect, radius, radius);
+                clip.Freeze();
+                dc.PushClip(clip);
+                dc.DrawImage(source, shotRect);
+                dc.Pop();
+                dc.DrawRoundedRectangle(null, innerStroke, new Rect(pad + 0.5, pad + 0.5, w - 1, h - 1), radius, radius);
+            }
+
+            var framed = new RenderTargetBitmap(outW, outH, 96, 96, PixelFormats.Pbgra32);
+            framed.Render(visual);
+            framed.Freeze();
+            return framed;
         }
 
         private string? TryQuickSaveCapture(BitmapSource bitmap, string? overrideExtension = null)
@@ -834,7 +901,7 @@ namespace CryoUtils.Views
 
         public void PinSelection()
         {
-            var bitmap = RenderSelection();
+            var bitmap = RenderSelection(allowFrame: false);
             if (bitmap == null)
             {
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
@@ -848,9 +915,9 @@ namespace CryoUtils.Views
             pin.Activate();
         }
 
-        public async void OcrSelection()
+        public async void OcrSelection(bool copyOnly = false)
         {
-            var bitmap = RenderSelection();
+            var bitmap = RenderSelection(allowFrame: false);
             if (bitmap == null)
             {
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
@@ -859,7 +926,7 @@ namespace CryoUtils.Views
 
             var app = Application.Current as App;
             RememberSelectionBounds();
-            CloseAll(restoreDashboard: false, allowOneShotExit: false);
+            CloseAll(restoreDashboard: !copyOnly ? false : true, allowOneShotExit: copyOnly, waitForOneShotToast: copyOnly);
             app?.ShowToast(LocalizationService.Get("Capture_OcrRunning"));
             try
             {
@@ -867,6 +934,31 @@ namespace CryoUtils.Views
                 if (string.IsNullOrWhiteSpace(text))
                 {
                     app?.ShowToast(LocalizationService.Get("Capture_OcrEmpty"));
+                    return;
+                }
+
+                if (copyOnly)
+                {
+                    try
+                    {
+                        Clipboard.SetText(text);
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            Clipboard.SetDataObject(text, true);
+                        }
+                        catch
+                        {
+                        }
+                    }
+
+                    if (SettingsService.Instance.Current.CaptureSound)
+                    {
+                        NativeMethods.MessageBeep(0x40);
+                    }
+                    app?.ShowToast(LocalizationService.Get("Capture_OcrCopied"));
                     return;
                 }
 
@@ -880,9 +972,139 @@ namespace CryoUtils.Views
             }
         }
 
-        public void QrSelection()
+        public void SnapForegroundWindow()
+        {
+            if (IsActive || _starting)
+            {
+                return;
+            }
+
+            var bitmap = ScreenCaptureService.CaptureForegroundWindow(out string appName, out string windowTitle);
+            if (bitmap == null)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_SnapEmpty"));
+                return;
+            }
+
+            var output = SettingsService.Instance.Current.PrettyFrameExport
+                ? ApplyPrettyFrame(bitmap)
+                : bitmap;
+
+            try
+            {
+                Clipboard.SetImage(output);
+            }
+            catch
+            {
+                try
+                {
+                    var data = new DataObject();
+                    data.SetImage(output);
+                    Clipboard.SetDataObject(data, true);
+                }
+                catch
+                {
+                }
+            }
+
+            string? savedPath = (SettingsService.Instance.Current.QuickSave ||
+                                 SettingsService.Instance.Current.ArchiveCopiedCaptures)
+                ? TryQuickSaveCapture(output)
+                : null;
+            RecentCaptureService.Instance.Add(output, savedPath, LocalizationService.Get("Nav_Capture"));
+            if (SettingsService.Instance.Current.CaptureSound)
+            {
+                NativeMethods.MessageBeep(0x40);
+            }
+
+            var app = Application.Current as App;
+            app?.ShowToast(savedPath != null
+                ? LocalizationService.Format("Capture_SnappedSaved", savedPath)
+                : LocalizationService.Get("Capture_Snapped"));
+
+            _ = WorkflowService.Instance.RunPostCaptureAsync(
+                output,
+                appName,
+                windowTitle,
+                skipSaveAction: savedPath != null);
+            MemoryTrimService.ScheduleTrim(250);
+        }
+
+        public string? ExportDragFile()
         {
             var bitmap = RenderSelection();
+            if (bitmap == null)
+            {
+                return null;
+            }
+
+            string? path = WriteTempDragPng(bitmap, SourceApp);
+            if (!string.IsNullOrEmpty(path))
+            {
+                RecentCaptureService.Instance.Add(bitmap, null, LocalizationService.Get("Nav_Capture"));
+            }
+            return path;
+        }
+
+        internal static string? WriteTempDragPng(BitmapSource bitmap, string? prefix = null)
+        {
+            try
+            {
+                string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CryoUtils", "Drag");
+                System.IO.Directory.CreateDirectory(dir);
+                try
+                {
+                    DateTime cutoff = DateTime.UtcNow.AddHours(-12);
+                    foreach (string stale in System.IO.Directory.GetFiles(dir, "*.png"))
+                    {
+                        if (System.IO.File.GetLastWriteTimeUtc(stale) < cutoff)
+                        {
+                            System.IO.File.Delete(stale);
+                        }
+                    }
+                }
+                catch
+                {
+                }
+
+                string fileName = ScreenCaptureService.CreateTimestampedFileName(".png");
+                if (!string.IsNullOrWhiteSpace(prefix))
+                {
+                    string safe = string.Concat(prefix.Take(20).Select(ch => char.IsLetterOrDigit(ch) ? ch : '_')).Trim('_');
+                    if (!string.IsNullOrEmpty(safe))
+                    {
+                        fileName = $"{safe}_{fileName}";
+                    }
+                }
+
+                string path = System.IO.Path.Combine(dir, fileName);
+                ImageIO.SaveBitmap(bitmap, path);
+                return path;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public void SetOverlaysDragTransparent(bool transparent)
+        {
+            foreach (var overlay in _windows)
+            {
+                overlay.Opacity = transparent ? 0 : 1;
+                overlay.IsHitTestVisible = !transparent;
+                overlay.Topmost = !transparent;
+            }
+
+            if (!transparent)
+            {
+                ActiveOverlay?.Activate();
+            }
+        }
+
+        public void QrSelection()
+        {
+            var bitmap = RenderSelection(allowFrame: false);
             if (bitmap == null)
             {
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));

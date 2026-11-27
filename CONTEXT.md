@@ -4,24 +4,25 @@
 
 CryoUtils is a standalone Windows desktop utility suite by `ZeroNuxi | ZerroDevs`. It keeps the CryoTray visual language and the same C# / WPF / .NET family conventions, but runs as a standard user utility instead of a hardware control app.
 
-Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently `0.0.100`). License: Apache-2.0.
+Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently `0.0.101`). License: Apache-2.0.
 
 ## Runtime and platform
 
-- Target: `net10.0-windows10.0.19041.0`
-- UI: WPF, `UseWPF`, `UseWindowsForms` for tray icon and native color/folder dialogs.
-- Platform: x64, Windows 10 2004 or newer for `Windows.Media.Ocr` and Media Foundation MP4.
+- Target: `net10.0-windows` (`UseWPF=true`, `UseWindowsForms=false`, zero `SkiaSharp` or `Microsoft.Windows.SDK.NET`).
+- UI & Shell: Pure WPF paired with Win32 `Shell_NotifyIconW` dark owner-drawn tray menu (`Tray/TrayIconManager.cs`), Win32 `ChooseColorW` (`Services/ColorDialogHelper.cs`), and `HWND_MESSAGE` hotkeys (`Services/GlobalHotkeyService.cs`).
+- Imaging & Media: Windows WIC (`ImageIO.cs`, `ImageProcessingService.cs`, `CompressionService.cs`), managed RIFF/VP8L encoder (`Services/SimpleWebpEncoder.cs`), compressed zlib PDF builder (`Services/SimplePdfWriter.cs`), direct WinRT COM ABI interop (`Services/WinRtBridge.cs`), and native Media Foundation H.264/AAC encoding (`Services/Recording/`, `Services/MediaConversionService.cs`).
+- Platform: x64, Windows 10 2004 or newer for `Windows.Media.Ocr`, `Windows.Data.Pdf`, and `Windows.Graphics.Capture`.
 - Manifest: `asInvoker`, `uiAccess=false`, `PerMonitorV2, PerMonitor`.
 - No admin, no driver, no service. Network access is limited to optional GitHub update checks/downloads and explicit, consented uploads to catbox.moe.
-- The tray app does not currently enforce a process-level single instance; Explorer context-menu commands intentionally use short-lived helper processes.
+- Single-instance tray guard (`Local\CryoUtils.SingleInstance.v1` mutex + `Local\CryoUtils.Activate.v1` `EventWaitHandle` in `App.xaml.cs`) focuses the running instance instead of spawning duplicate tray icons, while short-lived `--action`, `--capture`, `--uninstall-cleanup`, and `--unregister-context-menu` helpers stay exempt.
 
 ## Packaging and release
 
-- `Installer/CryoUtils.iss` is an Inno Setup 6.3+ per-user installer. It installs under `%LOCALAPPDATA%\Programs\CryoUtils`, uses `PrivilegesRequired=lowest`, stops a running `CryoUtils.exe` before install/uninstall, and supports silent setup (`/S`) for the updater.
-- `build-installer.ps1` reads `VERSION`, publishes the self-contained win-x64 app, compiles the Inno setup, and creates `release\CryoUtils-<version>-win-x64.zip`; both outputs receive `.sha256` files.
-- `.github/workflows/release.yml` runs on `VERSION` changes to `main` or manually. It validates the version, builds, compiles the installer, optionally signs with `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD`, and publishes `CryoUtils-Setup-<version>.exe`, the portable zip, and their checksums.
-- The baseline is `0.0.100`; increment the patch to `0.0.101`, `0.0.102`, etc. Tags use `v<version>`.
-- `CryoUtils.csproj` copies `VERSION`, `LICENSE`, and `NOTICE` to the output and publish folders.
+- `Installer/CryoUtils.iss` is an Inno Setup 6.3+ per-user installer supporting `Full` (self-contained offline) and `Lite` (`CryoUtils-Setup-Lite-<version>.exe`, framework-dependent with automatic `.NET 10 Desktop Runtime` download if missing and leftover runtime DLL cleanup). It installs under `%LOCALAPPDATA%\Programs\CryoUtils`, uses `PrivilegesRequired=lowest`, compresses `{app}` with silent `compact.exe /c /s:"{app}" /i /q`, stops a running `CryoUtils.exe` before install/uninstall, and supports `/VERYSILENT` for the variant-aware updater.
+- `build-installer.ps1 -Variant All|Full|Lite` reads `VERSION`, publishes win-x64 Full and Lite builds, compiles `CryoUtils-Setup-<version>.exe` and `CryoUtils-Setup-Lite-<version>.exe`, and creates `release\CryoUtils-<version>-win-x64.zip` + `release\CryoUtils-Lite-<version>-win-x64.zip` with `.sha256` files.
+- `.github/workflows/release.yml` runs on `VERSION` changes to `main` or manually. It validates the version, builds, compiles Full and Lite installers, optionally signs executables and installers with `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD`, uses `ReleaseNotes/v<version>.md` when present, and publishes installers, portable zips, and checksums.
+- Baseline is `0.0.101`; increment the patch to `0.0.102`, `0.0.103`, etc. Tags use `v<version>`.
+- `CryoUtils.csproj` copies `VERSION`, `LICENSE`, and `NOTICE` to the output and publish folders and embeds a compact `256x256` `CryoUtils-Icon.png`.
 
 ## Architecture
 
@@ -75,7 +76,7 @@ Rules: CryoTray-aligned `141414` / `1E1E1E` / `242424` neutral surfaces, 1 px `C
 
 ### Localization
 
-`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 696 keys each.
+`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 941 keys each.
 
 ### QR Code & Utilities Suite
 
@@ -90,23 +91,29 @@ Exiting the app automatically invokes `Unpin(silent: true)`, clearing `HWND_NOTO
 
 ### Global hotkeys
 
-`Services/GlobalHotkeyService.cs` registers `WM_HOTKEY` against the dashboard handle. Ids:
-- capture
-- color picker
-- window pinner
-- plain paste
-- clipboard history
-- Cryo Workbench
+`Services/GlobalHotkeyService.cs` registers `WM_HOTKEY` against an `HWND_MESSAGE` sink. Ids:
+- capture (`CaptureHotkeyId`)
+- repeat last region (`RepeatLastRegionHotkeyId`)
+- active-window snap (`ActiveWindowSnapHotkeyId`)
+- color picker (`ColorPickerHotkeyId`)
+- window pinner (`WindowPinnerHotkeyId`)
+- plain paste (`PlainPasteHotkeyId`)
+- clipboard history (`ClipboardHistoryHotkeyId`)
+- Cryo Workbench (`WorkbenchHotkeyId`)
+- instant replay (`ReplayHotkeyId`)
+- live draw (`LiveDrawHotkeyId`)
 
 `Register` unregisters the previous combination for an id first. `App.ApplyAllSettings` unregisters disabled modules and registers enabled modules. `UnregisterAll` runs on exit.
 
 Defaults:
 - Capture: `PrintScreen`, fallback suggestion `Ctrl+Shift+S`
+- Snap active window (`0 ms`, no overlay): `Ctrl+Alt+S`
 - Color picker: `Ctrl+Shift+C`
 - Pinner: `Ctrl+Win+T`
 - Plain paste: `Ctrl+Shift+V`
 - Clipboard history: `Ctrl+Shift+H`
 - Cryo Workbench: `Ctrl+Shift+W`
+- Instant Replay: `Ctrl+Shift+R`
 - Live Draw: `Ctrl+Shift+D`
 - Clipboard history module is disabled by default.
 
@@ -162,7 +169,7 @@ Defaults:
 - `ScrollingCaptureService`: frame collection, row-overlap detection, and bounded vertical stitching.
 - `PdfToolsService` / `MediaConversionService`: page ranges, merge/split/reorder/rotate/OCR, video trim, and GIF frame ranges.
 - `TopmostService`: `WS_EX_TOPMOST` toggle, title tracking, optional click-through border and sound.
-- `UpdaterService`: GitHub releases API, `.exe`/`.msi` setup asset selection, download, rollback backup, and delayed restart. A setup asset is run with `/S`; a non-setup executable is copied after exit.
+- `UpdaterService`: GitHub releases API over HTTPS, edition-matched `CryoUtils-Setup-*` vs `CryoUtils-Setup-Lite-*` `.exe`/`.msi` asset selection, mandatory `.sha256` verification before launch (deleting on missing/malformed/mismatched hash), rollback backup, and delayed `/VERYSILENT` setup script.
 - `StartupService`: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, no admin.
 - `RecentCaptureService`: in-session thumbnails and paths.
 - `TrayIconManager`: tightly cropped packaged CryoUtils tray icon sized from `SystemInformation.SmallIconSize` (16/20/24/32), with a generated fallback; dark menu renderer, left-click action, right-click menu.
@@ -189,7 +196,7 @@ Defaults:
 - The larger tools live in one `PowerToolsWindow` with Library, Recipes, Privacy, File Actions, Colors, Pinner, PDF/Media, and Diagnostics tabs; this avoids a dozen disconnected dialogs and one shared data context.
 - Library metadata references files in the configured save folder rather than copying them into a hidden store. Deletion uses the Recycle Bin.
 - Scrolling capture stitches in memory with a 16,000 px cap; the control bar is positioned outside the selection when the work area allows it.
-- GIF is implemented in-project to avoid a native dependency; WebP uses SkiaSharp.
-- MP4 uses Windows Media Foundation instead of bundling FFmpeg.
+- GIF is implemented in-project and lossless WebP uses `SimpleWebpEncoder` (zero `SkiaSharp`).
+- MP4 uses direct Windows Media Foundation interop (`MfInterop` / `WinRtBridge`) instead of bundling FFmpeg or `Microsoft.Windows.SDK.NET`.
 - Clipboard history is opt-in and memory-only by default. Encrypted text persistence is a separate explicit setting and can be disabled.
-- Tray menu is native `ContextMenuStrip` with a custom renderer to match the dark surfaces and Cryo Blue highlight.
+- Tray menu is a Win32 owner-drawn dark/RTL popup (`Tray/TrayIconManager.cs`, zero WinForms) with cached theme colors and `HandlePrimaryClick` capture/dashboard routing.

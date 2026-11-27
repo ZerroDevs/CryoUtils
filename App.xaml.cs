@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -35,6 +37,10 @@ namespace CryoUtils
         private bool _pickerRestoresDashboard;
         private bool _exiting;
         private bool _recordingActive;
+        private Mutex? _singleInstanceMutex;
+        private EventWaitHandle? _activateEvent;
+        private RegisteredWaitHandle? _activateWaitHandle;
+        private readonly List<PinWindow> _pinWindows = new();
         private static bool _uiResourcesLoaded;
         private static readonly object UiResourcesLock = new();
 
@@ -128,6 +134,46 @@ namespace CryoUtils
                 return;
             }
 
+            bool backgroundLaunch = e.Args.Any(argument =>
+                string.Equals(argument, "--background", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(argument, "--minimized", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(argument, "--tray", StringComparison.OrdinalIgnoreCase));
+
+            _singleInstanceMutex = new Mutex(initiallyOwned: true, @"Local\CryoUtils.SingleInstance.v1", out bool createdNew);
+            try
+            {
+                _activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\CryoUtils.Activate.v1");
+            }
+            catch
+            {
+                _activateEvent = null;
+            }
+
+            if (!createdNew)
+            {
+                if (!backgroundLaunch)
+                {
+                    try { _activateEvent?.Set(); } catch { }
+                }
+
+                try { _activateEvent?.Dispose(); } catch { }
+                try { _singleInstanceMutex?.Dispose(); } catch { }
+                _activateEvent = null;
+                _singleInstanceMutex = null;
+                Shutdown(0);
+                return;
+            }
+
+            if (_activateEvent != null)
+            {
+                _activateWaitHandle = ThreadPool.RegisterWaitForSingleObject(
+                    _activateEvent,
+                    (_, __) => Dispatcher.BeginInvoke(new Action(() => ShowDashboard())),
+                    null,
+                    Timeout.Infinite,
+                    executeOnlyOnce: false);
+            }
+
             // Only rewrite HKCU Explorer keys if missing, path-changed, or language-changed.
             CryoContextMenuService.SyncIfNeeded(settings.ContextMenuEnabled);
             _lastContextMenuEnabled = settings.ContextMenuEnabled;
@@ -180,7 +226,7 @@ namespace CryoUtils
                 _dashboard.Closed += (_, _) =>
                 {
                     _dashboard = null;
-                    RecentCaptureService.Instance.ReleaseAllTimeCache();
+                    RecentCaptureService.Instance.ReleaseBackgroundCache(SettingsService.Instance.Current.ScreenshotOnlyMode);
                     if (!_exiting)
                     {
                         MemoryTrimService.ScheduleTrim(400);
@@ -923,6 +969,11 @@ namespace CryoUtils
                 full,
                 settings.LiveDrawHotkeyModifiers,
                 settings.LiveDrawHotkeyKey);
+            RegisterHotkey(
+                GlobalHotkeyService.ActiveWindowSnapHotkeyId,
+                settings.CaptureEnabled,
+                settings.ActiveWindowSnapHotkeyModifiers,
+                settings.ActiveWindowSnapHotkeyKey);
         }
 
         private static string? BuildRepeatRegionModifiers(string? baseModifiers)
@@ -964,6 +1015,9 @@ namespace CryoUtils
                 case GlobalHotkeyService.RepeatLastRegionHotkeyId:
                     RepeatLastRegion();
                     break;
+                case GlobalHotkeyService.ActiveWindowSnapHotkeyId:
+                    SnapActiveWindow();
+                    break;
                 case GlobalHotkeyService.ColorPickerHotkeyId:
                     OpenColorPicker();
                     break;
@@ -1000,6 +1054,55 @@ namespace CryoUtils
             }
         }
 
+        public async void SnapActiveWindow(bool waitForFocusRestore = false)
+        {
+            if (waitForFocusRestore)
+            {
+                await Task.Delay(160);
+            }
+            CaptureController.Instance.SnapForegroundWindow();
+        }
+
+        public void RegisterPinWindow(PinWindow pin)
+        {
+            if (!_pinWindows.Contains(pin))
+            {
+                _pinWindows.Add(pin);
+            }
+        }
+
+        public void UnregisterPinWindow(PinWindow pin)
+        {
+            _pinWindows.Remove(pin);
+        }
+
+        public bool HasClickThroughPinWindows() => _pinWindows.Any(p => p.IsClickThrough);
+
+        public void RestoreClickThroughPins()
+        {
+            foreach (var pin in _pinWindows.ToArray())
+            {
+                if (pin.IsClickThrough)
+                {
+                    pin.SetClickThrough(false);
+                }
+            }
+        }
+
+        public void CloseAllPinWindows()
+        {
+            foreach (var pin in _pinWindows.ToArray())
+            {
+                try { pin.Close(); } catch { }
+            }
+            _pinWindows.Clear();
+        }
+
+        public void RefreshTrayMenu()
+        {
+            // TrayIconManager rebuilds its popup menu on every ShowContextMenu().
+        }
+
         public void ExitApplication()
         {
             if (_exiting)
@@ -1009,8 +1112,9 @@ namespace CryoUtils
 
             _exiting = true;
             _recordingActive = false;
-            MemoryTrimService.Cancel();
+            MemoryTrimService.Cancel(shuttingDown: true);
             SettingsService.Instance.Save();
+            CloseAllPinWindows();
             _dashboard?.PrepareForShutdown();
             _tray?.Dispose();
             _tray = null;
@@ -1019,6 +1123,13 @@ namespace CryoUtils
             ReplayService.Instance.Dispose();
             TopmostService.Instance.RestoreForExit();
             ThemeService.Shutdown();
+            try { _activateWaitHandle?.Unregister(null); } catch { }
+            _activateWaitHandle = null;
+            try { _activateEvent?.Dispose(); } catch { }
+            _activateEvent = null;
+            try { _singleInstanceMutex?.ReleaseMutex(); } catch { }
+            try { _singleInstanceMutex?.Dispose(); } catch { }
+            _singleInstanceMutex = null;
             Shutdown();
         }
 

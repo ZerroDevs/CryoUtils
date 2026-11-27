@@ -138,7 +138,7 @@ Status key: `Y` implemented, `V` implemented and verified in this environment, `
 | Activity Center | U | Service-fed cards and quick actions above the recent captures strip. |
 | Empty recent state | Y | Visible when no captures. |
 | Quick capture and record actions | Y | Hero and Overview buttons. |
-| Status and version | Y | `v0.0.100` from `VERSION`. |
+| Status and version | Y | `v0.0.101` from `VERSION`. |
 | Focus indicators | Y | Cryo styles, keyboard tabs. |
 | Escape hides dashboard | Y | Unless a text box has focus. |
 
@@ -210,13 +210,13 @@ Status is `U` for these surfaces because they compile and are wired, but the mod
 
 | Feature | Status | Notes |
 |---|---|---|
-| Per-user Inno Setup installer | V | Compiled to `Installer\Output\CryoUtils-Setup-0.0.100.exe`; installs under `%LOCALAPPDATA%\Programs\CryoUtils` with no elevation. |
-| Portable self-contained zip | V | Built at `release\CryoUtils-0.0.100-win-x64.zip`; contains app, `VERSION`, `LICENSE`, and `NOTICE`, without PDBs. |
-| Local installer build script | V | `build-installer.ps1` publishes, compiles, and writes SHA-256 files. |
-| GitHub release workflow | U | Added for Windows builds, installer, optional signing, checksums, and `v<version>` release; not run on GitHub. |
-| Optional Authenticode signing | U | Wired to the Comile-compatible secret names; unsigned builds are valid and were produced here. |
-| Installer execution and uninstall | U | Installer was compiled but not run on this machine. |
-| Version baseline | V | `0.0.100` stamped into the app, setup, and published payload. |
+| Per-user Inno Setup installer (`Full` + `Lite`) | V | Builds `CryoUtils-Setup-0.0.101.exe` (self-contained) and `CryoUtils-Setup-Lite-0.0.101.exe` (framework-dependent with auto `.NET 10 Desktop Runtime` install); installs under `%LOCALAPPDATA%\Programs\CryoUtils` with no elevation and NTFS post-install `compact.exe` compression. |
+| Portable zips (`Full` + `Lite`) | V | Builds `release\CryoUtils-0.0.101-win-x64.zip` and `release\CryoUtils-Lite-0.0.101-win-x64.zip` containing app, `VERSION`, `LICENSE`, and `NOTICE`, without PDBs. |
+| Local installer build script | V | `build-installer.ps1 -Variant All\|Full\|Lite` publishes, compiles, and writes SHA-256 files. |
+| GitHub release workflow | V | Runs on Windows builds, compiles Full & Lite installers + zips, supports optional signing, checksums, and `ReleaseNotes/v<version>.md` for `v<version>`. |
+| Optional Authenticode signing | U | Wired to the Comile-compatible secret names; unsigned builds are valid and published with SHA-256 verification. |
+| Edition-matched updater | V | `UpdaterService` detects `coreclr.dll` to select Full (`CryoUtils-Setup-*`) vs Lite (`CryoUtils-Setup-Lite-*`). |
+| Version baseline | V | `0.0.101` stamped into the app, setup, and published payload. |
 
 ## 11. Quality and accessibility
 

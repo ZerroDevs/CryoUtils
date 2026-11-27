@@ -33,6 +33,7 @@ namespace CryoUtils.Views.Tabs
                 ChkAutoCopy.IsChecked = settings.AutoCopyCapture;
                 ChkCaptureSound.IsChecked = settings.CaptureSound;
                 ChkShowLoupe.IsChecked = settings.ShowCaptureLoupe;
+        ChkPrettyFrame.IsChecked = settings.PrettyFrameExport;
                 ChkArchiveCopied.IsChecked = settings.ArchiveCopiedCaptures;
                 ChkCloudUpload.IsChecked = settings.CloudUploadEnabled;
                 MainTabHelpers.SelectTag(CmbImageFormat, settings.ImageFormat);
@@ -104,6 +105,7 @@ namespace CryoUtils.Views.Tabs
         {
             if (_loading) return;
 
+            MemoryTrimService.PauseForInteraction();
             var settings = SettingsService.Instance.Current;
             settings.QuickSave = ChkQuickSave.IsChecked == true;
             settings.SaveFolder = TxtSaveFolder.Text == SettingsService.Instance.DefaultSaveFolder
@@ -112,6 +114,7 @@ namespace CryoUtils.Views.Tabs
             settings.AutoCopyCapture = ChkAutoCopy.IsChecked == true;
             settings.CaptureSound = ChkCaptureSound.IsChecked == true;
             settings.ShowCaptureLoupe = ChkShowLoupe.IsChecked == true;
+            settings.PrettyFrameExport = ChkPrettyFrame.IsChecked == true;
             settings.ArchiveCopiedCaptures = ChkArchiveCopied.IsChecked == true;
             settings.CloudUploadEnabled = ChkCloudUpload.IsChecked == true;
             settings.ImageFormat = MainTabHelpers.SelectedTag(CmbImageFormat) ?? "PNG";

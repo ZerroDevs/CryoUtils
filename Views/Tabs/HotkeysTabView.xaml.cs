@@ -34,6 +34,18 @@ namespace CryoUtils.Views.Tabs
                 });
 
             AddRow(
+                LocalizationService.Get("Hotkeys_SnapWindow"),
+                LocalizationService.Get("Hotkeys_SnapWindowDesc"),
+                settings.ActiveWindowSnapHotkeyModifiers,
+                settings.ActiveWindowSnapHotkeyKey,
+                enabled: true,
+                (modifiers, key) =>
+                {
+                    settings.ActiveWindowSnapHotkeyModifiers = modifiers;
+                    settings.ActiveWindowSnapHotkeyKey = key;
+                });
+
+            AddRow(
                 LocalizationService.Get("Hotkeys_ColorPicker"),
                 LocalizationService.Get("Module_ColorDesc"),
                 settings.ColorPickerHotkeyModifiers,

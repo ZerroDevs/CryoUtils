@@ -6,7 +6,7 @@ CryoUtils actively maintains security fixes for the current baseline and later r
 
 | Version | Supported | Notes |
 | :--- | :---: | :--- |
-| `>= 0.0.100` / `main` | :white_check_mark: | Supported; current baseline `0.0.100`, incrementing `0.0.101`, `0.0.102`, etc. |
+| `>= 0.0.100` / `main` | :white_check_mark: | Supported; current baseline `0.0.101`, incrementing `0.0.102`, `0.0.103`, etc. |
 | `< 0.0.100` | :x: | Unsupported / unreleased builds |
 
 Use the latest official release from the [CryoUtils Releases](https://github.com/ZerroDevs/CryoUtils/releases) page.
@@ -78,16 +78,16 @@ OCR result files, compressor inputs, save dialogs, settings import/export, and c
 
 ### 4. Update Delivery
 
-CryoUtils checks the latest release through the GitHub Releases API over HTTPS and selects a release asset ending in `.exe` or `.msi`. After the user confirms, it downloads the selected setup and starts it after the application exits. The current setup is a per-user Inno installer and is run silently by the update restart script.
+CryoUtils checks the latest release through the GitHub Releases API over HTTPS and selects a release asset matching the installed edition (`.exe` or `.msi`). After the user confirms, it downloads both the installer and the matching published `.sha256` checksum asset over HTTPS, verifies the downloaded installer hash before closing, deletes the file if verification fails or no checksum asset exists, and only then starts the silent per-user Inno setup script.
 
-Release assets are published with SHA-256 checksum files. The in-app updater currently relies on HTTPS GitHub delivery and does **not** enforce the checksum or Authenticode signature before running the setup. Release assets are signed only when the repository's optional signing secrets are configured. Verify downloaded files manually against the published `.sha256` files when integrity is important.
+Release assets are Authenticode-signed when the repository's optional signing secrets are configured. Verify portable `.zip` downloads manually against their `.sha256` files before extracting.
 
-- **In scope:** an update URL or asset-selection bug that causes an unexpected executable to run, command injection in the restart script, or update files written outside the documented temp and rollback folders.
-- **Out of scope:** compromise of GitHub, the release account, or the user's TLS trust store; a user knowingly running an unsigned release; or local modification of a user-writable installation. Improving checksum and signature enforcement in the updater is a hardening area, not a claimed control.
+- **In scope:** an update URL, checksum bypass, or asset-selection bug that causes an unexpected or tampered executable to run, command injection in the restart script, or update files written outside the documented temp and rollback folders.
+- **Out of scope:** compromise of GitHub, the release account, or the user's TLS trust store; a user knowingly running an unsigned portable archive; or local modification of a user-writable installation. Adding mandatory publisher Authenticode pinning alongside the repository signing certificate remains an optional future hardening step.
 
 ### 5. Third-Party Components
 
-Image encoding and WebP handling use SkiaSharp. OCR, Media Foundation, WPF, and Windows Forms come from Microsoft. Vulnerabilities originating in those upstream components should be reported to their maintainers unless CryoUtils uses the component in a way that creates a distinct exploit path.
+QR scanning and encoding use `ZXing.Net`. WPF, Windows Imaging Component (WIC), Windows OCR, Windows Data PDF, Windows Graphics Capture, Media Foundation, and Win32 components come from Microsoft. Vulnerabilities originating in those upstream components should be reported to their maintainers unless CryoUtils uses the component in a way that creates a distinct exploit path.
 
 ### 6. Privacy and Local Data
 

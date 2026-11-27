@@ -1,10 +1,10 @@
 ; CryoUtils installer script (Inno Setup 6.3+)
 ; Build from the repository root with build-installer.ps1, or directly:
-;   ISCC.exe /DAppVersion=0.0.100 /DVariant=Full Installer\CryoUtils.iss
-;   ISCC.exe /DAppVersion=0.0.100 /DVariant=Lite Installer\CryoUtils.iss
+;   ISCC.exe /DAppVersion=0.0.101 /DVariant=Full Installer\CryoUtils.iss
+;   ISCC.exe /DAppVersion=0.0.101 /DVariant=Lite Installer\CryoUtils.iss
 
 #ifndef AppVersion
-#define AppVersion "0.0.100"
+#define AppVersion "0.0.101"
 #endif
 
 #ifndef Variant
@@ -13,7 +13,7 @@
 
 #if Variant == "Lite"
 #define PublishDir "..\publish\win-x64-lite"
-#define BaseOutputName "CryoUtils-Lite-Setup-" + AppVersion
+#define BaseOutputName "CryoUtils-Setup-Lite-" + AppVersion
 #define AppVariantVerName "CryoUtils " + AppVersion + " (Lite)"
 #else
 #define PublishDir "..\publish\win-x64"
@@ -75,7 +75,7 @@ Name: "{group}\CryoUtils"; Filename: "{app}\CryoUtils.exe"
 Name: "{autodesktop}\CryoUtils"; Filename: "{app}\CryoUtils.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{sys}\compact.exe"; Parameters: "/c /s /q ""{app}"""; Flags: runhidden waituntilterminated skipifdoesntexist
+Filename: "{sys}\compact.exe"; Parameters: "/c /s:""{app}"" /i /q"; Flags: runhidden waituntilterminated skipifdoesntexist
 Filename: "{app}\CryoUtils.exe"; Description: "{cm:LaunchProgram,CryoUtils}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]

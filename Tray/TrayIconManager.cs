@@ -210,6 +210,55 @@ namespace CryoUtils.Tray
             _iconAdded = false;
         }
 
+        internal enum TrayPrimaryOutcome
+        {
+            None,
+            Capture,
+            ShowDashboard
+        }
+
+        internal static TrayPrimaryOutcome ResolvePrimaryAction(
+            bool screenshotOnlyMode,
+            string? trayLeftClickAction,
+            bool isDoubleClick)
+        {
+            bool captureOnLeftClick = screenshotOnlyMode ||
+                string.Equals(trayLeftClickAction, "Capture", StringComparison.OrdinalIgnoreCase);
+
+            if (captureOnLeftClick)
+            {
+                // Suppress dashboard launch on double-click so rapid tray clicks capture instead of opening the window.
+                return isDoubleClick ? TrayPrimaryOutcome.None : TrayPrimaryOutcome.Capture;
+            }
+
+            return TrayPrimaryOutcome.ShowDashboard;
+        }
+
+        private static void HandlePrimaryClick(bool isDoubleClick)
+        {
+            MemoryTrimService.PauseForInteraction();
+            var settings = SettingsService.Instance.Current;
+            TrayPrimaryOutcome outcome = ResolvePrimaryAction(
+                settings.ScreenshotOnlyMode,
+                settings.TrayLeftClickAction,
+                isDoubleClick);
+
+            var app = App.CurrentApp;
+            if (app == null || outcome == TrayPrimaryOutcome.None)
+            {
+                return;
+            }
+
+            if (outcome == TrayPrimaryOutcome.Capture)
+            {
+                app.StartCapture();
+            }
+            else
+            {
+                app.ShowDashboard();
+            }
+        }
+
         private IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
             if (msg == WmTrayIcon)
@@ -218,34 +267,16 @@ namespace CryoUtils.Tray
                 switch (mouseMsg)
                 {
                     case NativeMethods.WM_LBUTTONDBLCLK:
-                        Invoke(() => App.CurrentApp?.ShowDashboard());
+                        Invoke(() => HandlePrimaryClick(isDoubleClick: true));
                         break;
                     case NativeMethods.WM_LBUTTONUP:
-                        Invoke(() =>
-                        {
-                            var app = App.CurrentApp;
-                            if (app == null)
-                            {
-                                return;
-                            }
-                            var settings = SettingsService.Instance.Current;
-                            if (settings.ScreenshotOnlyMode ||
-                                string.Equals(
-                                    settings.TrayLeftClickAction,
-                                    "Capture",
-                                    StringComparison.OrdinalIgnoreCase))
-                            {
-                                app.StartCapture();
-                            }
-                            else
-                            {
-                                app.ShowDashboard();
-                            }
-                        });
+                        Invoke(() => HandlePrimaryClick(isDoubleClick: false));
                         break;
                     case NativeMethods.WM_RBUTTONUP:
                     case NativeMethods.WM_CONTEXTMENU:
+                        MemoryTrimService.PauseForInteraction();
                         ShowContextMenu();
+                        MemoryTrimService.ScheduleTrim(1000);
                         break;
                 }
                 return IntPtr.Zero;
@@ -366,6 +397,8 @@ namespace CryoUtils.Tray
             // 2. Screen capture
             QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_TakeScreenshot"),
                 () => App.CurrentApp?.StartCapture(0));
+            QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_SnapWindow"),
+                () => App.CurrentApp?.SnapActiveWindow(waitForFocusRestore: true));
             QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_RepeatLastRegion"),
                 () => App.CurrentApp?.RepeatLastRegion());
 
@@ -436,6 +469,15 @@ namespace CryoUtils.Tray
                     QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_PinWindow"),
                         () => App.CurrentApp?.TogglePinnerFromDashboard());
                 }
+            }
+
+            if (App.CurrentApp?.HasClickThroughPinWindows() == true)
+            {
+                QueueItem(mainPending, _rootMenu, "", null, isSeparator: true);
+                QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_RestoreGhostPins"),
+                    () => App.CurrentApp?.RestoreClickThroughPins());
+                QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_ClosePins"),
+                    () => App.CurrentApp?.CloseAllPinWindows());
             }
 
             QueueItem(mainPending, _rootMenu, "", null, isSeparator: true);

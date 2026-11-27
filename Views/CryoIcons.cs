@@ -53,6 +53,10 @@ namespace CryoUtils.Views
         public const string CloudUpload = "M4,15 A4,4 0 0 1 4,8 A5.5,5.5 0 0 1 14.5,5.5 A4.5,4.5 0 0 1 18,12 A3.5,3.5 0 0 1 16.5,18 L5,18 M11,10 L11,16 M8,12 L11,9 L14,12";
         public const string ChevronDown = "M5,7.5 L10,12.5 L15,7.5";
         public const string ChevronRight = "M7.5,5 L12.5,10 L7.5,15";
+        public const string Frame = "M3,4 L17,4 L17,16 L3,16 Z M6,7 L14,7 L14,13 L6,13 Z";
+        public const string OcrCopy = "M3,6 L3,3 L6,3 M12,3 L15,3 L15,6 M3,12 L3,15 L6,15 M8,9 L17,9 L17,17 L8,17 Z M10,12 L15,12 M10,14.5 L14,14.5";
+        public const string Drag = "M10,2 L10,18 M2,10 L18,10 M7.5,4.5 L10,2 L12.5,4.5 M7.5,15.5 L10,18 L12.5,15.5 M4.5,7.5 L2,10 L4.5,12.5 M15.5,7.5 L18,10 L15.5,12.5";
+        public const string WindowSnap = "M3,4 L17,4 L17,16 L3,16 Z M3,7.5 L17,7.5 M6,5.8 L7,5.8 M8.5,5.8 L9.5,5.8";
 
         public static Geometry GeometryFor(string data, bool filled = false)
         {

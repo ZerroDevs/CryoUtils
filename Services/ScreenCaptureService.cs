@@ -160,6 +160,50 @@ namespace CryoUtils.Services
             return new Int32Rect(x, y, right - x, bottom - y);
         }
 
+        public static BitmapSource? CaptureForegroundWindow(out string sourceApp, out string sourceWindow)
+        {
+            sourceApp = "";
+            sourceWindow = "";
+            IntPtr hwnd = NativeMethods.GetForegroundWindow();
+            if (hwnd == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            try
+            {
+                sourceWindow = GetWindowTitle(hwnd);
+                NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+                if (pid != 0)
+                {
+                    using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                    sourceApp = proc.ProcessName;
+                }
+            }
+            catch
+            {
+            }
+
+            var bounds = GetWindowBounds(hwnd);
+            var desktop = GetVirtualBounds();
+            int left = Math.Max(bounds.Left, desktop.Left);
+            int top = Math.Max(bounds.Top, desktop.Top);
+            int right = Math.Min(bounds.Right, desktop.Right);
+            int bottom = Math.Min(bounds.Bottom, desktop.Bottom);
+            if (right <= left || bottom <= top)
+            {
+                return null;
+            }
+
+            return CaptureRegion(new NativeMethods.RECT
+            {
+                Left = left,
+                Top = top,
+                Right = right,
+                Bottom = bottom
+            });
+        }
+
         public static BitmapSource CaptureWindow(IntPtr hwnd)
         {
             if (hwnd == IntPtr.Zero)

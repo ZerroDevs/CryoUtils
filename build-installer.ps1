@@ -123,7 +123,7 @@ foreach ($currentVariant in $variantsToBuild) {
     $isLite = $currentVariant -eq 'Lite'
     $selfContainedArg = if ($isLite) { 'false' } else { 'true' }
     $publishDir = if ($isLite) { Join-Path $repoRoot 'publish\win-x64-lite' } else { Join-Path $repoRoot 'publish\win-x64' }
-    $setupName = if ($isLite) { "CryoUtils-Lite-Setup-$Version.exe" } else { "CryoUtils-Setup-$Version.exe" }
+    $setupName = if ($isLite) { "CryoUtils-Setup-Lite-$Version.exe" } else { "CryoUtils-Setup-$Version.exe" }
     $zipName = if ($isLite) { "CryoUtils-Lite-$Version-win-x64.zip" } else { "CryoUtils-$Version-win-x64.zip" }
     $outputExe = Join-Path $repoRoot "Installer\Output\$setupName"
     $portableZip = Join-Path $releaseDir $zipName

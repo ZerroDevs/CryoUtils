@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using CryoUtils.Services;
 
@@ -13,6 +14,9 @@ namespace CryoUtils.Views
         private readonly double _baseHeight;
         private double _zoom = 1;
         private double _opacity = 1;
+        private bool _clickThrough;
+
+        public bool IsClickThrough => _clickThrough;
 
         public PinWindow(BitmapSource image)
         {
@@ -30,7 +34,55 @@ namespace CryoUtils.Views
             Left = work.Left + Math.Max(20, (work.Width - _baseWidth) / 2);
             Top = work.Top + Math.Max(20, (work.Height - _baseHeight) / 2);
             ApplyZoom();
+
+            App.CurrentApp?.RegisterPinWindow(this);
+            Closed += (_, _) => App.CurrentApp?.UnregisterPinWindow(this);
             Loaded += (_, _) => Activate();
+        }
+
+        public void SetClickThrough(bool enabled)
+        {
+            if (_clickThrough == enabled)
+            {
+                return;
+            }
+
+            _clickThrough = enabled;
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                long style = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE).ToInt64();
+                if (enabled)
+                {
+                    style |= NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_LAYERED;
+                }
+                else
+                {
+                    style &= ~NativeMethods.WS_EX_TRANSPARENT;
+                }
+
+                NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(style));
+                NativeMethods.SetWindowPos(
+                    hwnd,
+                    NativeMethods.HWND_TOPMOST,
+                    0, 0, 0, 0,
+                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED);
+            }
+
+            if (MenuGhost != null)
+            {
+                MenuGhost.IsChecked = enabled;
+            }
+
+            // Visually soften opacity when ghosted so click-through pins stay distinguishable.
+            Opacity = enabled ? Math.Min(_opacity, 0.72) : _opacity;
+            ZoomBadge.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+            App.CurrentApp?.RefreshTrayMenu();
+
+            if (enabled)
+            {
+                App.CurrentApp?.ShowToast(LocalizationService.Get("Pin_GhostEnabled"));
+            }
         }
 
         private void ApplyZoom()
@@ -40,11 +92,16 @@ namespace CryoUtils.Views
             PinnedImage.Width = _baseWidth * _zoom;
             PinnedImage.Height = _baseHeight * _zoom;
             TxtZoom.Text = LocalizationService.Format("Pin_Zoom", Math.Round(_zoom * 100));
-            Opacity = _opacity;
+            Opacity = _clickThrough ? Math.Min(_opacity, 0.72) : _opacity;
         }
 
         private void Frame_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (_clickThrough)
+            {
+                return;
+            }
+
             if (e.ClickCount == 2)
             {
                 Close();
@@ -59,6 +116,11 @@ namespace CryoUtils.Views
 
         private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
         {
+            if (_clickThrough)
+            {
+                return;
+            }
+
             if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
             {
                 _opacity = Math.Clamp(_opacity + (e.Delta > 0 ? 0.05 : -0.05), 0.2, 1);
@@ -78,6 +140,10 @@ namespace CryoUtils.Views
             {
                 Close();
             }
+            else if (e.Key == Key.G)
+            {
+                SetClickThrough(!_clickThrough);
+            }
             else if (e.Key == Key.C && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
             {
                 CopyImage();
@@ -93,7 +159,7 @@ namespace CryoUtils.Views
             try
             {
                 Clipboard.SetImage(_image);
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("Common_Copied"));
+                App.CurrentApp?.ShowToast(LocalizationService.Get("Common_Copied"));
             }
             catch
             {
@@ -107,29 +173,18 @@ namespace CryoUtils.Views
                 string path = ScreenCaptureService.SaveWithDialog(_image, this, ".png");
                 if (!string.IsNullOrEmpty(path))
                 {
-                    (Application.Current as App)?.ShowToast(
-                        LocalizationService.Format("Capture_Saved", path));
+                    App.CurrentApp?.ShowToast(LocalizationService.Format("Capture_Saved", path));
                 }
             }
             catch
             {
-                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_SaveFailed"));
+                App.CurrentApp?.ShowToast(LocalizationService.Get("Capture_SaveFailed"));
             }
         }
 
-        private void MenuCopy_Click(object sender, RoutedEventArgs e)
-        {
-            CopyImage();
-        }
-
-        private void MenuSave_Click(object sender, RoutedEventArgs e)
-        {
-            SaveImage();
-        }
-
-        private void MenuClose_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+        private void MenuCopy_Click(object sender, RoutedEventArgs e) => CopyImage();
+        private void MenuSave_Click(object sender, RoutedEventArgs e) => SaveImage();
+        private void MenuGhost_Click(object sender, RoutedEventArgs e) => SetClickThrough(!_clickThrough);
+        private void MenuClose_Click(object sender, RoutedEventArgs e) => Close();
     }
 }

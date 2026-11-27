@@ -20,6 +20,7 @@ namespace CryoUtils.Services
         public const int ReplayHotkeyId = 9207;
         public const int LiveDrawHotkeyId = 9208;
         public const int RepeatLastRegionHotkeyId = 9209;
+        public const int ActiveWindowSnapHotkeyId = 9210;
 
         private readonly Dictionary<int, Registration> _registrations = new();
         private HotkeyMessageWindow? _window;

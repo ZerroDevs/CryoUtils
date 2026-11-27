@@ -48,35 +48,37 @@ dotnet build CryoUtils.csproj -c Release
 The project targets:
 
 ```text
-net10.0-windows10.0.19041.0
+net10.0-windows
 ```
 
-It uses WPF and Windows Forms for the tray icon and native file/color dialogs. `<ImplicitUsings>disable</ImplicitUsings>` is intentional; keep explicit usings and qualify ambiguous types such as `Color`, `Point`, `Brush`, and `MessageBox`.
+It uses WPF (`UseWPF`, zero `UseWindowsForms`) plus direct Win32 Shell, GDI, Media Foundation, and WinRT COM interop. `<ImplicitUsings>disable</ImplicitUsings>` is intentional; keep explicit usings and qualify ambiguous types such as `Color`, `Point`, `Brush`, and `MessageBox`.
 
 ### Run a Local Build
 
 ```powershell
 dotnet build CryoUtils.csproj -c Debug
-.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe
+.\bin\Debug\net10.0-windows\CryoUtils.exe
 ```
 
 Use `--background` to start in the tray without opening the dashboard:
 
 ```powershell
-.\bin\Debug\net10.0-windows10.0.19041.0\CryoUtils.exe --background
+.\bin\Debug\net10.0-windows\CryoUtils.exe --background
 ```
 
 ### Build the Installer and Portable Archive
 
 ```powershell
-.\build-installer.ps1
+.\build-installer.ps1 -Variant All
 ```
 
-This publishes a self-contained win-x64 build and creates:
+This publishes self-contained Full Offline and framework-dependent Lite win-x64 builds and creates:
 
 ```text
 Installer\Output\CryoUtils-Setup-<version>.exe
+Installer\Output\CryoUtils-Setup-Lite-<version>.exe
 release\CryoUtils-<version>-win-x64.zip
+release\CryoUtils-Lite-<version>-win-x64.zip
 ```
 
 The Inno Setup definition is `Installer\CryoUtils.iss`. It is a per-user installer under `%LOCALAPPDATA%\Programs\CryoUtils`; keep it non-elevated unless the product requirements change deliberately. The Release workflow builds the same assets on a Windows runner and publishes them with `.sha256` files.
@@ -164,9 +166,9 @@ chore(release): add Inno Setup installer and release workflow
 
 The root `VERSION` file uses exactly three numeric parts:
 
-- Baseline: `0.0.100`.
-- Next releases: `0.0.101`, `0.0.102`, etc.
-- Release tags: `v0.0.100`, `v0.0.101`, etc.
+- Baseline: `0.0.101`.
+- Next releases: `0.0.102`, `0.0.103`, etc.
+- Release tags: `v0.0.101`, `v0.0.102`, etc.
 
 `CryoUtils.csproj` stamps `AssemblyVersion`, `FileVersion`, and `InformationalVersion` from `VERSION`. `.github/workflows/release.yml` watches changes to `VERSION` on `main` and can also be run manually. Bump the patch before publishing a new release.
 

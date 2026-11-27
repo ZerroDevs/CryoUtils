@@ -959,4 +959,28 @@
     <sys:String x:Key="Overview_RestoreFullMode">Restore Full Mode</sys:String>
     <sys:String x:Key="Toast_ScreenshotOnlyEnabled">Screenshot-Only mode active — tray click captures directly and extra modules are paused.</sys:String>
     <sys:String x:Key="Module_PausedInLite">Paused in Screenshot-Only mode</sys:String>
+
+    <sys:String x:Key="Update_ChecksumMissing">The release did not publish a SHA-256 verification file.</sys:String>
+    <sys:String x:Key="Update_ChecksumMalformed">The SHA-256 verification file could not be read or matched.</sys:String>
+    <sys:String x:Key="Update_ChecksumMismatch">Downloaded installer SHA-256 verification failed. The file was removed.</sys:String>
+
+    <sys:String x:Key="Hotkeys_SnapWindow">Snap active window</sys:String>
+    <sys:String x:Key="Hotkeys_SnapWindowDesc">Instant 0 ms foreground window capture directly to clipboard and optional auto-save with no overlay.</sys:String>
+    <sys:String x:Key="Tray_SnapWindow">Snap active window</sys:String>
+    <sys:String x:Key="Tray_RestoreGhostPins">Disable click-through on pins</sys:String>
+    <sys:String x:Key="Tray_ClosePins">Close floating pins</sys:String>
+
+    <sys:String x:Key="Pin_ClickThrough">Click-through ghost mode (G)</sys:String>
+    <sys:String x:Key="Pin_GhostEnabled">Pin is now click-through — restore or close it from the tray menu.</sys:String>
+
+    <sys:String x:Key="Capture_PrettyFrame">Pretty rounded frame on exports</sys:String>
+    <sys:String x:Key="Capture_PrettyFrameDesc">Wraps copied, saved, and dragged captures in soft padding, rounded corners, and a subtle drop shadow.</sys:String>
+    <sys:String x:Key="Capture_ToolFrame">Toggle pretty frame (F)</sys:String>
+    <sys:String x:Key="Capture_ToolDrag">Drag capture to another app</sys:String>
+    <sys:String x:Key="Capture_ToolOcrCopy">OCR &amp; copy text (Shift+O)</sys:String>
+    <sys:String x:Key="Capture_OcrCopied">Recognized text copied to clipboard</sys:String>
+    <sys:String x:Key="Capture_Dragged">Capture dropped as PNG file</sys:String>
+    <sys:String x:Key="Capture_SnapEmpty">Could not capture the focused window.</sys:String>
+    <sys:String x:Key="Capture_Snapped">Active window copied to clipboard</sys:String>
+    <sys:String x:Key="Capture_SnappedSaved">Active window copied and saved: {0}</sys:String>
 </ResourceDictionary>

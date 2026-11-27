@@ -185,7 +185,7 @@ jobs:
 
           foreach ($target in @(
             "Installer\Output\CryoUtils-Setup-$version.exe",
-            "Installer\Output\CryoUtils-Lite-Setup-$version.exe"
+            "Installer\Output\CryoUtils-Setup-Lite-$version.exe"
           )) {
             & $signtool.FullName sign `
               /fd SHA256 `
@@ -216,7 +216,7 @@ jobs:
           $tag = "${{ steps.version.outputs.tag }}"
           $setupName = "CryoUtils-Setup-$version.exe"
           $zipName = "CryoUtils-$version-win-x64.zip"
-          $liteSetupName = "CryoUtils-Lite-Setup-$version.exe"
+          $liteSetupName = "CryoUtils-Setup-Lite-$version.exe"
           $liteZipName = "CryoUtils-Lite-$version-win-x64.zip"
           New-Item -ItemType Directory -Path release -Force | Out-Null
 
@@ -259,13 +259,18 @@ jobs:
             "",
             "## Download",
             "",
-            "- **Lite Installer (Recommended — smallest download, ~3.4 MB installed):** Download ``$liteSetupName`` (``$liteSetupName.sha256``). Installs per-user into ``%LOCALAPPDATA%\Programs\CryoUtils`` and automatically installs .NET 10 Desktop Runtime (x64) if not already present.",
+            "- **Lite Installer (Recommended - smallest download, ~2 MB installed):** Download ``$liteSetupName`` (``$liteSetupName.sha256``). Installs per-user into ``%LOCALAPPDATA%\Programs\CryoUtils`` and automatically installs .NET 10 Desktop Runtime (x64) if not already present.",
             "- **Full Offline Installer (No internet needed after download):** Download ``$setupName`` (``$setupName.sha256``). Works immediately without downloading any runtime.",
             "- **Portable Zip (Full Offline):** Download ``$zipName`` (``$zipName.sha256``), extract, and run ``CryoUtils.exe``.",
             "- **Portable Zip (Lite, requires .NET 10 Desktop Runtime x64):** Download ``$liteZipName`` (``$liteZipName.sha256``), extract, and run ``CryoUtils.exe``."
           ) -join "`n"
 
-          Set-Content -LiteralPath "release\notes.md" -Value $notes -Encoding utf8
+          $notesSource = "ReleaseNotes\v$version.md"
+          if (Test-Path -LiteralPath $notesSource -PathType Leaf) {
+            Copy-Item -LiteralPath $notesSource -Destination "release\notes.md" -Force
+          } else {
+            Set-Content -LiteralPath "release\notes.md" -Value $notes -Encoding utf8
+          }
 
       - name: Publish GitHub release
         if: steps.version.outputs.skip != 'true'
@@ -277,7 +282,7 @@ jobs:
           $tag = "${{ steps.version.outputs.tag }}"
           $setupName = "CryoUtils-Setup-$version.exe"
           $zipName = "CryoUtils-$version-win-x64.zip"
-          $liteSetupName = "CryoUtils-Lite-Setup-$version.exe"
+          $liteSetupName = "CryoUtils-Setup-Lite-$version.exe"
           $liteZipName = "CryoUtils-Lite-$version-win-x64.zip"
 
           $arguments = @(

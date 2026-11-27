@@ -311,13 +311,13 @@
                         <!-- 4 Roomy Quick Launch Tiles (Domain Accent Coded, Zero Clipping) -->
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="10"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition x:Name="ColQuickCapture" Width="*"/>
+                                <ColumnDefinition x:Name="ColQuickGap1" Width="10"/>
+                                <ColumnDefinition x:Name="ColQuickRecord" Width="*"/>
+                                <ColumnDefinition x:Name="ColQuickGap2" Width="10"/>
+                                <ColumnDefinition x:Name="ColQuickColor" Width="*"/>
+                                <ColumnDefinition x:Name="ColQuickGap3" Width="10"/>
+                                <ColumnDefinition x:Name="ColQuickQr" Width="*"/>
                             </Grid.ColumnDefinitions>
 
                             <!-- Tile 1: Take Screenshot -->
@@ -512,6 +512,8 @@
                                                                     Cursor="Hand"
                                                                     ClipToBounds="True"
                                                                     Tag="{Binding}"
+                                                                    PreviewMouseLeftButtonDown="RecentThumbnail_PreviewMouseLeftButtonDown"
+                                                                    PreviewMouseMove="RecentThumbnail_PreviewMouseMove"
                                                                     MouseLeftButtonUp="RecentThumbnail_Click">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
@@ -660,7 +662,7 @@
                         </Border>
 
                         <!-- 6 Module Control Cards (2x3 Grid, NO Duplicate Heading, Domain Colored Icons) -->
-                        <Grid>
+                        <Grid x:Name="ModulesGrid">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="12"/>
@@ -668,9 +670,9 @@
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="12"/>
+                                <RowDefinition x:Name="RowModGap1" Height="12"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="12"/>
+                                <RowDefinition x:Name="RowModGap2" Height="12"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
@@ -817,7 +819,7 @@
                             </Border>
 
                             <!-- 6. QR Code Suite -->
-                            <Border Grid.Row="4" Grid.Column="2" Style="{StaticResource CardBorder}">
+                            <Border x:Name="CardQrModule" Grid.Row="4" Grid.Column="2" Style="{StaticResource CardBorder}">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>

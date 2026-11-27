@@ -15,7 +15,8 @@
         MouseWheel="Window_MouseWheel"
         PreviewKeyDown="Window_PreviewKeyDown">
 
-    <Border BorderBrush="{DynamicResource PinnedBorderBrush}"
+    <Border x:Name="FrameBorder"
+            BorderBrush="{DynamicResource PinnedBorderBrush}"
             BorderThickness="1"
             Background="{DynamicResource WindowBackgroundBrush}"
             MouseLeftButtonDown="Frame_MouseLeftButtonDown">
@@ -23,6 +24,7 @@
             <ContextMenu Style="{StaticResource CryoContextMenu}">
                 <MenuItem Header="{DynamicResource Pin_Copy}" Click="MenuCopy_Click"/>
                 <MenuItem Header="{DynamicResource Pin_Save}" Click="MenuSave_Click"/>
+                <MenuItem x:Name="MenuGhost" Header="{DynamicResource Pin_ClickThrough}" IsCheckable="True" Click="MenuGhost_Click"/>
                 <Separator/>
                 <MenuItem Header="{DynamicResource Pin_Close}" Click="MenuClose_Click"/>
             </ContextMenu>

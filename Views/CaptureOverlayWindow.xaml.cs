@@ -54,6 +54,10 @@ namespace CryoUtils.Views
         private bool _textCommitting;
         private Rect _toolbarBounds = Rect.Empty;
         private Rect _actionToolbarBounds = Rect.Empty;
+        private Button? _frameButton;
+        private Button? _dragButton;
+        private Point _dragStartPoint;
+        private bool _dragArmed;
 
         public CaptureController Controller { get; }
         public MonitorInfo Monitor { get; }
@@ -205,6 +209,8 @@ namespace CryoUtils.Views
             bool screenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
             AddActionButton(CryoIcons.Copy, "Capture_ToolCopy", () => Controller.CopySelection());
             AddActionButton(CryoIcons.Save, "Capture_ToolSave", () => Controller.SaveSelection(quick: false));
+            _frameButton = AddActionButton(CryoIcons.Frame, "Capture_ToolFrame", () => Controller.TogglePrettyFrame());
+            _dragButton = AddDragActionButton();
             if (IsOverlayActionVisible("Upload", screenshotOnly))
             {
                 AddActionButton(CryoIcons.CloudUpload, "Capture_ToolUpload", () => Controller.UploadSelectionAsync());
@@ -216,6 +222,10 @@ namespace CryoUtils.Views
             AddActionButton(CryoIcons.Scroll, "Capture_ToolScroll", () => Controller.StartScrollingCapture());
             AddActionSeparator();
             AddActionButton(CryoIcons.Ocr, "Capture_ToolOcr", () => Controller.OcrSelection());
+            if (IsOverlayActionVisible("OcrCopy", screenshotOnly))
+            {
+                AddActionButton(CryoIcons.OcrCopy, "Capture_ToolOcrCopy", () => Controller.OcrSelection(copyOnly: true));
+            }
             AddActionButton(CryoIcons.QrCode, "Capture_ToolQr", () => Controller.QrSelection());
             if (IsOverlayActionVisible("Pin", screenshotOnly))
             {
@@ -226,6 +236,64 @@ namespace CryoUtils.Views
             AddActionButton(CryoIcons.Close, "Capture_ToolClose", () => Controller.CloseAll());
 
             UpdateToolStyles();
+        }
+
+        private Button AddDragActionButton()
+        {
+            var button = CreateIconButton(CryoIcons.Drag, "Capture_ToolDrag", () => { });
+            button.Margin = new Thickness(1, 0, 1, 0);
+            button.Cursor = Cursors.SizeAll;
+            button.PreviewMouseLeftButtonDown += DragButton_PreviewMouseLeftButtonDown;
+            button.PreviewMouseMove += DragButton_PreviewMouseMove;
+            button.PreviewMouseLeftButtonUp += (_, _) => _dragArmed = false;
+            ActionToolbar.Children.Add(button);
+            return button;
+        }
+
+        private void DragButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(this);
+            _dragArmed = true;
+        }
+
+        private void DragButton_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_dragArmed || e.LeftButton != MouseButtonState.Pressed || _dragButton == null)
+            {
+                return;
+            }
+
+            Point current = e.GetPosition(this);
+            if (Math.Abs(current.X - _dragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(current.Y - _dragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            _dragArmed = false;
+            string? path = Controller.ExportDragFile();
+            if (string.IsNullOrEmpty(path))
+            {
+                return;
+            }
+
+            Controller.SetOverlaysDragTransparent(true);
+            try
+            {
+                var data = new DataObject(DataFormats.FileDrop, new[] { path });
+                var result = DragDrop.DoDragDrop(_dragButton, data, DragDropEffects.Copy);
+                if (result != DragDropEffects.None)
+                {
+                    Controller.CloseAll(restoreDashboard: true, waitForOneShotToast: true);
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_Dragged"));
+                    return;
+                }
+            }
+            catch
+            {
+            }
+
+            Controller.SetOverlaysDragTransparent(false);
         }
 
         internal static bool IsOverlayActionVisible(string actionName, bool screenshotOnly)
@@ -316,11 +384,12 @@ namespace CryoUtils.Views
             return button;
         }
 
-        private void AddActionButton(string iconData, string tooltipKey, Action click)
+        private Button AddActionButton(string iconData, string tooltipKey, Action click)
         {
             var button = CreateIconButton(iconData, tooltipKey, click);
             button.Margin = new Thickness(1, 0, 1, 0);
             ActionToolbar.Children.Add(button);
+            return button;
         }
 
         private void AddSeparator()
@@ -370,6 +439,20 @@ namespace CryoUtils.Views
                     grid.Children.Count > 1 && grid.Children[1] is TextBlock number)
                 {
                     number.Foreground = brush;
+                }
+            }
+
+            if (_frameButton != null)
+            {
+                bool framed = Controller.UsePrettyFrame;
+                _frameButton.Background = framed
+                    ? ThemeService.GetBrush("AccentSoftBrush")
+                    : Brushes.Transparent;
+                if (_frameButton.Content is System.Windows.Shapes.Path framePath)
+                {
+                    framePath.Stroke = framed
+                        ? ThemeService.GetBrush("AccentBrush")
+                        : ThemeService.GetBrush("IconBrush");
                 }
             }
 
@@ -1885,6 +1968,20 @@ namespace CryoUtils.Views
 
             if (control || Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
             {
+                return;
+            }
+
+            if (shift && e.Key == Key.O && Controller.Selection.HasValue)
+            {
+                Controller.OcrSelection(copyOnly: true);
+                e.Handled = true;
+                return;
+            }
+
+            if (!shift && e.Key == Key.F && Controller.Selection.HasValue)
+            {
+                Controller.TogglePrettyFrame();
+                e.Handled = true;
                 return;
             }
 

@@ -229,6 +229,27 @@ namespace CryoUtils.Services
             }
         }
 
+        public void ReleaseBackgroundCache(bool screenshotOnly)
+        {
+            ReleaseAllTimeCache();
+            foreach (var item in Items)
+            {
+                if (!string.IsNullOrEmpty(item.Path))
+                {
+                    item.Image = null;
+                }
+            }
+
+            if (screenshotOnly)
+            {
+                // Keep only the latest unsaved session capture in RAM when Screenshot-Only returns to tray.
+                while (Items.Count > 2)
+                {
+                    Items.RemoveAt(Items.Count - 1);
+                }
+            }
+        }
+
         private static BitmapSource? LoadThumbnail(FileInfo file)
         {
             try

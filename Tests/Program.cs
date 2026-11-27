@@ -350,19 +350,87 @@ namespace CryoUtils.Tests
                 AssertEqual(0u, GlobalHotkeyService.ResolveVirtualKey(""));
             });
 
-            Test("updater selects matching variant setup asset", () =>
+            Test("updater selects matching variant setup asset and orders full before lite", () =>
             {
+                // Sorted alphabetically as GitHub Releases returns assets: Full ('0') precedes Setup-Lite ('L').
                 var assets = new[]
                 {
-                    ("CryoUtils-Lite-Setup-0.0.101.exe", "https://example.com/lite.exe"),
-                    ("CryoUtils-Setup-0.0.101.exe", "https://example.com/full.exe")
+                    ("CryoUtils-Setup-0.0.101.exe", "https://example.com/full.exe"),
+                    ("CryoUtils-Setup-Lite-0.0.101.exe", "https://example.com/lite.exe")
                 };
 
                 var lite = UpdaterService.SelectPreferredAsset(assets, isSelfContained: false);
-                AssertEqual("CryoUtils-Lite-Setup-0.0.101.exe", lite.Name);
+                AssertEqual("CryoUtils-Setup-Lite-0.0.101.exe", lite.Name);
 
                 var full = UpdaterService.SelectPreferredAsset(assets, isSelfContained: true);
                 AssertEqual("CryoUtils-Setup-0.0.101.exe", full.Name);
+            });
+
+            Test("tray primary and double-click respect screenshot-only mode", () =>
+            {
+                AssertEqual(
+                    (int)CryoUtils.Tray.TrayIconManager.TrayPrimaryOutcome.Capture,
+                    (int)CryoUtils.Tray.TrayIconManager.ResolvePrimaryAction(screenshotOnlyMode: true, "Dashboard", isDoubleClick: false));
+                AssertEqual(
+                    (int)CryoUtils.Tray.TrayIconManager.TrayPrimaryOutcome.None,
+                    (int)CryoUtils.Tray.TrayIconManager.ResolvePrimaryAction(screenshotOnlyMode: true, "Dashboard", isDoubleClick: true));
+                AssertEqual(
+                    (int)CryoUtils.Tray.TrayIconManager.TrayPrimaryOutcome.Capture,
+                    (int)CryoUtils.Tray.TrayIconManager.ResolvePrimaryAction(screenshotOnlyMode: false, "Capture", isDoubleClick: false));
+                AssertEqual(
+                    (int)CryoUtils.Tray.TrayIconManager.TrayPrimaryOutcome.None,
+                    (int)CryoUtils.Tray.TrayIconManager.ResolvePrimaryAction(screenshotOnlyMode: false, "Capture", isDoubleClick: true));
+                AssertEqual(
+                    (int)CryoUtils.Tray.TrayIconManager.TrayPrimaryOutcome.ShowDashboard,
+                    (int)CryoUtils.Tray.TrayIconManager.ResolvePrimaryAction(screenshotOnlyMode: false, "Dashboard", isDoubleClick: false));
+                AssertEqual(
+                    (int)CryoUtils.Tray.TrayIconManager.TrayPrimaryOutcome.ShowDashboard,
+                    (int)CryoUtils.Tray.TrayIconManager.ResolvePrimaryAction(screenshotOnlyMode: false, "Dashboard", isDoubleClick: true));
+            });
+
+            Test("MemoryTrimService debounces, pauses on interaction, and enforces anti-bounce cooldown", () =>
+            {
+                MemoryTrimService.ResetForTest();
+                try
+                {
+                    int executions = 0;
+                    using var done = new ManualResetEventSlim(false);
+                    MemoryTrimService.TrimExecutorForTest = () =>
+                    {
+                        Interlocked.Increment(ref executions);
+                        done.Set();
+                    };
+
+                    MemoryTrimService.ScheduleTrim(110);
+                    MemoryTrimService.ScheduleTrim(110);
+                    AssertTrue(MemoryTrimService.HasPendingTrim);
+                    AssertEqual(2, MemoryTrimService.ScheduledCountForTest);
+                    AssertTrue(done.Wait(3000));
+                    System.Threading.Thread.Sleep(40);
+                    AssertEqual(1, executions);
+
+                    done.Reset();
+                    MemoryTrimService.PauseForInteraction(TimeSpan.FromMilliseconds(220));
+                    MemoryTrimService.ScheduleTrim(60);
+                    System.Threading.Thread.Sleep(110);
+                    AssertEqual(1, executions);
+                    AssertTrue(done.Wait(3000));
+                    System.Threading.Thread.Sleep(40);
+                    AssertEqual(2, executions);
+
+                    int beforeBounce = MemoryTrimService.ScheduledCountForTest;
+                    MemoryTrimService.ScheduleTrim(60, skipIfRecentlyTrimmed: true);
+                    AssertEqual(beforeBounce, MemoryTrimService.ScheduledCountForTest);
+                    AssertTrue(!MemoryTrimService.HasPendingTrim);
+
+                    MemoryTrimService.Cancel(shuttingDown: true);
+                    MemoryTrimService.ScheduleTrim(60);
+                    AssertTrue(!MemoryTrimService.HasPendingTrim);
+                }
+                finally
+                {
+                    MemoryTrimService.ResetForTest();
+                }
             });
 
             Test("color dialog COLORREF round-trip matches #RRGGBB", () =>
@@ -373,9 +441,10 @@ namespace CryoUtils.Tests
                 AssertEqual("#2B88D8", ColorDialogHelper.ColorRefToHex(colorRef));
             });
 
-            Test("screenshot-only overlay keeps OCR and QR while hiding Upload, Record, and Pin", () =>
+            Test("screenshot-only overlay keeps OCR, OCR Copy, and QR while hiding Upload, Record, and Pin", () =>
             {
                 AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Ocr", screenshotOnly: true));
+                AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("OcrCopy", screenshotOnly: true));
                 AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Qr", screenshotOnly: true));
                 AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Copy", screenshotOnly: true));
                 AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Save", screenshotOnly: true));
@@ -385,6 +454,75 @@ namespace CryoUtils.Tests
                 AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Upload", screenshotOnly: false));
                 AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Record", screenshotOnly: false));
                 AssertTrue(Views.CaptureOverlayWindow.IsOverlayActionVisible("Pin", screenshotOnly: false));
+            });
+
+            Test("updater selects HTTPS .sha256 checksum asset and verifies installer hash", () =>
+            {
+                var assets = new[]
+                {
+                    ("CryoUtils-Setup-0.0.101.exe", "https://example.com/CryoUtils-Setup-0.0.101.exe"),
+                    ("CryoUtils-Setup-0.0.101.exe.sha256", "https://example.com/CryoUtils-Setup-0.0.101.exe.sha256"),
+                    ("CryoUtils-Setup-Lite-0.0.101.exe.sha256", "http://insecure.example.com/lite.sha256")
+                };
+
+                var (name, url) = UpdaterService.SelectChecksumAsset(assets, "CryoUtils-Setup-0.0.101.exe");
+                AssertEqual("CryoUtils-Setup-0.0.101.exe.sha256", name);
+                AssertTrue(url.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+
+                var (_, rejectedHttp) = UpdaterService.SelectChecksumAsset(assets, "CryoUtils-Setup-Lite-0.0.101.exe");
+                AssertEqual("", rejectedHttp);
+
+                string sampleHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+                AssertEqual(
+                    sampleHash,
+                    UpdaterService.ParseExpectedSha256($"{sampleHash} *CryoUtils-Setup-0.0.101.exe", "CryoUtils-Setup-0.0.101.exe") ?? "");
+                AssertEqual(
+                    sampleHash,
+                    UpdaterService.ParseExpectedSha256(sampleHash, "CryoUtils-Setup-0.0.101.exe") ?? "");
+                AssertTrue(
+                    UpdaterService.ParseExpectedSha256($"{sampleHash}  other.exe", "CryoUtils-Setup-0.0.101.exe") == null);
+
+                string tmp = Path.Combine(Path.GetTempPath(), $"cryoutils-sha-{Guid.NewGuid():N}.bin");
+                try
+                {
+                    byte[] payload = Encoding.UTF8.GetBytes("CryoUtils-SHA256-Test");
+                    File.WriteAllBytes(tmp, payload);
+                    string actualHex = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+                    AssertTrue(UpdaterService.VerifyFileSha256Async(tmp, actualHex).GetAwaiter().GetResult());
+                    string wrongHex = new string('0', 64);
+                    AssertTrue(!UpdaterService.VerifyFileSha256Async(tmp, wrongHex).GetAwaiter().GetResult());
+                }
+                finally
+                {
+                    if (File.Exists(tmp)) File.Delete(tmp);
+                }
+            });
+
+            Test("pretty frame export expands bounds cleanly and freezes output", () =>
+            {
+                Exception? workerError = null;
+                var sta = new Thread(() =>
+                {
+                    try
+                    {
+                        var px = new byte[100 * 80 * 4];
+                        var src = System.Windows.Media.Imaging.BitmapSource.Create(
+                            100, 80, 96, 96, PixelFormats.Bgra32, null, px, 100 * 4);
+                        src.Freeze();
+                        var framed = Views.CaptureController.ApplyPrettyFrame(src);
+                        AssertTrue(framed.IsFrozen);
+                        AssertTrue(framed.PixelWidth > src.PixelWidth);
+                        AssertTrue(framed.PixelHeight > src.PixelHeight);
+                    }
+                    catch (Exception ex)
+                    {
+                        workerError = ex;
+                    }
+                });
+                sta.SetApartmentState(ApartmentState.STA);
+                sta.Start();
+                sta.Join();
+                if (workerError != null) throw workerError;
             });
 
             Test("native WebP encoder produces valid RIFF WEBP VP8L container", () =>

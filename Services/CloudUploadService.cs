@@ -26,7 +26,7 @@ namespace CryoUtils.Services
 
         static CloudUploadService()
         {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) CryoUtils/0.0.100");
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) CryoUtils/0.0.101");
         }
 
         public static byte[] EncodeBitmapToPng(BitmapSource bitmap)

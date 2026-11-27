@@ -34,6 +34,9 @@ namespace CryoUtils.Views
         private ToolsTabView? _toolsTab;
         private HotkeysTabView? _hotkeysTab;
         private GeneralTabView? _generalTab;
+        private Point _recentDragStart;
+        private RecentCapture? _recentDragCandidate;
+        private bool _suppressRecentClick;
 
         public MainWindow()
         {
@@ -70,7 +73,8 @@ namespace CryoUtils.Views
                 }
             };
             IsVisibleChanged += (_, _) => SyncReplayTimer();
-            Deactivated += (_, _) => MemoryTrimService.ScheduleTrim(1000);
+            Activated += (_, _) => MemoryTrimService.PauseForInteraction(TimeSpan.FromMilliseconds(1500));
+            Deactivated += (_, _) => MemoryTrimService.ScheduleTrim(MemoryTrimService.DefaultDelayMs, skipIfRecentlyTrimmed: true);
 
             ReloadUi();
             _initializing = false;
@@ -286,6 +290,7 @@ namespace CryoUtils.Views
                 return;
             }
 
+            MemoryTrimService.PauseForInteraction();
             ShowTab(tag);
         }
 
@@ -495,16 +500,35 @@ namespace CryoUtils.Views
             if (ScreenshotOnlyBanner != null) ScreenshotOnlyBanner.Visibility = lite ? Visibility.Visible : Visibility.Collapsed;
             if (TabTools != null) TabTools.Visibility = lite ? Visibility.Collapsed : Visibility.Visible;
 
-            if (BtnQuickRecordTile != null) { BtnQuickRecordTile.IsEnabled = !lite; BtnQuickRecordTile.Opacity = lite ? 0.45 : 1.0; }
-            if (BtnQuickColorTile != null) { BtnQuickColorTile.IsEnabled = !lite; BtnQuickColorTile.Opacity = lite ? 0.45 : 1.0; }
-            if (CardColorModule != null) { CardColorModule.IsEnabled = !lite; CardColorModule.Opacity = lite ? 0.45 : 1.0; }
-            if (CardPinnerModule != null) { CardPinnerModule.IsEnabled = !lite; CardPinnerModule.Opacity = lite ? 0.45 : 1.0; }
-            if (CardCompressorModule != null) { CardCompressorModule.IsEnabled = !lite; CardCompressorModule.Opacity = lite ? 0.45 : 1.0; }
-            if (CardClipboardModule != null) { CardClipboardModule.IsEnabled = !lite; CardClipboardModule.Opacity = lite ? 0.45 : 1.0; }
+            if (BtnQuickRecordTile != null) BtnQuickRecordTile.Visibility = lite ? Visibility.Collapsed : Visibility.Visible;
+            if (BtnQuickColorTile != null) BtnQuickColorTile.Visibility = lite ? Visibility.Collapsed : Visibility.Visible;
+            if (ColQuickRecord != null) ColQuickRecord.Width = lite ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+            if (ColQuickGap2 != null) ColQuickGap2.Width = lite ? new GridLength(0) : new GridLength(10);
+            if (ColQuickColor != null) ColQuickColor.Width = lite ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+            if (ColQuickGap3 != null) ColQuickGap3.Width = lite ? new GridLength(0) : new GridLength(10);
+
+            Visibility moduleVis = lite ? Visibility.Collapsed : Visibility.Visible;
+            if (CardColorModule != null) CardColorModule.Visibility = moduleVis;
+            if (CardPinnerModule != null) CardPinnerModule.Visibility = moduleVis;
+            if (CardCompressorModule != null) CardCompressorModule.Visibility = moduleVis;
+            if (CardClipboardModule != null) CardClipboardModule.Visibility = moduleVis;
+            if (RowModGap1 != null) RowModGap1.Height = lite ? new GridLength(0) : new GridLength(12);
+            if (RowModGap2 != null) RowModGap2.Height = lite ? new GridLength(0) : new GridLength(12);
+            if (CardQrModule != null)
+            {
+                Grid.SetRow(CardQrModule, lite ? 0 : 4);
+                Grid.SetColumn(CardQrModule, 2);
+            }
 
             if (lite && _currentTab == "Tools")
             {
                 ShowTab("Overview");
+            }
+            if (lite)
+            {
+                HostTools.Content = null;
+                _toolsTab = null;
+                RecentCaptureService.Instance.ReleaseBackgroundCache(screenshotOnly: true);
             }
 
             _captureTab?.ApplyScreenshotOnlyUi();
@@ -732,8 +756,62 @@ namespace CryoUtils.Views
             }
         }
 
+        private void RecentThumbnail_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left &&
+                (sender as FrameworkElement)?.Tag is RecentCapture capture)
+            {
+                _recentDragStart = e.GetPosition(this);
+                _recentDragCandidate = capture;
+                _suppressRecentClick = false;
+            }
+        }
+
+        private void RecentThumbnail_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (_recentDragCandidate == null || e.LeftButton != MouseButtonState.Pressed || sender is not DependencyObject dragSource)
+            {
+                return;
+            }
+
+            Point pos = e.GetPosition(this);
+            if (Math.Abs(pos.X - _recentDragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(pos.Y - _recentDragStart.Y) < SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            var capture = _recentDragCandidate;
+            _recentDragCandidate = null;
+            _suppressRecentClick = true;
+
+            string? path = !string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path)
+                ? capture.Path
+                : (capture.Image != null ? CaptureController.WriteTempDragPng(capture.Image, "CryoUtils") : null);
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                var data = new DataObject(DataFormats.FileDrop, new[] { path });
+                DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Copy);
+            }
+            catch
+            {
+            }
+        }
+
         private void RecentThumbnail_Click(object sender, MouseButtonEventArgs e)
         {
+            _recentDragCandidate = null;
+            if (_suppressRecentClick)
+            {
+                _suppressRecentClick = false;
+                return;
+            }
+
             if ((sender as FrameworkElement)?.Tag is not RecentCapture capture)
             {
                 return;

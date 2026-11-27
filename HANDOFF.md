@@ -1,8 +1,39 @@
 # CryoUtils Handoff
 
-Last updated: 2026-11-25
+Last updated: 2026-11-27
 
-## Latest turn — Cryo Workbench Expansion
+## Latest turn — `v0.0.101` Security, Single-Instance, Capture UX & Compact Lite Mode
+
+- **Updater SHA-256 Enforcement (`Services/UpdaterService.cs`):** Added `ChecksumName`/`ChecksumUrl` matching (`<asset>.sha256` over HTTPS), `ParseExpectedSha256`, and `VerifyFileSha256Async`. `DownloadAsync` verifies downloaded installers strictly before closing/executing and deletes mismatched or unverified files.
+- **Process Single-Instance Guard (`App.xaml.cs`):** Enforced single running tray/UI process via `Local\CryoUtils.SingleInstance.v1` `Mutex` + `Local\CryoUtils.Activate.v1` `EventWaitHandle` activation (keeping `--uninstall-cleanup`, `--unregister-context-menu`, `--action`, and `--capture` CLI helpers exempt; `--background`/`--minimized`/`--tray` remain quiet).
+- **Capture UX & Utility Enhancements (`Views/CaptureController.cs`, `CaptureOverlayWindow.xaml.cs`, `PinWindow.xaml(.cs)`, `CaptureTabView`, `HotkeysTabView`, `TrayIconManager`):**
+  - **Instant Active-Window Snap (`Ctrl+Alt+S` / Tray):** Captures focused foreground window in 0 ms straight to clipboard and optional auto-save without an overlay freeze frame.
+  - **Overlay & Recent Captures Drag-Out (`DragDrop.DoDragDrop`):** Drag handle on the overlay action rail (making overlays transparent during OLE drag) plus drag-out from **Recent captures** cards (`WriteTempDragPng` fallback for in-memory captures).
+  - **One-Click `OCR & Copy` (`Shift+O` / Overlay button):** Recognizes selected region text (`allowFrame: false`) and copies straight to clipboard without opening `OcrResultWindow`; kept visible in Screenshot-Only Mode.
+  - **Prettier Screenshot Frame Export (`PrettyFrameExport` / `F` toggle):** Pure WPF `DrawingVisual` rounded gradient card + soft drop shadow around exported captures (`CaptureController.ApplyPrettyFrame`).
+  - **Pin Ghost Mode (`G` / `WS_EX_TRANSPARENT`):** Click-through toggle on `PinWindow` plus `Tray_RestoreGhostPins` / `Tray_ClosePins` recovery actions in the tray menu.
+- **Compact Screenshot-Only Overview (`Views/MainWindow.xaml(.cs)`):** Collapses disabled Quick Launch tiles (`BtnQuickRecordTile`/`BtnQuickColorTile` + spacer columns) and non-screenshot module cards (`Color`, `Pinner`, `Compressor`, `Clipboard`), moving `CardQrModule` cleanly beside `CardCaptureModule`.
+- **Localization & Verification:** EN/AR strings synchronized at **941 keys each** (`Diff=0`); Debug & Release build at `0` warnings / `0` errors; `Tests/CryoUtils.Tests.csproj` passed **25/25** checks.
+
+## Previous turn — `v0.0.101` Packaging, Screenshot-Only Tray/RAM Fixes & Continuity Sync
+
+- **Resolved Stale TFM Binary & Tray Double-Click Leak (`Tray/TrayIconManager.cs`, `bin/obj` cleanup):**
+  - Removed leftover `net10.0-windows10.0.19041.0` build artifacts left behind when commit `0230755` migrated `<TargetFramework>` to `net10.0-windows` (preventing older `02:33` binaries without `ScreenshotOnlyBanner` or tray capture routing from executing).
+  - Extracted `TrayIconManager.ResolvePrimaryAction` so both single left-click (`WM_LBUTTONUP`) and double-click (`WM_LBUTTONDBLCLK`) respect `ScreenshotOnlyMode` and `TrayLeftClickAction == "Capture"`, never reopening the Dashboard on rapid clicks while in Capture/Lite mode.
+- **Asset & Memory Footprint Reduction (`Images/CryoUtils-Icon.png`, `RecentCaptureService`, `MainWindow`, `MemoryTrimService`):**
+  - Downscaled embedded `<Resource>` icon `Images/CryoUtils-Icon.png` from `2048x2048` (`1,575,915` B) to `256x256` (`22,868` B) and deleted unused `Images/CryoUtils.jfif` (`1,489,034` B), saving ~`1.55 MB` in `CryoUtils.dll` / `CryoUtils-Setup-Lite` and eliminating ~`16 MB` per decoded window bitmap.
+  - Updated `MainWindow.ApplyScreenshotOnlyUi()` to unload `_toolsTab` when entering Screenshot-Only Mode and added `RecentCaptureService.ReleaseBackgroundCache()` on dashboard close / Screenshot-Only transitions.
+  - Upgraded `MemoryTrimService` with `PauseForInteraction()` (`1200 ms`), `MinDeactivatedInterval` (`5 s`) anti-bounce `skipIfRecentlyTrimmed`, generation-guarded one-shot timers, `Cancel(shuttingDown: true)`, and single compacting GC + `EmptyWorkingSet` wired into `Tab_Checked`, `Activated`, `TrayIconManager`, `GeneralTabView`, and `CaptureTabView`.
+- **Installer & Updater Safety (`Installer/CryoUtils.iss`, `build-installer.ps1`, `.github/workflows/release.yml`):**
+  - Fixed `compact.exe` parameters line in `Installer/CryoUtils.iss` to `/c /s:"{app}" /i /q` (matching `compact /?`).
+  - Renamed Lite setup asset from `CryoUtils-Lite-Setup-<version>.exe` to `CryoUtils-Setup-Lite-<version>.exe` so GitHub alphabetical asset ordering lists Full (`CryoUtils-Setup-0.0.101.exe`) before Lite (`CryoUtils-Setup-Lite-0.0.101.exe`), preventing existing `v0.0.100` upgraders from switching onto Lite automatically while `v0.0.101` `UpdaterService` keeps matching `-lite`.
+  - Updated `release.yml` to publish `ReleaseNotes/v<version>.md` verbatim when present, bumped `VERSION` and `app.manifest` to `0.0.101`, created `ReleaseNotes/v0.0.101.md`, aligned `README.md`, `CONTEXT.md`, `CONTRIBUTING.md`, `SECURITY.md`, `FEATURES.md`, and `FUNCTIONS.md`, and expanded `Tests/Program.cs` with `ResolvePrimaryAction`, `CryoUtils-Setup-Lite`, and `MemoryTrimService` verification tests.
+
+## Previous turn — CryoUtils-Lite (`0230755`), Zero WinForms/SkiaSharp/Windows.SDK.NET & Lazy Tabs
+
+- **Zero external UI/imaging projections (`0230755`):** Removed `UseWindowsForms`, `SkiaSharp`, and `Microsoft.Windows.SDK.NET`; migrated to pure Win32 tray (`TrayIconManager`), `ColorDialogHelper`, `SimplePdfWriter`, `SimpleWebpEncoder`, `WinRtBridge`, Media Foundation encoding/remuxing, `CryoUtils-Lite`, `--capture` CLI, and lazy-loaded `Views/Tabs/*`.
+
+## Previous turn — Cryo Workbench Expansion
 
 - **Unified Workbench (`Views/PowerToolsWindow.xaml(.cs)`, `Views/MainWindow.xaml(.cs)`)**: Added one tabbed window for Library, Recipes, Privacy, File Actions, Colors, Pinner, PDF/Media, and Diagnostics, with a dashboard Tools entry point.
 - **Capture Library 2.0 (`Services/CaptureLibraryService.cs`, `Views/CaptureController.cs`)**: Saved captures now record source application/window, tags, and favorites in `capture-library.json`; search, multi-select, open/reveal, and Recycle Bin deletion are available from the Workbench. The library references the configured save folder and does not duplicate captures.
