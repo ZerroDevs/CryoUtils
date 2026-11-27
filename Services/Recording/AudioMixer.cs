@@ -19,9 +19,11 @@ namespace CryoUtils.Services.Recording
         private Thread? _thread;
         private volatile bool _running;
         private volatile bool _paused;
+        private volatile float _currentPeakLevel;
 
         public event Action<short[]>? MixedSamples;
         public bool IsRunning => _running;
+        public float CurrentPeakLevel => _currentPeakLevel;
         public string LastError { get; private set; } = "";
 
         public AudioMixer(
@@ -122,16 +124,25 @@ namespace CryoUtils.Services.Recording
                     }
 
                     var mixed = new short[frames * 2];
+                    int peak = 0;
                     for (int frame = 0; frame < frames; frame++)
                     {
                         int left = system != null && frame * 2 < system.Length ? system[frame * 2] : 0;
                         int right = system != null && frame * 2 + 1 < system.Length ? system[frame * 2 + 1] : 0;
                         int micLeft = microphone != null && frame * 2 < microphone.Length ? microphone[frame * 2] : 0;
                         int micRight = microphone != null && frame * 2 + 1 < microphone.Length ? microphone[frame * 2 + 1] : 0;
-                        mixed[frame * 2] = (short)Math.Clamp(left + micLeft, short.MinValue, short.MaxValue);
-                        mixed[frame * 2 + 1] = (short)Math.Clamp(right + micRight, short.MinValue, short.MaxValue);
+                        short outL = (short)Math.Clamp(left + micLeft, short.MinValue, short.MaxValue);
+                        short outR = (short)Math.Clamp(right + micRight, short.MinValue, short.MaxValue);
+                        mixed[frame * 2] = outL;
+                        mixed[frame * 2 + 1] = outR;
+                        int absL = Math.Abs((int)outL);
+                        int absR = Math.Abs((int)outR);
+                        if (absL > peak) peak = absL;
+                        if (absR > peak) peak = absR;
                     }
 
+                    float normalized = peak / 32768f;
+                    _currentPeakLevel = Math.Max(normalized, _currentPeakLevel * 0.65f);
                     MixedSamples?.Invoke(mixed);
                 }
                 catch

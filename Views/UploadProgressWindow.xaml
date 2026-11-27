@@ -33,58 +33,62 @@
             </Grid.RowDefinitions>
 
             <!-- Draggable compact title bar with Minimize & Close -->
-            <Grid Grid.Row="0"
-                  Background="{DynamicResource TitleBarBackgroundBrush}"
-                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+            <Border Grid.Row="0"
+                    Background="{DynamicResource TitleBarBackgroundBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,8,0">
-                    <Path x:Name="PathHeaderIcon"
-                          Data="{x:Static views:IconData.CloudUpload}"
-                          Stroke="{DynamicResource AccentBrush}"
-                          StrokeThickness="1.5"
-                          Width="14" Height="14"
-                          Stretch="Uniform"
-                          Margin="0,0,8,0"/>
-                    <TextBlock x:Name="TxtStatusTitle"
-                               Text="{DynamicResource Upload_Title}"
-                               Foreground="{DynamicResource TextTitleBrush}"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,8,0">
+                        <Path x:Name="PathHeaderIcon"
+                              Data="{x:Static views:IconData.CloudUpload}"
+                              Stroke="{DynamicResource AccentBrush}"
+                              StrokeThickness="1.5"
+                              Width="14" Height="14"
+                              Stretch="Uniform"
+                              Margin="0,0,8,0"/>
+                        <TextBlock x:Name="TxtStatusTitle"
+                                   Text="{DynamicResource Upload_Title}"
+                                   Foreground="{DynamicResource TextTitleBrush}"
+                                   FontSize="12.5"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
-                    <Button x:Name="BtnMinimize"
-                            Style="{StaticResource TitleActionBtn}"
-                            Width="28" Height="26"
-                            Click="BtnMinimize_Click"
-                            ToolTip="{DynamicResource Upload_Minimize}"
-                            AutomationProperties.Name="{DynamicResource Upload_Minimize}">
-                        <Path Data="{x:Static views:IconData.Minimize}"
-                              Stroke="{DynamicResource IconBrush}"
-                              StrokeThickness="1.5"
-                              Width="11" Height="11"
-                              Stretch="Uniform"/>
-                    </Button>
-                    <Button x:Name="BtnClose"
-                            Style="{StaticResource TitleActionBtn}"
-                            Width="28" Height="26"
-                            Click="BtnClose_Click"
-                            ToolTip="{DynamicResource Common_Close}"
-                            AutomationProperties.Name="{DynamicResource Common_Close}">
-                        <Path Data="{x:Static views:IconData.Close}"
-                              Stroke="{DynamicResource IconBrush}"
-                              StrokeThickness="1.5"
-                              Width="11" Height="11"
-                              Stretch="Uniform"/>
-                    </Button>
-                </StackPanel>
-            </Grid>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,6,0">
+                        <Button x:Name="BtnMinimize"
+                                Style="{StaticResource TitleActionBtn}"
+                                Width="28" Height="26"
+                                Click="BtnMinimize_Click"
+                                ToolTip="{DynamicResource Upload_Minimize}"
+                                AutomationProperties.Name="{DynamicResource Upload_Minimize}">
+                            <Path Data="{x:Static views:IconData.Minimize}"
+                                  Stroke="{DynamicResource IconBrush}"
+                                  StrokeThickness="1.5"
+                                  Width="11" Height="11"
+                                  Stretch="Uniform"/>
+                        </Button>
+                        <Button x:Name="BtnClose"
+                                Style="{StaticResource TitleActionBtn}"
+                                Width="28" Height="26"
+                                Click="BtnClose_Click"
+                                ToolTip="{DynamicResource Common_Close}"
+                                AutomationProperties.Name="{DynamicResource Common_Close}">
+                            <Path Data="{x:Static views:IconData.Close}"
+                                  Stroke="{DynamicResource IconBrush}"
+                                  StrokeThickness="1.5"
+                                  Width="11" Height="11"
+                                  Stretch="Uniform"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
             <!-- Content body -->
             <StackPanel Grid.Row="1" Margin="14,10,14,14">

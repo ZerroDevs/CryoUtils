@@ -17,6 +17,7 @@ namespace CryoUtils.Models
         Highlighter,
         Text,
         Blur,
+        Zoom,
         Step
     }
 

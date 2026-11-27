@@ -10,6 +10,7 @@ namespace CryoUtils.Models
         // General
         public string Language { get; set; } = "English"; // "English" or "العربية"
         public string Theme { get; set; } = "Dark"; // "Dark", "Light" or "System"
+        public string AccentPreset { get; set; } = "CryoBlue"; // CryoBlue, Cyan, Emerald, Violet, Amber, Rose
         public bool StartWithWindows { get; set; } = false;
         public bool LaunchInBackground { get; set; } = true;
         public string TrayLeftClickAction { get; set; } = "Dashboard"; // "Dashboard" or "Capture"
@@ -55,10 +56,16 @@ namespace CryoUtils.Models
         public int SavedCapturesLimit { get; set; } = 50;
         public string RecentCapturesScope { get; set; } = "Session"; // "Session" or "AllTime"
         public string ImageFormat { get; set; } = "PNG"; // PNG, JPG, WEBP
+        public string ActiveCaptureProfile { get; set; } = "Default"; // Default, Discord, BugReport, OcrOnly
         public bool PrettyFrameExport { get; set; } = false;
         public bool AutoCopyCapture { get; set; } = true;
         public bool CaptureSound { get; set; } = false;
         public bool ShowCaptureLoupe { get; set; } = false;
+        public bool HoverWindowHighlight { get; set; } = true;
+        public bool InstantCaptureCopy { get; set; } = false;
+        public bool ShowCursorCoordinates { get; set; } = true;
+        public string OcrLanguageTag { get; set; } = "";
+        public bool OcrLibraryIndexingEnabled { get; set; } = true;
         public bool ArchiveCopiedCaptures { get; set; } = true;
         public bool CloudUploadEnabled { get; set; } = true;
         public bool CloudUploadConsentAccepted { get; set; } = false;
@@ -89,6 +96,7 @@ namespace CryoUtils.Models
         public string RecorderMicrophoneDeviceId { get; set; } = "";
         public bool RecorderCursorHighlight { get; set; } = true;
         public bool RecorderClickEffects { get; set; } = true;
+        public bool RecorderKeystrokeHud { get; set; } = false;
         public bool RecorderWebcam { get; set; } = false;
         public bool RecorderTrimBeforeSave { get; set; } = true;
         public bool ReplayEnabled { get; set; } = false;
@@ -126,9 +134,14 @@ namespace CryoUtils.Models
         public string LastNotifiedUpdateVersion { get; set; } = "";
 
         // Window
+        public bool AnchorToTray { get; set; } = true;
         public double? WindowLeft { get; set; }
         public double? WindowTop { get; set; }
+        public double? WindowWidth { get; set; }
+        public double? WindowHeight { get; set; }
+        public bool WindowSizeCustomized { get; set; } = false;
         public bool ActivityCenterExpanded { get; set; } = false;
         public bool RecentCapturesExpanded { get; set; } = true;
+        public bool RecentCompactRows { get; set; } = false;
     }
 }

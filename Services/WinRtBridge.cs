@@ -46,6 +46,17 @@ namespace CryoUtils.Services
             public float Height;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct WinRtRect
+        {
+            public float X;
+            public float Y;
+            public float Width;
+            public float Height;
+        }
+
+        public readonly record struct OcrWordBox(string Text, System.Windows.Rect Bounds);
+
         public static void EnsureRoInitialized()
         {
             if (Interlocked.Exchange(ref _roInitialized, 1) == 0)
@@ -327,10 +338,65 @@ namespace CryoUtils.Services
             }
         }
 
-        private static unsafe List<IntPtr> CreateOcrEngines()
+        public static unsafe List<(string Tag, string DisplayName)> GetAvailableOcrLanguages()
+        {
+            var result = new List<(string Tag, string DisplayName)>();
+            IntPtr ocrStatics = IntPtr.Zero;
+            try
+            {
+                ocrStatics = GetActivationFactory("Windows.Media.Ocr.OcrEngine", IidIOcrEngineStatics);
+                var getAvailLangs = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(ocrStatics)[7];
+                IntPtr langList = IntPtr.Zero;
+                if (getAvailLangs(ocrStatics, &langList) >= 0 && langList != IntPtr.Zero)
+                {
+                    try
+                    {
+                        var getSize = (delegate* unmanaged[Stdcall]<IntPtr, uint*, int>)Vtbl(langList)[7];
+                        var getAt = (delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Vtbl(langList)[6];
+                        uint count = 0;
+                        if (getSize(langList, &count) >= 0)
+                        {
+                            for (uint i = 0; i < count; i++)
+                            {
+                                IntPtr lang = IntPtr.Zero;
+                                if (getAt(langList, i, &lang) >= 0 && lang != IntPtr.Zero)
+                                {
+                                    try
+                                    {
+                                        var getTag = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(lang)[6];
+                                        var getDisplay = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(lang)[7];
+                                        IntPtr hTag = IntPtr.Zero;
+                                        IntPtr hDisp = IntPtr.Zero;
+                                        string tag = getTag(lang, &hTag) >= 0 ? ReadAndFreeHString(hTag) : "";
+                                        string disp = getDisplay(lang, &hDisp) >= 0 ? ReadAndFreeHString(hDisp) : tag;
+                                        if (!string.IsNullOrWhiteSpace(tag))
+                                        {
+                                            result.Add((tag, disp));
+                                        }
+                                    }
+                                    finally { SafeRelease(ref lang); }
+                                }
+                            }
+                        }
+                    }
+                    finally { SafeRelease(ref langList); }
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                SafeRelease(ref ocrStatics);
+            }
+            return result;
+        }
+
+        private static unsafe List<IntPtr> CreateOcrEngines(string? preferredLanguageTag = null)
         {
             IntPtr ocrStatics = GetActivationFactory("Windows.Media.Ocr.OcrEngine", IidIOcrEngineStatics);
             var engines = new List<IntPtr>();
+            var fallbackEngines = new List<IntPtr>();
             try
             {
                 var getAvailLangs = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(ocrStatics)[7];
@@ -354,10 +420,33 @@ namespace CryoUtils.Services
                                 {
                                     try
                                     {
+                                        string tag = "";
+                                        if (!string.IsNullOrWhiteSpace(preferredLanguageTag))
+                                        {
+                                            var getTag = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(lang)[6];
+                                            IntPtr hTag = IntPtr.Zero;
+                                            if (getTag(lang, &hTag) >= 0)
+                                            {
+                                                tag = ReadAndFreeHString(hTag);
+                                            }
+                                        }
+
                                         IntPtr eng = IntPtr.Zero;
                                         if (tryCreateLang(ocrStatics, lang, &eng) >= 0 && eng != IntPtr.Zero)
                                         {
-                                            engines.Add(eng);
+                                            if (!string.IsNullOrWhiteSpace(preferredLanguageTag) &&
+                                                string.Equals(tag, preferredLanguageTag, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                engines.Add(eng);
+                                            }
+                                            else if (string.IsNullOrWhiteSpace(preferredLanguageTag))
+                                            {
+                                                engines.Add(eng);
+                                            }
+                                            else
+                                            {
+                                                fallbackEngines.Add(eng);
+                                            }
                                         }
                                     }
                                     finally { SafeRelease(ref lang); }
@@ -366,6 +455,21 @@ namespace CryoUtils.Services
                         }
                     }
                     finally { SafeRelease(ref langList); }
+                }
+
+                if (engines.Count > 0)
+                {
+                    for (int i = 0; i < fallbackEngines.Count; i++)
+                    {
+                        IntPtr unused = fallbackEngines[i];
+                        SafeRelease(ref unused);
+                    }
+                    return engines;
+                }
+
+                if (fallbackEngines.Count > 0)
+                {
+                    return fallbackEngines;
                 }
 
                 if (engines.Count == 0)
@@ -391,10 +495,27 @@ namespace CryoUtils.Services
             return recAsync(engine, softwareBitmap, &op) >= 0 ? op : IntPtr.Zero;
         }
 
-        public static async Task<string> RecognizeOcrAsync(byte[] bgraPixels, int width, int height)
+        public static async Task<string> RecognizeOcrAsync(byte[] bgraPixels, int width, int height, string? preferredLanguageTag = null)
+        {
+            var result = await RecognizeOcrCoreAsync(bgraPixels, width, height, preferredLanguageTag, includeWords: false).ConfigureAwait(false);
+            return result.Text;
+        }
+
+        public static async Task<IReadOnlyList<OcrWordBox>> RecognizeOcrWordsAsync(byte[] bgraPixels, int width, int height, string? preferredLanguageTag = null)
+        {
+            var result = await RecognizeOcrCoreAsync(bgraPixels, width, height, preferredLanguageTag, includeWords: true).ConfigureAwait(false);
+            return result.Words;
+        }
+
+        private static async Task<(string Text, IReadOnlyList<OcrWordBox> Words)> RecognizeOcrCoreAsync(
+            byte[] bgraPixels,
+            int width,
+            int height,
+            string? preferredLanguageTag,
+            bool includeWords)
         {
             IntPtr softwareBitmap = CreateSoftwareBitmapFromPixels(bgraPixels, width, height);
-            var engines = CreateOcrEngines();
+            var engines = CreateOcrEngines(preferredLanguageTag);
             if (engines.Count == 0)
             {
                 CloseAndRelease(ref softwareBitmap);
@@ -403,7 +524,8 @@ namespace CryoUtils.Services
 
             try
             {
-                string best = "";
+                string bestText = "";
+                IReadOnlyList<OcrWordBox> bestWords = Array.Empty<OcrWordBox>();
                 foreach (IntPtr eng in engines)
                 {
                     try
@@ -415,8 +537,21 @@ namespace CryoUtils.Services
                         if (res == IntPtr.Zero) continue;
                         try
                         {
-                            string candidate = ReadOcrResultText(res);
-                            if (candidate.Length > best.Length) best = candidate;
+                            if (includeWords)
+                            {
+                                var (candidateText, candidateWords) = ReadOcrResultWords(res);
+                                if (candidateText.Length > bestText.Length ||
+                                    (bestWords.Count == 0 && candidateWords.Count > 0))
+                                {
+                                    bestText = candidateText;
+                                    bestWords = candidateWords;
+                                }
+                            }
+                            else
+                            {
+                                string candidate = ReadOcrResultText(res);
+                                if (candidate.Length > bestText.Length) bestText = candidate;
+                            }
                         }
                         finally { SafeRelease(ref res); }
                     }
@@ -424,7 +559,7 @@ namespace CryoUtils.Services
                     {
                     }
                 }
-                return best.Trim();
+                return (bestText.Trim(), bestWords);
             }
             finally
             {
@@ -491,6 +626,97 @@ namespace CryoUtils.Services
             if (lines.Count > 0) return string.Join(Environment.NewLine, lines);
             IntPtr hFull = IntPtr.Zero;
             return getFullText(ocrResult, &hFull) >= 0 ? ReadAndFreeHString(hFull) : "";
+        }
+
+        private static unsafe (string Text, List<OcrWordBox> Words) ReadOcrResultWords(IntPtr ocrResult)
+        {
+            var lines = new List<string>();
+            var words = new List<OcrWordBox>();
+            var getLines = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(ocrResult)[6];
+            var getFullText = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(ocrResult)[8];
+
+            IntPtr linesVec = IntPtr.Zero;
+            if (getLines(ocrResult, &linesVec) >= 0 && linesVec != IntPtr.Zero)
+            {
+                try
+                {
+                    var getSize = (delegate* unmanaged[Stdcall]<IntPtr, uint*, int>)Vtbl(linesVec)[7];
+                    var getAt = (delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Vtbl(linesVec)[6];
+                    uint lineCount = 0;
+                    if (getSize(linesVec, &lineCount) >= 0)
+                    {
+                        for (uint i = 0; i < lineCount; i++)
+                        {
+                            IntPtr line = IntPtr.Zero;
+                            if (getAt(linesVec, i, &line) >= 0 && line != IntPtr.Zero)
+                            {
+                                try
+                                {
+                                    var getLineText = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(line)[7];
+                                    IntPtr hLine = IntPtr.Zero;
+                                    if (getLineText(line, &hLine) >= 0)
+                                    {
+                                        lines.Add(ReadAndFreeHString(hLine));
+                                    }
+
+                                    var getWords = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(line)[6];
+                                    IntPtr wordsVec = IntPtr.Zero;
+                                    if (getWords(line, &wordsVec) >= 0 && wordsVec != IntPtr.Zero)
+                                    {
+                                        try
+                                        {
+                                            var getWordSize = (delegate* unmanaged[Stdcall]<IntPtr, uint*, int>)Vtbl(wordsVec)[7];
+                                            var getWordAt = (delegate* unmanaged[Stdcall]<IntPtr, uint, IntPtr*, int>)Vtbl(wordsVec)[6];
+                                            uint wordCount = 0;
+                                            if (getWordSize(wordsVec, &wordCount) >= 0)
+                                            {
+                                                for (uint w = 0; w < wordCount; w++)
+                                                {
+                                                    IntPtr word = IntPtr.Zero;
+                                                    if (getWordAt(wordsVec, w, &word) >= 0 && word != IntPtr.Zero)
+                                                    {
+                                                        try
+                                                        {
+                                                            var getRect = (delegate* unmanaged[Stdcall]<IntPtr, WinRtRect*, int>)Vtbl(word)[6];
+                                                            var getWordText = (delegate* unmanaged[Stdcall]<IntPtr, IntPtr*, int>)Vtbl(word)[7];
+                                                            WinRtRect r = default;
+                                                            IntPtr hWord = IntPtr.Zero;
+                                                            if (getRect(word, &r) >= 0 && getWordText(word, &hWord) >= 0)
+                                                            {
+                                                                string wt = ReadAndFreeHString(hWord);
+                                                                if (!string.IsNullOrWhiteSpace(wt) && r.Width > 0 && r.Height > 0)
+                                                                {
+                                                                    words.Add(new OcrWordBox(wt, new System.Windows.Rect(r.X, r.Y, r.Width, r.Height)));
+                                                                }
+                                                            }
+                                                            else if (hWord != IntPtr.Zero)
+                                                            {
+                                                                _ = ReadAndFreeHString(hWord);
+                                                            }
+                                                        }
+                                                        finally { SafeRelease(ref word); }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        finally { SafeRelease(ref wordsVec); }
+                                    }
+                                }
+                                finally { SafeRelease(ref line); }
+                            }
+                        }
+                    }
+                }
+                finally { SafeRelease(ref linesVec); }
+            }
+
+            string text = lines.Count > 0 ? string.Join(Environment.NewLine, lines) : "";
+            if (text.Length == 0)
+            {
+                IntPtr hFull = IntPtr.Zero;
+                text = getFullText(ocrResult, &hFull) >= 0 ? ReadAndFreeHString(hFull) : "";
+            }
+            return (text, words);
         }
 
         // ==================== Windows.Data.Pdf ====================

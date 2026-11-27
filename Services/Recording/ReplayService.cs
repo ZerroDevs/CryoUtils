@@ -118,7 +118,7 @@ namespace CryoUtils.Services.Recording
                     _ring = new ReplaySegmentRing(directory, options, _width, _height, bitrate);
                     _ring.Start();
                     _clock.Restart();
-                    _cursor = new CursorEffectTracker();
+                    _cursor = new CursorEffectTracker(_options.KeystrokeHud);
                     _cursor.Start();
                     _frames = 0;
                     _paused = false;
@@ -208,6 +208,7 @@ namespace CryoUtils.Services.Recording
 
             try
             {
+                var keyHud = _cursor?.SnapshotKeyHud() ?? ("", 0.0);
                 var composed = FrameComposer.Compose(
                     pixels,
                     width,
@@ -218,7 +219,9 @@ namespace CryoUtils.Services.Recording
                     _region.Y,
                     _options,
                     _cursor?.Snapshot() ?? Array.Empty<ClickPulse>(),
-                    _webcam);
+                    _webcam,
+                    keyHud.Text,
+                    keyHud.Alpha);
                 long ticks = _clock.Elapsed.Ticks;
                 _ring.WriteVideo(composed, ticks);
                 _frames++;

@@ -40,6 +40,7 @@ namespace CryoUtils.Services.Recording
         public bool IsPaused => _paused;
         public bool IsUsingWgc => _engine?.IsUsingWgc == true;
         public bool HasAudio => _encoder?.HasAudio == true;
+        public float AudioLevel => _audio?.CurrentPeakLevel ?? 0f;
         public int Width { get; private set; }
         public int Height { get; private set; }
         public int Fps => _options.NormalizedFps;
@@ -108,7 +109,7 @@ namespace CryoUtils.Services.Recording
                     _options.NormalizedFps,
                     bitrate,
                     _options.RecordSystemAudio || _options.RecordMicrophone);
-                _cursor = new CursorEffectTracker();
+                _cursor = new CursorEffectTracker(_options.KeystrokeHud);
                 _cursor.Start();
                 _clock.Start();
                 _started = true;
@@ -244,6 +245,7 @@ namespace CryoUtils.Services.Recording
             {
                 UpdateBlackState(pixels);
                 var clicks = _cursor?.Snapshot();
+                var keyHud = _cursor?.SnapshotKeyHud() ?? ("", 0.0);
                 var composed = FrameComposer.Compose(
                     pixels,
                     width,
@@ -254,7 +256,9 @@ namespace CryoUtils.Services.Recording
                     _region.Y,
                     _options,
                     clicks ?? Array.Empty<ClickPulse>(),
-                    _webcam);
+                    _webcam,
+                    keyHud.Text,
+                    keyHud.Alpha);
                 long time = Elapsed.Ticks;
                 _encoder.WriteVideo(composed, time);
                 _frames++;

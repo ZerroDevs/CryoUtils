@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -27,7 +28,7 @@ namespace CryoUtils.Services
 
         public static void Write(RecordingResult result, string path)
         {
-            if (result.PngFrames.Count == 0)
+            if (result.FramePaths.Count == 0)
             {
                 throw new InvalidOperationException("No frames to encode.");
             }
@@ -78,9 +79,13 @@ namespace CryoUtils.Services
 
                 long frameDuration = 10_000_000L / fps;
                 long time = 0;
-                foreach (byte[] png in result.PngFrames)
+                foreach (string framePath in result.FramePaths)
                 {
-                    var frame = ImageIO.DecodeBytes(png);
+                    if (!File.Exists(framePath))
+                    {
+                        continue;
+                    }
+                    var frame = ImageIO.DecodeBytes(File.ReadAllBytes(framePath));
                     WriteFrame(writer, streamIndex, frame, width, height, time, frameDuration);
                     time += frameDuration;
                 }

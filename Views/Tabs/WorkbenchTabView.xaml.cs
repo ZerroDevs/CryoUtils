@@ -7,16 +7,27 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CryoUtils.Models;
 using CryoUtils.Services;
 
-namespace CryoUtils.Views
+namespace CryoUtils.Views.Tabs
 {
-    public partial class PowerToolsWindow : Window
+    public partial class WorkbenchTabView : UserControl
     {
+        private static readonly string[] SubTabNames =
+        {
+            "Library",
+            "Workflows",
+            "Privacy",
+            "FileActions",
+            "Color",
+            "Media",
+            "Pinner",
+            "Diagnostics"
+        };
+
         private readonly CaptureLibraryService _library = CaptureLibraryService.Instance;
         private readonly WorkflowService _workflows = WorkflowService.Instance;
         private readonly UploadHistoryService _uploads = UploadHistoryService.Instance;
@@ -84,8 +95,10 @@ namespace CryoUtils.Views
         private CheckBox _pinRestore = null!;
         private TextBox _pinExclusions = null!;
         private bool _loadingPins;
+        private bool _privacyLoading;
+        private bool _hooked;
 
-        public PowerToolsWindow()
+        public WorkbenchTabView()
         {
             InitializeComponent();
             FlowDirection = LocalizationService.Instance.FlowDirection;
@@ -101,37 +114,101 @@ namespace CryoUtils.Views
 
             Loaded += (_, _) =>
             {
-                RefreshLibrary();
-                RefreshWorkflows();
-                RefreshPrivacy();
-                RefreshJobs();
-                RefreshPairs();
-                RefreshColorBlindness();
-                RefreshPins();
-                RefreshLog();
+                EnsureHooked();
+                RefreshActiveTab();
             };
+
+            Unloaded += (_, _) => ReleaseResources();
 
             Tabs.SelectionChanged += (_, _) =>
             {
-                switch (Tabs.SelectedIndex)
-                {
-                    case 0: RefreshLibrary(); break;
-                    case 1: RefreshWorkflows(); break;
-                    case 2: RefreshPrivacy(); break;
-                    case 3: RefreshJobs(); break;
-                    case 4: RefreshPairs(); RefreshColorBlindness(); break;
-                    case 6: RefreshPins(); break;
-                    case 7: RefreshLog(); break;
-                }
+                MemoryTrimService.PauseForInteraction();
+                RefreshActiveTab();
             };
 
+            EnsureHooked();
+        }
+
+        private Window? OwnerWindow => Window.GetWindow(this);
+
+        public void EnsureHooked()
+        {
+            if (_hooked)
+            {
+                return;
+            }
+            _hooked = true;
             TopmostService.Instance.StateChanged += RefreshPins;
             _library.Changed += OnLibraryChanged;
-            Closed += (_, _) =>
+        }
+
+        public void ReleaseResources()
+        {
+            if (_libList?.ItemsSource is IEnumerable<CaptureLibraryItem> items)
             {
-                TopmostService.Instance.StateChanged -= RefreshPins;
-                _library.Changed -= OnLibraryChanged;
-            };
+                foreach (var item in items)
+                {
+                    item.Thumbnail = null;
+                }
+            }
+            if (_libList != null)
+            {
+                _libList.ItemsSource = null;
+            }
+
+            if (!_hooked)
+            {
+                return;
+            }
+            _hooked = false;
+            TopmostService.Instance.StateChanged -= RefreshPins;
+            _library.Changed -= OnLibraryChanged;
+        }
+
+        public void SelectSubTab(string? subTab)
+        {
+            if (string.IsNullOrWhiteSpace(subTab))
+            {
+                return;
+            }
+
+            if (int.TryParse(subTab, out int numericIndex))
+            {
+                SelectTab(numericIndex);
+                return;
+            }
+
+            for (int i = 0; i < SubTabNames.Length; i++)
+            {
+                if (string.Equals(SubTabNames[i], subTab, StringComparison.OrdinalIgnoreCase))
+                {
+                    SelectTab(i);
+                    return;
+                }
+            }
+        }
+
+        public void SelectTab(int index)
+        {
+            if (index >= 0 && index < Tabs.Items.Count)
+            {
+                Tabs.SelectedIndex = index;
+                RefreshActiveTab();
+            }
+        }
+
+        private void RefreshActiveTab()
+        {
+            switch (Tabs.SelectedIndex)
+            {
+                case 0: RefreshLibrary(); break;
+                case 1: RefreshWorkflows(); break;
+                case 2: RefreshPrivacy(); break;
+                case 3: RefreshJobs(); break;
+                case 4: RefreshPairs(); RefreshColorBlindness(); break;
+                case 6: RefreshPins(); break;
+                case 7: RefreshLog(); break;
+            }
         }
 
         private void OnLibraryChanged()
@@ -144,24 +221,6 @@ namespace CryoUtils.Views
             RefreshLibrary();
         }
 
-        private void BtnClose_Click(object sender, RoutedEventArgs e) => Close();
-
-        public void SelectTab(int index)
-        {
-            if (index >= 0 && index < Tabs.Items.Count)
-            {
-                Tabs.SelectedIndex = index;
-            }
-        }
-
-        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.LeftButton == MouseButtonState.Pressed)
-            {
-                DragMove();
-            }
-        }
-
         private void SetStatus(string message)
         {
             if (TxtStatus != null)
@@ -170,20 +229,34 @@ namespace CryoUtils.Views
             }
         }
 
-        private TabItem CreateTab(string headerKey, UIElement content) =>
+        private bool? ShowFileDialog(Microsoft.Win32.CommonDialog dialog)
+        {
+            var owner = OwnerWindow;
+            return owner != null ? dialog.ShowDialog(owner) : dialog.ShowDialog();
+        }
+
+        private MessageBoxResult ShowConfirm(string message, string caption)
+        {
+            var owner = OwnerWindow;
+            return owner != null
+                ? MessageBox.Show(owner, message, caption, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
+                : MessageBox.Show(message, caption, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        }
+
+        private static TabItem CreateTab(string headerKey, UIElement content) =>
             new()
             {
                 Header = LocalizationService.Get(headerKey),
                 Content = content
             };
 
-        private ScrollViewer Scroll(UIElement content) =>
+        private static ScrollViewer Scroll(UIElement content) =>
             new()
             {
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Content = content,
-                Padding = new Thickness(2, 10, 10, 10)
+                Padding = new Thickness(0, 4, 8, 8)
             };
 
         private static TextBlock Label(string key) =>
@@ -196,14 +269,13 @@ namespace CryoUtils.Views
                 Margin = new Thickness(0, 8, 0, 3)
             };
 
-        private static TextBlock Muted(string key, string? text = null) =>
+        private TextBlock Muted(string key, string? text = null) =>
             new()
             {
                 Text = text ?? LocalizationService.Get(key),
                 FontSize = 11,
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = ThemeService.GetBrush("TextMutedBrush"),
-                Opacity = 0.75,
                 Margin = new Thickness(0, 0, 0, 6)
             };
 
@@ -223,8 +295,8 @@ namespace CryoUtils.Views
             new()
             {
                 Text = text ?? "",
-                Height = multiline ? 100 : height,
-                Padding = new Thickness(7, 4, 7, 4),
+                Height = height > 0 ? height : (multiline ? 100 : 30),
+                Padding = new Thickness(8, 5, 8, 5),
                 AcceptsReturn = multiline,
                 TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
                 VerticalScrollBarVisibility = multiline ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled,
@@ -252,52 +324,45 @@ namespace CryoUtils.Views
                 Content = LocalizationService.Get(key),
                 IsChecked = isChecked,
                 Style = (Style)FindResource("CryoCheckBox"),
-                Margin = new Thickness(0, 5, 16, 5)
+                Margin = new Thickness(0, 4, 14, 4)
             };
 
-        private Button Btn(string key, RoutedEventHandler handler, bool primary = false) =>
-            new Button
+        private Button Btn(string key, RoutedEventHandler handler, bool primary = false)
+        {
+            var button = new Button
             {
                 Content = LocalizationService.Get(key),
                 Style = (Style)FindResource(primary ? "PrimaryButton" : "SecondaryButton"),
                 Padding = new Thickness(10, 4, 10, 4),
                 Margin = new Thickness(0, 4, 8, 4)
-            }.WithClick(handler);
-
-        private Border Card(UIElement content, string? titleKey = null) =>
-            new()
-            {
-                Style = (Style)FindResource("CardBorder"),
-                Margin = new Thickness(0, 0, 0, 10),
-                Child = new StackPanel
-                {
-                    Children =
-                    {
-                        titleKey == null ? new TextBlock() : new TextBlock
-                        {
-                            Text = LocalizationService.Get(titleKey),
-                            Style = (Style)FindResource("SectionTitle"),
-                            Foreground = ThemeService.GetBrush("TextTitleBrush"),
-                            Margin = new Thickness(0, 0, 0, 6)
-                        },
-                        content
-                    }
-                }
             };
+            button.Click += handler;
+            return button;
+        }
 
-        private Grid Row(params UIElement[] elements)
+        private Border Section(UIElement content, string? titleKey = null, bool showTopDivider = true)
         {
-            var grid = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-            for (int i = 0; i < elements.Length; i++)
+            var stack = new StackPanel();
+            if (titleKey != null)
             {
-                grid.ColumnDefinitions.Add(new ColumnDefinition
+                stack.Children.Add(new TextBlock
                 {
-                    Width = i == 0 ? new GridLength(1, GridUnitType.Star) : GridLength.Auto
+                    Text = LocalizationService.Get(titleKey),
+                    Style = (Style)FindResource("SectionTitle"),
+                    Foreground = ThemeService.GetBrush("TextTitleBrush"),
+                    Margin = new Thickness(0, 0, 0, 6)
                 });
-                Grid.SetColumn(elements[i], i);
-                grid.Children.Add(elements[i]);
             }
-            return grid;
+            stack.Children.Add(content);
+
+            return new Border
+            {
+                BorderBrush = ThemeService.GetBrush("DividerBrush"),
+                BorderThickness = new Thickness(0, showTopDivider ? 1 : 0, 0, 0),
+                Padding = new Thickness(0, showTopDivider ? 10 : 2, 0, 10),
+                Margin = new Thickness(0, 2, 0, 2),
+                Child = stack
+            };
         }
 
         private UIElement BuildLibraryTab()
@@ -310,19 +375,20 @@ namespace CryoUtils.Views
             _libSearch.Margin = new Thickness(0, 0, 8, 0);
             _libTag = Input();
             _libTag.TextChanged += (_, _) => RefreshLibrary();
-            _libTag.Width = 130;
+            _libTag.Width = 110;
             _libType = Combo(
                 (LocalizationService.Get("PowerTools_LibraryAll"), "All"),
                 (LocalizationService.Get("PowerTools_LibraryImages"), "Images"),
                 (LocalizationService.Get("PowerTools_LibraryVideos"), "Videos"));
-            _libType.Width = 130;
-            _libType.Margin = new Thickness(8, 0, 8, 0);
+            _libType.Width = 115;
+            _libType.Margin = new Thickness(0, 0, 8, 0);
             _libType.SelectionChanged += (_, _) => RefreshLibrary();
             _libFavorite = Check("PowerTools_LibraryFavorites");
+            _libFavorite.Margin = new Thickness(8, 4, 0, 4);
             _libFavorite.Checked += (_, _) => RefreshLibrary();
             _libFavorite.Unchecked += (_, _) => RefreshLibrary();
 
-            var toolbar = new Grid { Margin = new Thickness(0, 3, 0, 8) };
+            var toolbar = new Grid { Margin = new Thickness(0, 2, 0, 4) };
             toolbar.ColumnDefinitions.Add(new ColumnDefinition());
             toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -335,7 +401,7 @@ namespace CryoUtils.Views
             toolbar.Children.Add(_libType);
             toolbar.Children.Add(_libTag);
             toolbar.Children.Add(_libFavorite);
-            panel.Children.Add(Card(toolbar, "PowerTools_LibraryFind"));
+            panel.Children.Add(Section(toolbar, "PowerTools_LibraryFind", showTopDivider: false));
 
             var folderRow = new Grid { Margin = new Thickness(0, 0, 0, 8) };
             folderRow.ColumnDefinitions.Add(new ColumnDefinition());
@@ -362,7 +428,7 @@ namespace CryoUtils.Views
                 Style = (Style)FindResource("CryoListView"),
                 SelectionMode = SelectionMode.Extended,
                 MinHeight = 0,
-                MaxHeight = 540,
+                MaxHeight = 360,
                 ItemTemplate = CreateLibraryCardTemplate(),
                 ItemsPanel = new ItemsPanelTemplate(
                     new FrameworkElementFactory(typeof(WrapPanel)))
@@ -374,7 +440,7 @@ namespace CryoUtils.Views
             _libEmpty = new Border
             {
                 Style = (Style)FindResource("InsetBorder"),
-                Padding = new Thickness(18, 22, 18, 22),
+                Padding = new Thickness(16, 18, 16, 18),
                 Visibility = Visibility.Collapsed,
                 Child = new StackPanel
                 {
@@ -415,12 +481,12 @@ namespace CryoUtils.Views
         private DataTemplate CreateLibraryCardTemplate()
         {
             var root = new FrameworkElementFactory(typeof(Border));
-            root.SetValue(FrameworkElement.WidthProperty, 238.0);
-            root.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 10, 10));
-            root.SetValue(Border.PaddingProperty, new Thickness(7));
-            root.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+            root.SetValue(FrameworkElement.WidthProperty, 190.0);
+            root.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 8, 8));
+            root.SetValue(Border.PaddingProperty, new Thickness(6));
+            root.SetValue(Border.CornerRadiusProperty, new CornerRadius(2));
             root.SetValue(Border.BackgroundProperty, ThemeService.GetBrush("InsetBackgroundBrush"));
-            root.SetValue(Border.BorderBrushProperty, ThemeService.GetBrush("BorderSubtleBrush"));
+            root.SetValue(Border.BorderBrushProperty, ThemeService.GetBrush("DividerBrush"));
             root.SetValue(Border.BorderThicknessProperty, new Thickness(1));
             root.SetBinding(FrameworkElement.ToolTipProperty, new Binding("MetaDisplay"));
 
@@ -428,11 +494,11 @@ namespace CryoUtils.Views
             root.AppendChild(stack);
 
             var thumbFrame = new FrameworkElementFactory(typeof(Border));
-            thumbFrame.SetValue(FrameworkElement.HeightProperty, 124.0);
+            thumbFrame.SetValue(FrameworkElement.HeightProperty, 102.0);
             thumbFrame.SetValue(Border.BackgroundProperty, ThemeService.GetBrush("WindowBackgroundBrush"));
-            thumbFrame.SetValue(Border.BorderBrushProperty, ThemeService.GetBrush("BorderSubtleBrush"));
+            thumbFrame.SetValue(Border.BorderBrushProperty, ThemeService.GetBrush("DividerBrush"));
             thumbFrame.SetValue(Border.BorderThicknessProperty, new Thickness(1));
-            thumbFrame.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
+            thumbFrame.SetValue(Border.CornerRadiusProperty, new CornerRadius(2));
             thumbFrame.SetValue(UIElement.ClipToBoundsProperty, true);
             var thumbGrid = new FrameworkElementFactory(typeof(Grid));
             var image = new FrameworkElementFactory(typeof(Image));
@@ -443,9 +509,9 @@ namespace CryoUtils.Views
             var kind = new FrameworkElementFactory(typeof(Border));
             kind.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left);
             kind.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Top);
-            kind.SetValue(FrameworkElement.MarginProperty, new Thickness(7));
-            kind.SetValue(Border.PaddingProperty, new Thickness(6, 2, 6, 2));
-            kind.SetValue(Border.CornerRadiusProperty, new CornerRadius(3));
+            kind.SetValue(FrameworkElement.MarginProperty, new Thickness(6));
+            kind.SetValue(Border.PaddingProperty, new Thickness(5, 2, 5, 2));
+            kind.SetValue(Border.CornerRadiusProperty, new CornerRadius(2));
             kind.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(190, 8, 12, 16)));
             kind.SetValue(Border.BorderBrushProperty, new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)));
             kind.SetValue(Border.BorderThicknessProperty, new Thickness(1));
@@ -461,20 +527,20 @@ namespace CryoUtils.Views
             stack.AppendChild(thumbFrame);
 
             var titleRow = new FrameworkElementFactory(typeof(Grid));
-            titleRow.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 7, 0, 0));
+            titleRow.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 6, 0, 0));
             titleRow.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
             var title = new FrameworkElementFactory(typeof(TextBlock));
             title.SetBinding(TextBlock.TextProperty, new Binding("FileName"));
             title.SetValue(TextBlock.ForegroundProperty, ThemeService.GetBrush("TextPrimaryBrush"));
-            title.SetValue(TextBlock.FontSizeProperty, 11.5);
+            title.SetValue(TextBlock.FontSizeProperty, 11.0);
             title.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold);
             title.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
-            title.SetValue(TextBlock.MarginProperty, new Thickness(0, 0, 22, 0));
+            title.SetValue(TextBlock.MarginProperty, new Thickness(0, 0, 20, 0));
             titleRow.AppendChild(title);
             var favorite = new FrameworkElementFactory(typeof(TextBlock));
             favorite.SetBinding(TextBlock.TextProperty, new Binding("FavoriteMark"));
             favorite.SetValue(TextBlock.ForegroundProperty, ThemeService.GetBrush("AccentTextBrush"));
-            favorite.SetValue(TextBlock.FontSizeProperty, 13.0);
+            favorite.SetValue(TextBlock.FontSizeProperty, 12.5);
             favorite.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Right);
             titleRow.AppendChild(favorite);
             stack.AppendChild(titleRow);
@@ -483,7 +549,7 @@ namespace CryoUtils.Views
             meta.SetBinding(TextBlock.TextProperty, new Binding("MetaDisplay"));
             meta.SetValue(TextBlock.ForegroundProperty, ThemeService.GetBrush("TextMutedBrush"));
             meta.SetValue(TextBlock.FontSizeProperty, 9.5);
-            meta.SetValue(TextBlock.MarginProperty, new Thickness(0, 3, 0, 0));
+            meta.SetValue(TextBlock.MarginProperty, new Thickness(0, 2, 0, 0));
             meta.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
             stack.AppendChild(meta);
 
@@ -491,7 +557,7 @@ namespace CryoUtils.Views
             tags.SetBinding(TextBlock.TextProperty, new Binding("TagDisplay"));
             tags.SetValue(TextBlock.ForegroundProperty, ThemeService.GetBrush("AccentTextBrush"));
             tags.SetValue(TextBlock.FontSizeProperty, 9.5);
-            tags.SetValue(TextBlock.MarginProperty, new Thickness(0, 3, 0, 0));
+            tags.SetValue(TextBlock.MarginProperty, new Thickness(0, 2, 0, 0));
             tags.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
             stack.AppendChild(tags);
 
@@ -629,14 +695,9 @@ namespace CryoUtils.Views
                 return;
             }
 
-            var result = MessageBox.Show(
-                this,
-                LocalizationService.Format("PowerTools_RecycleConfirm", selected.Count),
-                LocalizationService.Get("PowerTools_RecycleTitle"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.No);
-            if (result != MessageBoxResult.Yes)
+            if (ShowConfirm(
+                    LocalizationService.Format("PowerTools_RecycleConfirm", selected.Count),
+                    LocalizationService.Get("PowerTools_RecycleTitle")) != MessageBoxResult.Yes)
             {
                 return;
             }
@@ -660,13 +721,13 @@ namespace CryoUtils.Views
             _workflowList = new ListBox
             {
                 Style = (Style)FindResource("CryoListView"),
-                Height = 180,
+                Height = 140,
                 DisplayMemberPath = "Name"
             };
             _workflowList.SelectionChanged += (_, _) => LoadSelectedWorkflow();
             panel.Children.Add(_workflowList);
 
-            var actions = new WrapPanel();
+            var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 4) };
             actions.Children.Add(Btn("PowerTools_NewRecipe", (_, _) => ClearWorkflowEditor()));
             actions.Children.Add(Btn("PowerTools_DeleteRecipe", (_, _) => DeleteWorkflow(), primary: false));
             panel.Children.Add(actions);
@@ -674,7 +735,7 @@ namespace CryoUtils.Views
             var form = new Grid();
             form.ColumnDefinitions.Add(new ColumnDefinition());
             form.ColumnDefinitions.Add(new ColumnDefinition());
-            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
+            var left = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
             var right = new StackPanel();
             left.Children.Add(Label("PowerTools_RecipeName"));
             _wfName = Input();
@@ -709,7 +770,7 @@ namespace CryoUtils.Views
             Grid.SetColumn(right, 1);
             form.Children.Add(left);
             form.Children.Add(right);
-            panel.Children.Add(Card(form, "PowerTools_RecipeEditor"));
+            panel.Children.Add(Section(form, "PowerTools_RecipeEditor"));
             return Scroll(panel);
         }
 
@@ -726,6 +787,10 @@ namespace CryoUtils.Views
 
         private void RefreshWorkflows()
         {
+            if (_workflowList == null)
+            {
+                return;
+            }
             _workflowList.ItemsSource = _workflows.Recipes;
             if (_workflowList.SelectedItem == null)
             {
@@ -825,56 +890,54 @@ namespace CryoUtils.Views
             RefreshWorkflows();
         }
 
-        private bool _privacyLoading;
-
         private UIElement BuildPrivacyTab()
         {
             var panel = new StackPanel();
             panel.Children.Add(Muted("PowerTools_PrivacyHint"));
 
-            var settingsCard = new StackPanel();
+            var settingsSection = new StackPanel();
             _cloudEnabled = Check("PowerTools_CloudEnabled", SettingsService.Instance.Current.CloudUploadEnabled);
             _cloudEnabled.Checked += (_, _) => SavePrivacySettings();
             _cloudEnabled.Unchecked += (_, _) => SavePrivacySettings();
-            settingsCard.Children.Add(_cloudEnabled);
+            settingsSection.Children.Add(_cloudEnabled);
 
-            settingsCard.Children.Add(Label("PowerTools_UploadProvider"));
+            settingsSection.Children.Add(Label("PowerTools_UploadProvider"));
             _uploadProvider = Combo(
                 (LocalizationService.Get("PowerTools_ProviderCatbox"), UploadProviderService.CatboxProvider),
                 (LocalizationService.Get("PowerTools_ProviderLocal"), UploadProviderService.LocalProvider));
             _uploadProvider.SelectionChanged += (_, _) => SavePrivacySettings();
-            settingsCard.Children.Add(_uploadProvider);
+            settingsSection.Children.Add(_uploadProvider);
 
-            settingsCard.Children.Add(Label("PowerTools_LocalExpiry"));
+            settingsSection.Children.Add(Label("PowerTools_LocalExpiry"));
             _localExpiry = Combo(
                 (LocalizationService.Get("PowerTools_Expiry1h"), "1"),
                 (LocalizationService.Get("PowerTools_Expiry24h"), "24"),
                 (LocalizationService.Get("PowerTools_Expiry72h"), "72"),
                 (LocalizationService.Get("PowerTools_Expiry7d"), "168"));
             _localExpiry.SelectionChanged += (_, _) => SavePrivacySettings();
-            settingsCard.Children.Add(_localExpiry);
+            settingsSection.Children.Add(_localExpiry);
 
             _consentStatus = new TextBlock
             {
                 Style = (Style)FindResource("MutedText"),
-                Margin = new Thickness(0, 8, 0, 0)
+                Margin = new Thickness(0, 8, 0, 4)
             };
-            settingsCard.Children.Add(_consentStatus);
+            settingsSection.Children.Add(_consentStatus);
 
             var privacyActions = new WrapPanel();
             privacyActions.Children.Add(Btn("PowerTools_LocalOnly", (_, _) => EnableLocalOnly(), primary: true));
             privacyActions.Children.Add(Btn("PowerTools_WithdrawConsent", (_, _) => WithdrawConsent()));
             privacyActions.Children.Add(Btn("PowerTools_OpenLocalUploads", (_, _) => _uploads.OpenLocalFolder()));
-            settingsCard.Children.Add(privacyActions);
-            panel.Children.Add(Card(settingsCard, "PowerTools_PrivacySettings"));
+            settingsSection.Children.Add(privacyActions);
+            panel.Children.Add(Section(settingsSection, "PowerTools_PrivacySettings", showTopDivider: false));
 
             _uploadHistory = new ListBox
             {
                 Style = (Style)FindResource("CryoListView"),
-                Height = 300,
+                Height = 200,
                 DisplayMemberPath = "HistoryLine"
             };
-            panel.Children.Add(Card(_uploadHistory, "PowerTools_UploadHistory"));
+            panel.Children.Add(Section(_uploadHistory, "PowerTools_UploadHistory"));
 
             var historyActions = new WrapPanel();
             historyActions.Children.Add(Btn("PowerTools_CopyLink", (_, _) => CopySelectedUpload()));
@@ -958,7 +1021,7 @@ namespace CryoUtils.Views
             {
                 try
                 {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    Process.Start(new ProcessStartInfo
                     {
                         FileName = record.Url,
                         UseShellExecute = true
@@ -983,13 +1046,9 @@ namespace CryoUtils.Views
 
         private void ClearUploadHistory()
         {
-            if (MessageBox.Show(
-                    this,
+            if (ShowConfirm(
                     LocalizationService.Get("PowerTools_ClearHistoryConfirm"),
-                    LocalizationService.Get("PowerTools_ClearHistory"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning,
-                    MessageBoxResult.No) != MessageBoxResult.Yes)
+                    LocalizationService.Get("PowerTools_ClearHistory")) != MessageBoxResult.Yes)
             {
                 return;
             }
@@ -1013,17 +1072,17 @@ namespace CryoUtils.Views
             row.Children.Add(Btn("PowerTools_ClearCompleted", (_, _) => { _fileActions.ClearCompleted(); RefreshJobs(); }));
             controls.Children.Add(row);
 
-            var options = new WrapPanel();
+            var options = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
             _jobKind = Combo(
                 (LocalizationService.Get("FileActions_Convert"), "Convert"),
                 (LocalizationService.Get("FileActions_Compress"), "Compress"),
                 (LocalizationService.Get("FileActions_Recycle"), "Recycle"));
-            _jobKind.Width = 140;
+            _jobKind.Width = 135;
             _jobKind.Margin = new Thickness(0, 4, 8, 4);
             options.Children.Add(_jobKind);
 
             _jobFormat = Combo(("PNG", "PNG"), ("JPG", "JPG"), ("WEBP", "WEBP"));
-            _jobFormat.Width = 100;
+            _jobFormat.Width = 90;
             _jobFormat.Margin = new Thickness(0, 4, 8, 4);
             options.Children.Add(_jobFormat);
 
@@ -1031,21 +1090,21 @@ namespace CryoUtils.Views
                 (LocalizationService.Get("PowerTools_OverwriteRename"), "Rename"),
                 (LocalizationService.Get("PowerTools_OverwriteSkip"), "Skip"),
                 (LocalizationService.Get("PowerTools_OverwriteOverwrite"), "Overwrite"));
-            _jobOverwrite.Width = 150;
+            _jobOverwrite.Width = 140;
             _jobOverwrite.Margin = new Thickness(0, 4, 8, 4);
             options.Children.Add(_jobOverwrite);
             _jobDryRun = Check("PowerTools_DryRun");
             options.Children.Add(_jobDryRun);
             controls.Children.Add(options);
-            panel.Children.Add(Card(controls, "PowerTools_FileActionQueue"));
+            panel.Children.Add(Section(controls, "PowerTools_FileActionQueue", showTopDivider: false));
 
-            var body = new Grid();
-            body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.5, GridUnitType.Star) });
+            var body = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+            body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) });
             body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             _jobList = new ListBox
             {
                 Style = (Style)FindResource("CryoListView"),
-                Height = 340,
+                Height = 250,
                 DisplayMemberPath = "DisplayLine"
             };
             _jobList.SelectionChanged += (_, _) => UpdateJobPreview();
@@ -1053,13 +1112,13 @@ namespace CryoUtils.Views
 
             var previewPanel = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
             previewPanel.Children.Add(Label("PowerTools_Preview"));
-            _jobPreview = new Image { Stretch = Stretch.Uniform, Height = 250 };
+            _jobPreview = new Image { Stretch = Stretch.Uniform, Height = 200 };
             var previewBorder = new Border
             {
                 Background = ThemeService.GetBrush("InsetBackgroundBrush"),
-                BorderBrush = ThemeService.GetBrush("BorderBrush"),
+                BorderBrush = ThemeService.GetBrush("DividerBrush"),
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(3),
+                CornerRadius = new CornerRadius(2),
                 Padding = new Thickness(8),
                 Child = _jobPreview
             };
@@ -1077,7 +1136,7 @@ namespace CryoUtils.Views
                 Multiselect = true,
                 Filter = "Images|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.jfif|All files|*.*"
             };
-            if (dialog.ShowDialog(this) != true)
+            if (ShowFileDialog(dialog) != true)
             {
                 return;
             }
@@ -1087,7 +1146,7 @@ namespace CryoUtils.Views
         private void AddFileActionFolder()
         {
             var dialog = new Microsoft.Win32.OpenFolderDialog();
-            if (dialog.ShowDialog(this) != true)
+            if (ShowFileDialog(dialog) != true)
             {
                 return;
             }
@@ -1130,13 +1189,9 @@ namespace CryoUtils.Views
                 .Where(job => job.Kind == FileActionKind.Recycle && !job.DryRun &&
                               job.Status is FileActionStatus.Pending or FileActionStatus.Failed)
                 .Sum(job => job.InputPaths.Count);
-            if (recycleCount > 0 && MessageBox.Show(
-                    this,
+            if (recycleCount > 0 && ShowConfirm(
                     LocalizationService.Format("PowerTools_RecycleQueueConfirm", recycleCount),
-                    LocalizationService.Get("PowerTools_RecycleTitle"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning,
-                    MessageBoxResult.No) != MessageBoxResult.Yes)
+                    LocalizationService.Get("PowerTools_RecycleTitle")) != MessageBoxResult.Yes)
             {
                 return;
             }
@@ -1193,7 +1248,7 @@ namespace CryoUtils.Views
             var panel = new StackPanel();
             panel.Children.Add(Muted("PowerTools_ColorHint"));
 
-            var actions = new WrapPanel();
+            var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) };
             actions.Children.Add(Btn("PowerTools_ExtractImage", (_, _) => ExtractPaletteFromFile()));
             actions.Children.Add(Btn("PowerTools_ExtractScreen", (_, _) => ExtractPaletteFromScreen()));
             actions.Children.Add(Btn("PowerTools_ExportCss", (_, _) => CopyPaletteExport(ColorStudioService.ExportCss(_palette))));
@@ -1201,8 +1256,8 @@ namespace CryoUtils.Views
             actions.Children.Add(Btn("PowerTools_ExportTailwind", (_, _) => CopyPaletteExport(ColorStudioService.ExportTailwind(_palette))));
             panel.Children.Add(actions);
 
-            _palettePanel = new WrapPanel { Margin = new Thickness(0, 4, 0, 8) };
-            panel.Children.Add(Card(_palettePanel, "PowerTools_Palette"));
+            _palettePanel = new WrapPanel { Margin = new Thickness(0, 4, 0, 4) };
+            panel.Children.Add(Section(_palettePanel, "PowerTools_Palette"));
 
             var blindRow = new StackPanel();
             blindRow.Children.Add(Label("PowerTools_ColorBlindness"));
@@ -1216,7 +1271,7 @@ namespace CryoUtils.Views
             blindRow.Children.Add(_blindness);
             _blindPanel = new WrapPanel { Margin = new Thickness(0, 8, 0, 4) };
             blindRow.Children.Add(_blindPanel);
-            panel.Children.Add(Card(blindRow, "PowerTools_ColorBlindnessPreview"));
+            panel.Children.Add(Section(blindRow, "PowerTools_ColorBlindnessPreview"));
 
             var pairPanel = new StackPanel();
             pairPanel.Children.Add(Label("PowerTools_PairName"));
@@ -1238,7 +1293,7 @@ namespace CryoUtils.Views
             pairColors.Children.Add(fgPanel);
             pairColors.Children.Add(bgPanel);
             pairPanel.Children.Add(pairColors);
-            var pairActions = new WrapPanel();
+            var pairActions = new WrapPanel { Margin = new Thickness(0, 4, 0, 4) };
             pairActions.Children.Add(Btn("PowerTools_SavePair", (_, _) => SaveContrastPair(), primary: true));
             pairActions.Children.Add(Btn("PowerTools_DeletePair", (_, _) => DeleteContrastPair()));
             pairPanel.Children.Add(pairActions);
@@ -1246,11 +1301,11 @@ namespace CryoUtils.Views
             _pairList = new ListBox
             {
                 Style = (Style)FindResource("CryoListView"),
-                Height = 180,
+                Height = 140,
                 DisplayMemberPath = "Summary"
             };
             pairPanel.Children.Add(_pairList);
-            panel.Children.Add(Card(pairPanel, "PowerTools_ContrastPairs"));
+            panel.Children.Add(Section(pairPanel, "PowerTools_ContrastPairs"));
             return Scroll(panel);
         }
 
@@ -1260,7 +1315,7 @@ namespace CryoUtils.Views
             {
                 Filter = "Images|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.jfif|All files|*.*"
             };
-            if (dialog.ShowDialog(this) != true)
+            if (ShowFileDialog(dialog) != true)
             {
                 return;
             }
@@ -1325,11 +1380,11 @@ namespace CryoUtils.Views
             var stack = new StackPanel();
             stack.Children.Add(new Border
             {
-                Width = 72,
-                Height = 42,
-                CornerRadius = new CornerRadius(3),
+                Width = 68,
+                Height = 38,
+                CornerRadius = new CornerRadius(2),
                 Background = brush,
-                BorderBrush = ThemeService.GetBrush("BorderBrush"),
+                BorderBrush = ThemeService.GetBrush("DividerBrush"),
                 BorderThickness = new Thickness(1)
             });
             stack.Children.Add(new TextBlock
@@ -1419,6 +1474,7 @@ namespace CryoUtils.Views
             _pdfSource = Input();
             sourceRow.Children.Add(_pdfSource);
             var browsePdf = Btn("Common_Browse", (_, _) => BrowsePdfSource());
+            browsePdf.Margin = new Thickness(8, 0, 0, 0);
             Grid.SetColumn(browsePdf, 1);
             sourceRow.Children.Add(browsePdf);
             pdf.Children.Add(sourceRow);
@@ -1430,6 +1486,7 @@ namespace CryoUtils.Views
             _pdfOutput = Input();
             outputRow.Children.Add(_pdfOutput);
             var browseOutput = Btn("Common_Browse", (_, _) => BrowsePdfOutput());
+            browseOutput.Margin = new Thickness(8, 0, 0, 0);
             Grid.SetColumn(browseOutput, 1);
             outputRow.Children.Add(browseOutput);
             pdf.Children.Add(outputRow);
@@ -1451,7 +1508,7 @@ namespace CryoUtils.Views
             ranges.Children.Add(orderPanel);
             pdf.Children.Add(ranges);
 
-            var pdfActions = new WrapPanel();
+            var pdfActions = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             pdfActions.Children.Add(Btn("PowerTools_ExtractPages", async (_, _) => await ExtractPdfAsync()));
             pdfActions.Children.Add(Btn("PowerTools_MergePdfs", async (_, _) => await MergePdfsAsync()));
             pdfActions.Children.Add(Btn("PowerTools_SplitPdf", async (_, _) => await SplitPdfAsync()));
@@ -1459,7 +1516,7 @@ namespace CryoUtils.Views
             pdfActions.Children.Add(Btn("PowerTools_RotatePdf", async (_, _) => await RotatePdfAsync()));
             pdfActions.Children.Add(Btn("PowerTools_OcrPdf", async (_, _) => await OcrPdfAsync(), primary: true));
             pdf.Children.Add(pdfActions);
-            panel.Children.Add(Card(pdf, "PowerTools_PdfTitle"));
+            panel.Children.Add(Section(pdf, "PowerTools_PdfTitle", showTopDivider: false));
 
             var video = new StackPanel();
             video.Children.Add(Label("PowerTools_VideoSource"));
@@ -1469,6 +1526,7 @@ namespace CryoUtils.Views
             _videoSource = Input();
             videoSourceRow.Children.Add(_videoSource);
             var browseVideo = Btn("Common_Browse", (_, _) => BrowseVideoSource());
+            browseVideo.Margin = new Thickness(8, 0, 0, 0);
             Grid.SetColumn(browseVideo, 1);
             videoSourceRow.Children.Add(browseVideo);
             video.Children.Add(videoSourceRow);
@@ -1511,15 +1569,15 @@ namespace CryoUtils.Views
             gifFrames.Children.Add(gifEndPanel);
             video.Children.Add(gifFrames);
 
-            var videoActions = new WrapPanel();
+            var videoActions = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
             videoActions.Children.Add(Btn("PowerTools_TrimVideo", async (_, _) => await TrimVideoAsync(), primary: true));
             videoActions.Children.Add(Btn("PowerTools_GifRange", async (_, _) => await GifRangeAsync()));
             video.Children.Add(videoActions);
-            panel.Children.Add(Card(video, "PowerTools_VideoTitle"));
+            panel.Children.Add(Section(video, "PowerTools_VideoTitle"));
 
-            _mediaResult = Input("", 130, multiline: true);
+            _mediaResult = Input("", 110, multiline: true);
             _mediaResult.IsReadOnly = true;
-            panel.Children.Add(Card(_mediaResult, "PowerTools_MediaOutput"));
+            panel.Children.Add(Section(_mediaResult, "PowerTools_MediaOutput"));
             panel.Children.Add(Muted("PowerTools_MediaLimits"));
             return Scroll(panel);
         }
@@ -1527,7 +1585,7 @@ namespace CryoUtils.Views
         private void BrowsePdfSource()
         {
             var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "PDF|*.pdf" };
-            if (dialog.ShowDialog(this) == true)
+            if (ShowFileDialog(dialog) == true)
             {
                 _pdfSource.Text = dialog.FileName;
             }
@@ -1541,7 +1599,7 @@ namespace CryoUtils.Views
                 DefaultExt = ".pdf",
                 AddExtension = true
             };
-            if (dialog.ShowDialog(this) == true)
+            if (ShowFileDialog(dialog) == true)
             {
                 _pdfOutput.Text = dialog.FileName;
             }
@@ -1553,7 +1611,7 @@ namespace CryoUtils.Views
             {
                 Filter = "Videos|*.mp4;*.mov;*.wmv;*.avi;*.mkv;*.webm|All files|*.*"
             };
-            if (dialog.ShowDialog(this) == true)
+            if (ShowFileDialog(dialog) == true)
             {
                 _videoSource.Text = dialog.FileName;
             }
@@ -1579,7 +1637,7 @@ namespace CryoUtils.Views
                 Filter = "PDF|*.pdf",
                 Multiselect = true
             };
-            if (dialog.ShowDialog(this) != true)
+            if (ShowFileDialog(dialog) != true)
             {
                 return;
             }
@@ -1594,7 +1652,7 @@ namespace CryoUtils.Views
         private async Task SplitPdfAsync()
         {
             var folder = new Microsoft.Win32.OpenFolderDialog();
-            if (folder.ShowDialog(this) != true)
+            if (ShowFileDialog(folder) != true)
             {
                 return;
             }
@@ -1729,13 +1787,13 @@ namespace CryoUtils.Views
             _pinList = new ListBox
             {
                 Style = (Style)FindResource("CryoListView"),
-                Height = 280,
+                Height = 190,
                 DisplayMemberPath = "Display"
             };
             _pinList.SelectionChanged += (_, _) => LoadSelectedPin();
             panel.Children.Add(_pinList);
 
-            var actions = new WrapPanel();
+            var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 4) };
             actions.Children.Add(Btn("PowerTools_UnpinSelected", (_, _) => UnpinSelectedPin()));
             actions.Children.Add(Btn("PowerTools_UnpinAll", (_, _) => TopmostService.Instance.Unpin(), primary: true));
             actions.Children.Add(Btn("PowerTools_Refresh", (_, _) => RefreshPins()));
@@ -1768,19 +1826,19 @@ namespace CryoUtils.Views
             _pinClickThrough.Checked += (_, _) => ApplySelectedPinAppearance();
             _pinClickThrough.Unchecked += (_, _) => ApplySelectedPinAppearance();
             appearance.Children.Add(_pinClickThrough);
-            panel.Children.Add(Card(appearance, "PowerTools_PinAppearance"));
+            panel.Children.Add(Section(appearance, "PowerTools_PinAppearance"));
 
-            var optionsCard = new StackPanel();
+            var optionsSection = new StackPanel();
             _pinRestore = Check("PowerTools_PinRestore", SettingsService.Instance.Current.PinnerRestoreEnabled);
             _pinRestore.Checked += (_, _) => SavePinOptions();
             _pinRestore.Unchecked += (_, _) => SavePinOptions();
-            optionsCard.Children.Add(_pinRestore);
-            optionsCard.Children.Add(Label("PowerTools_PinExclusions"));
+            optionsSection.Children.Add(_pinRestore);
+            optionsSection.Children.Add(Label("PowerTools_PinExclusions"));
             _pinExclusions = Input(string.Join(Environment.NewLine, SettingsService.Instance.Current.PinnerExclusions), 70, multiline: true);
-            optionsCard.Children.Add(_pinExclusions);
-            optionsCard.Children.Add(Muted("PowerTools_PinExclusionsHint"));
-            optionsCard.Children.Add(Btn("PowerTools_SaveExclusions", (_, _) => SavePinOptions(), primary: true));
-            panel.Children.Add(Card(optionsCard, "PowerTools_PinOptions"));
+            optionsSection.Children.Add(_pinExclusions);
+            optionsSection.Children.Add(Muted("PowerTools_PinExclusionsHint"));
+            optionsSection.Children.Add(Btn("PowerTools_SaveExclusions", (_, _) => SavePinOptions(), primary: true));
+            panel.Children.Add(Section(optionsSection, "PowerTools_PinOptions"));
             return Scroll(panel);
         }
 
@@ -1869,17 +1927,17 @@ namespace CryoUtils.Views
         {
             var panel = new StackPanel();
             panel.Children.Add(Muted("PowerTools_DiagnosticsHint"));
-            var actions = new WrapPanel();
+            var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) };
             actions.Children.Add(Btn("PowerTools_RefreshLog", (_, _) => RefreshLog()));
             actions.Children.Add(Btn("PowerTools_OpenLogFolder", (_, _) => DiagnosticsService.OpenLogFolder()));
             actions.Children.Add(Btn("PowerTools_ClearLog", (_, _) => { DiagnosticsService.ClearLog(); RefreshLog(); }));
             actions.Children.Add(Btn("PowerTools_SafeMode", (_, _) => EnterSafeMode(), primary: true));
             panel.Children.Add(actions);
 
-            _logText = Input("", 470, multiline: true);
+            _logText = Input("", 300, multiline: true);
             _logText.IsReadOnly = true;
             _logText.FontFamily = (FontFamily)FindResource("CryoMono");
-            panel.Children.Add(Card(_logText, "PowerTools_LogViewer"));
+            panel.Children.Add(Section(_logText, "PowerTools_LogViewer"));
             panel.Children.Add(Muted("PowerTools_SafeModeHint"));
             return Scroll(panel);
         }
@@ -1912,15 +1970,6 @@ namespace CryoUtils.Views
             {
                 SetStatus(ex.Message);
             }
-        }
-    }
-
-    internal static class ButtonExtensions
-    {
-        public static Button WithClick(this Button button, RoutedEventHandler handler)
-        {
-            button.Click += handler;
-            return button;
         }
     }
 }

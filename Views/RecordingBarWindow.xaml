@@ -15,10 +15,10 @@
         UseLayoutRounding="True"
         FontFamily="{StaticResource SegoeUIVariableText}">
 
-    <Border Background="{DynamicResource CardBackgroundBrush}"
+    <Border Background="{DynamicResource WindowBackgroundBrush}"
             BorderBrush="{DynamicResource RecordingBorderBrush}"
             BorderThickness="1"
-            CornerRadius="5"
+            CornerRadius="2"
             Padding="12,9">
         <Grid>
             <Grid.ColumnDefinitions>
@@ -38,6 +38,12 @@
                         <TextBlock x:Name="TxtFrameInfo" Text="0" Foreground="{DynamicResource TextMutedBrush}" FontSize="9.5" FlowDirection="LeftToRight"/>
                         <TextBlock x:Name="TxtEstimate" Text="" Foreground="{DynamicResource TextMutedBrush}" FontSize="9.5" Margin="10,0,0,0" FlowDirection="LeftToRight"/>
                         <TextBlock x:Name="TxtState" Text="" Foreground="{DynamicResource AccentTextBrush}" FontSize="9.5" Margin="10,0,0,0"/>
+                        <StackPanel x:Name="AudioMeterPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0" Visibility="Collapsed">
+                            <TextBlock Text="{DynamicResource Rec_AudioMeter}" Foreground="{DynamicResource TextMutedBrush}" FontSize="9" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                            <Border Width="42" Height="6" Background="{DynamicResource InsetBackgroundBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="1" VerticalAlignment="Center">
+                                <Border x:Name="AudioMeterFill" HorizontalAlignment="Left" Width="0" Background="{DynamicResource AccentBrush}" CornerRadius="1"/>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
                     <TextBlock x:Name="TxtWarning"
                                Text="{DynamicResource Rec_BlackWarning}"

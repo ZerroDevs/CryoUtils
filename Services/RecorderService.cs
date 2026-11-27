@@ -9,21 +9,37 @@ using System.Windows.Media.Imaging;
 
 namespace CryoUtils.Services
 {
-    public sealed class RecordingResult
+    public sealed class RecordingResult : IDisposable
     {
-        public List<byte[]> PngFrames { get; init; } = new();
+        public List<string> FramePaths { get; init; } = new();
+        public string TempFolder { get; init; } = "";
         public int Width { get; init; }
         public int Height { get; init; }
         public int Fps { get; init; }
         public Int32Rect Region { get; init; }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(TempFolder) && Directory.Exists(TempFolder))
+                {
+                    Directory.Delete(TempFolder, recursive: true);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 
     public sealed class RecorderService : IDisposable
     {
-        private const long MemoryGuardBytes = 380L * 1024 * 1024;
+        private const long DiskGuardBytes = 380L * 1024 * 1024;
 
         private readonly object _frameLock = new();
-        private readonly List<byte[]> _frames = new();
+        private readonly List<string> _framePaths = new();
+        private string _tempFolder = "";
         private CancellationTokenSource? _cancellation;
         private Task? _captureTask;
         private Stopwatch? _clock;
@@ -64,7 +80,7 @@ namespace CryoUtils.Services
             {
                 lock (_frameLock)
                 {
-                    return _frames.Count;
+                    return _framePaths.Count;
                 }
             }
         }
@@ -75,12 +91,12 @@ namespace CryoUtils.Services
             {
                 lock (_frameLock)
                 {
-                    if (_frames.Count == 0)
+                    if (_framePaths.Count == 0)
                     {
                         return 0;
                     }
-                    long average = _totalBytes / _frames.Count;
-                    return average * _frames.Count * 65 / 100;
+                    long average = _totalBytes / _framePaths.Count;
+                    return average * _framePaths.Count * 65 / 100;
                 }
             }
         }
@@ -92,10 +108,13 @@ namespace CryoUtils.Services
                 return;
             }
 
+            CleanupTempFolder();
             _region = region;
             _fps = Math.Clamp(fps, 5, 30);
             _maxSeconds = Math.Clamp(maxSeconds, 3, 120);
-            _frames.Clear();
+            _framePaths.Clear();
+            _tempFolder = Path.Combine(Path.GetTempPath(), "CryoUtils", $"gif_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(_tempFolder);
             _totalBytes = 0;
             _pausedTicks = 0;
             _pauseStartedTicks = 0;
@@ -134,13 +153,19 @@ namespace CryoUtils.Services
                                 Bottom = _region.Y + _region.Height
                             });
                             byte[] png = ImageIO.EncodePng(frame);
+                            string framePath;
                             lock (_frameLock)
                             {
-                                _frames.Add(png);
+                                framePath = Path.Combine(_tempFolder, $"f_{_framePaths.Count:D6}.png");
+                            }
+                            File.WriteAllBytes(framePath, png);
+                            lock (_frameLock)
+                            {
+                                _framePaths.Add(framePath);
                                 _totalBytes += png.Length;
                             }
 
-                            if (_totalBytes >= MemoryGuardBytes)
+                            if (_totalBytes >= DiskGuardBytes)
                             {
                                 break;
                             }
@@ -222,16 +247,20 @@ namespace CryoUtils.Services
                 }
             }
 
-            List<byte[]> frames;
+            List<string> framePaths;
+            string folder;
             lock (_frameLock)
             {
-                frames = new List<byte[]>(_frames);
-                _frames.Clear();
+                framePaths = new List<string>(_framePaths);
+                _framePaths.Clear();
+                folder = _tempFolder;
+                _tempFolder = "";
             }
 
             return new RecordingResult
             {
-                PngFrames = frames,
+                FramePaths = framePaths,
+                TempFolder = folder,
                 Width = _region.Width,
                 Height = _region.Height,
                 Fps = _fps,
@@ -246,10 +275,31 @@ namespace CryoUtils.Services
             _clock?.Stop();
             lock (_frameLock)
             {
-                _frames.Clear();
+                _framePaths.Clear();
                 _totalBytes = 0;
             }
+            CleanupTempFolder();
             Changed?.Invoke();
+        }
+
+        private void CleanupTempFolder()
+        {
+            string folder;
+            lock (_frameLock)
+            {
+                folder = _tempFolder;
+                _tempFolder = "";
+            }
+            try
+            {
+                if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+                {
+                    Directory.Delete(folder, recursive: true);
+                }
+            }
+            catch
+            {
+            }
         }
 
         public void SetEncoding(bool encoding)
@@ -262,6 +312,7 @@ namespace CryoUtils.Services
         {
             _cancellation?.Cancel();
             _cancellation?.Dispose();
+            CleanupTempFolder();
         }
     }
 }

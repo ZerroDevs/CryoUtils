@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Runtime.InteropServices;
 
 namespace CryoUtils.Services.Recording
@@ -13,6 +17,12 @@ namespace CryoUtils.Services.Recording
 
     internal static class FrameComposer
     {
+        private static readonly object HudLock = new();
+        private static string _cachedHudText = "";
+        private static byte[]? _cachedHudPixels;
+        private static int _cachedHudWidth;
+        private static int _cachedHudHeight;
+
         public static byte[] Compose(
             byte[] source,
             int sourceWidth,
@@ -23,7 +33,9 @@ namespace CryoUtils.Services.Recording
             int regionY,
             RecordingOptions options,
             IReadOnlyList<ClickPulse> clicks,
-            WebcamCaptureService? webcam)
+            WebcamCaptureService? webcam,
+            string? keystrokeText = null,
+            double keystrokeAlpha = 0)
         {
             byte[] output = new byte[outputWidth * outputHeight * 4];
             ScaleBgra(source, sourceWidth, sourceHeight, output, outputWidth, outputHeight);
@@ -79,7 +91,114 @@ namespace CryoUtils.Services.Recording
                     bubbleWidth + 4, bubbleHeight + 4, 2, 92, 205, 255, 220);
             }
 
+            if (options.KeystrokeHud && !string.IsNullOrEmpty(keystrokeText) && keystrokeAlpha > 0.02)
+            {
+                DrawKeystrokeBadge(output, outputWidth, outputHeight, keystrokeText, keystrokeAlpha);
+            }
+
             return output;
+        }
+
+        private static void DrawKeystrokeBadge(
+            byte[] output,
+            int outputWidth,
+            int outputHeight,
+            string text,
+            double alphaScale)
+        {
+            byte[]? badgePixels;
+            int badgeW;
+            int badgeH;
+            lock (HudLock)
+            {
+                if (!string.Equals(_cachedHudText, text, StringComparison.Ordinal) || _cachedHudPixels == null)
+                {
+                    (_cachedHudPixels, _cachedHudWidth, _cachedHudHeight) = RenderKeyBadge(text);
+                    _cachedHudText = text;
+                }
+                badgePixels = _cachedHudPixels;
+                badgeW = _cachedHudWidth;
+                badgeH = _cachedHudHeight;
+            }
+
+            if (badgePixels == null || badgeW <= 0 || badgeH <= 0)
+            {
+                return;
+            }
+
+            int dstX = Math.Max(8, (outputWidth - badgeW) / 2);
+            int dstY = Math.Max(8, outputHeight - badgeH - 22);
+            for (int y = 0; y < badgeH; y++)
+            {
+                int oy = dstY + y;
+                if (oy < 0 || oy >= outputHeight)
+                {
+                    continue;
+                }
+                for (int x = 0; x < badgeW; x++)
+                {
+                    int ox = dstX + x;
+                    if (ox < 0 || ox >= outputWidth)
+                    {
+                        continue;
+                    }
+                    int si = (y * badgeW + x) * 4;
+                    int srcAlpha = (int)Math.Round(badgePixels[si + 3] * alphaScale);
+                    if (srcAlpha <= 0)
+                    {
+                        continue;
+                    }
+                    int di = (oy * outputWidth + ox) * 4;
+                    int inv = 255 - srcAlpha;
+                    output[di] = (byte)((badgePixels[si] * srcAlpha + output[di] * inv) / 255);
+                    output[di + 1] = (byte)((badgePixels[si + 1] * srcAlpha + output[di + 1] * inv) / 255);
+                    output[di + 2] = (byte)((badgePixels[si + 2] * srcAlpha + output[di + 2] * inv) / 255);
+                    output[di + 3] = 255;
+                }
+            }
+        }
+
+        private static (byte[] Pixels, int Width, int Height) RenderKeyBadge(string text)
+        {
+            using var measureBmp = new Bitmap(1, 1, PixelFormat.Format32bppArgb);
+            using var measureG = Graphics.FromImage(measureBmp);
+            using var font = new Font("Segoe UI Semibold", 15f, System.Drawing.FontStyle.Bold, GraphicsUnit.Pixel);
+            var textSize = measureG.MeasureString(text, font);
+            int w = Math.Clamp((int)Math.Ceiling(textSize.Width) + 28, 60, 420);
+            int h = Math.Clamp((int)Math.Ceiling(textSize.Height) + 14, 30, 64);
+
+            using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                g.Clear(Color.Transparent);
+                using var bg = new SolidBrush(Color.FromArgb(215, 16, 22, 30));
+                using var border = new Pen(Color.FromArgb(220, 43, 136, 216), 1.5f);
+                using var fg = new SolidBrush(Color.FromArgb(248, 250, 252));
+                var rect = new Rectangle(1, 1, w - 3, h - 3);
+                g.FillRectangle(bg, rect);
+                g.DrawRectangle(border, rect);
+                using var sf = new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+                g.DrawString(text, font, fg, new RectangleF(0, 0, w, h), sf);
+            }
+
+            byte[] pixels = new byte[w * h * 4];
+            var data = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            try
+            {
+                Marshal.Copy(data.Scan0, pixels, 0, pixels.Length);
+            }
+            finally
+            {
+                bmp.UnlockBits(data);
+            }
+
+            return (pixels, w, h);
         }
 
         private static void ScaleBgra(

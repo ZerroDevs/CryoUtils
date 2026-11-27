@@ -32,6 +32,7 @@ namespace CryoUtils.Services.Recording
         public string MicrophoneDeviceId { get; init; } = "";
         public bool CursorHighlight { get; init; } = true;
         public bool ClickEffects { get; init; } = true;
+        public bool KeystrokeHud { get; init; }
         public bool WebcamBubble { get; init; }
         public bool TrimBeforeSave { get; init; } = true;
         public int ReplaySeconds { get; init; } = 30;
@@ -69,6 +70,7 @@ namespace CryoUtils.Services.Recording
                 MicrophoneDeviceId = settings.RecorderMicrophoneDeviceId,
                 CursorHighlight = settings.RecorderCursorHighlight,
                 ClickEffects = settings.RecorderClickEffects,
+                KeystrokeHud = settings.RecorderKeystrokeHud,
                 WebcamBubble = settings.RecorderWebcam,
                 TrimBeforeSave = settings.RecorderTrimBeforeSave,
                 ReplaySeconds = Math.Clamp(

@@ -35,6 +35,7 @@ namespace CryoUtils.Tray
         private IntPtr _fontPrimary;
         private bool _recordingBadge;
         private bool _lastScreenshotOnly;
+        private string _lastCaptureProfile = "Default";
         private bool _iconAdded;
         private bool _disposed;
 
@@ -65,6 +66,7 @@ namespace CryoUtils.Tray
             EnableDarkMenuTheme();
             _icon = CreateIcon(out _iconHandle, false);
             _lastScreenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
+            _lastCaptureProfile = Views.CaptureController.NormalizeCaptureProfile(SettingsService.Instance.Current.ActiveCaptureProfile);
 
             _wndProc = WndProc;
             _hInstance = NativeMethods.GetModuleHandleW(null);
@@ -369,6 +371,7 @@ namespace CryoUtils.Tray
             bool rtl = LocalizationService.Instance.IsArabic;
             bool screenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
             _lastScreenshotOnly = screenshotOnly;
+            _lastCaptureProfile = Views.CaptureController.NormalizeCaptureProfile(SettingsService.Instance.Current.ActiveCaptureProfile);
 
             _rootMenu = NativeMethods.CreatePopupMenu();
             _ownedMenus.Add(_rootMenu);
@@ -413,6 +416,27 @@ namespace CryoUtils.Tray
                 () => App.CurrentApp?.StartCapture(10));
             QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_TakeDelayed"),
                 null, subMenu: delayedMenu);
+
+            IntPtr profileMenu = NativeMethods.CreatePopupMenu();
+            _ownedMenus.Add(profileMenu);
+            var profilePending = new List<(IntPtr Menu, MenuEntry Entry, IntPtr SubMenu)>();
+            void QueueProfile(string id, string key)
+            {
+                string label = LocalizationService.Get(key) +
+                    (string.Equals(_lastCaptureProfile, id, StringComparison.OrdinalIgnoreCase) ? " ✓" : "");
+                QueueItem(profilePending, profileMenu, label, () =>
+                {
+                    var s = SettingsService.Instance.Current;
+                    s.ActiveCaptureProfile = id;
+                    SettingsService.Instance.Save();
+                });
+            }
+            QueueProfile("Default", "Profile_Default");
+            QueueProfile("Discord", "Profile_Discord");
+            QueueProfile("BugReport", "Profile_BugReport");
+            QueueProfile("OcrOnly", "Profile_OcrOnly");
+            QueueItem(mainPending, _rootMenu, LocalizationService.Get("Profile_MenuTitle"),
+                null, subMenu: profileMenu);
 
             var qrPending = new List<(IntPtr Menu, MenuEntry Entry, IntPtr SubMenu)>();
             if (!screenshotOnly)
@@ -501,6 +525,7 @@ namespace CryoUtils.Tray
 
             FinalizeMenuGroup(mainPending, ScalePx(MainMenuFloorWidth));
             FinalizeMenuGroup(delayedPending, ScalePx(SubMenuFloorWidth));
+            FinalizeMenuGroup(profilePending, ScalePx(SubMenuFloorWidth));
             if (qrPending.Count > 0)
             {
                 FinalizeMenuGroup(qrPending, ScalePx(SubMenuFloorWidth));
@@ -737,7 +762,10 @@ namespace CryoUtils.Tray
 
         private void OnSettingsChanged()
         {
-            if (SettingsService.Instance.Current.ScreenshotOnlyMode != _lastScreenshotOnly)
+            var s = SettingsService.Instance.Current;
+            string currentProfile = Views.CaptureController.NormalizeCaptureProfile(s.ActiveCaptureProfile);
+            if (s.ScreenshotOnlyMode != _lastScreenshotOnly ||
+                !string.Equals(currentProfile, _lastCaptureProfile, StringComparison.Ordinal))
             {
                 Invoke(RebuildMenu);
             }
@@ -788,7 +816,7 @@ namespace CryoUtils.Tray
             }
             else
             {
-                dispatcher.BeginInvoke(action);
+                dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, action);
             }
         }
 

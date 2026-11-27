@@ -607,6 +607,355 @@ namespace CryoUtils.Tests
                 }
             });
 
+            Test("DashboardSearchService filters commands and enforces Lite exclusions", () =>
+            {
+                var fullHits = DashboardSearchService.Search("privacy", screenshotOnly: false);
+                AssertTrue(fullHits.Any(hit => hit.Tab == "Workspace" && hit.SubTab == "Privacy"));
+
+                var liteHits = DashboardSearchService.Search("privacy", screenshotOnly: true);
+                AssertEqual(0, liteHits.Count);
+
+                var snapHits = DashboardSearchService.Search("window snap", screenshotOnly: true);
+                AssertTrue(snapHits.Any(hit => hit.ActionId == "snap"));
+
+                var defaultHits = DashboardSearchService.Search("", screenshotOnly: true);
+                AssertTrue(defaultHits.Count > 0 && defaultHits.All(hit => hit.Tab is not "Tools" and not "Workspace"));
+            });
+
+            Test("ThemeService CryoTray Dark palette tokens match expected colors", () =>
+            {
+                AssertEqual("#2B88D8", ThemeService.GetPaletteHex("ToggleOnTrackBrush") ?? "");
+                AssertEqual("#255D8E", ThemeService.GetPaletteHex("HeroGradientStartBrush") ?? "");
+                AssertEqual("#1E9FD0", ThemeService.GetPaletteHex("HeroGradientEndBrush") ?? "");
+                AssertEqual("#141414", ThemeService.GetPaletteHex("WindowBackgroundBrush") ?? "");
+                AssertEqual("#4A2A1E", ThemeService.GetPaletteHex("ToggleOffTrackBrush") ?? "");
+            });
+
+            Test("WindowPlacementHelper anchors dashboard above tray for all taskbar edges", () =>
+            {
+                AssertTrue(new AppSettings().AnchorToTray);
+
+                var monitor = new Rect(0, 0, 1920, 1080);
+                var bottomTray = WindowPlacementHelper.ComputeTrayAnchoredPosition(
+                    monitor, new Rect(0, 0, 1920, 1032), 680, 700, margin: 12);
+                AssertNear(1228, bottomTray.Left, 0.1);
+                AssertNear(320, bottomTray.Top, 0.1);
+
+                var topTray = WindowPlacementHelper.ComputeTrayAnchoredPosition(
+                    monitor, new Rect(0, 48, 1920, 1032), 680, 700, margin: 12);
+                AssertNear(1228, topTray.Left, 0.1);
+                AssertNear(60, topTray.Top, 0.1);
+
+                var leftTray = WindowPlacementHelper.ComputeTrayAnchoredPosition(
+                    monitor, new Rect(64, 0, 1856, 1080), 680, 700, margin: 12);
+                AssertNear(76, leftTray.Left, 0.1);
+                AssertNear(368, leftTray.Top, 0.1);
+
+                var tightClamp = WindowPlacementHelper.ComputeTrayAnchoredPosition(
+                    new Rect(0, 0, 800, 640), new Rect(0, 0, 800, 600), 680, 700, margin: 12);
+                AssertNear(108, tightClamp.Left, 0.1);
+                AssertNear(8, tightClamp.Top, 0.1);
+            });
+
+            Test("AppSettings defaults and notification/startup toggles behave properly", () =>
+            {
+                var s = new AppSettings();
+                AssertTrue(s.LaunchInBackground);
+                AssertTrue(!s.StartWithWindows);
+                AssertTrue(s.NotificationsEnabled);
+                AssertTrue(s.HoverWindowHighlight);
+                AssertTrue(s.ShowCursorCoordinates);
+                AssertTrue(!s.InstantCaptureCopy);
+            });
+
+            Test("QrResultWindow.TryParseWifiPayload parses WPA and escaped Wi-Fi QR strings", () =>
+            {
+                AssertTrue(Views.QrResultWindow.TryParseWifiPayload(
+                    "WIFI:T:WPA;S:Cryo\\;Net;P:Pass\\:123;;",
+                    out string ssid,
+                    out string pwd,
+                    out string auth));
+                AssertEqual("Cryo;Net", ssid);
+                AssertEqual("Pass:123", pwd);
+                AssertEqual("WPA", auth);
+                AssertTrue(!Views.QrResultWindow.TryParseWifiPayload("https://example.com", out _, out _, out _));
+            });
+
+            Test("CaptureController.FindWindowCandidateAt picks front-most z-order window", () =>
+            {
+                var candidates = new[]
+                {
+                    new Views.WindowCandidate { Bounds = new Rect(100, 100, 400, 300), Title = "Front" },
+                    new Views.WindowCandidate { Bounds = new Rect(0, 0, 1000, 800), Title = "Back" }
+                };
+                var front = Views.CaptureController.FindWindowCandidateAt(candidates, new Point(150, 150));
+                AssertEqual("Front", front?.Title ?? "");
+                var back = Views.CaptureController.FindWindowCandidateAt(candidates, new Point(20, 20));
+                AssertEqual("Back", back?.Title ?? "");
+                AssertTrue(Views.CaptureController.FindWindowCandidateAt(candidates, new Point(1500, 1500)) == null);
+            });
+
+            Test("CaptureLibraryService.MatchesQuery matches indexed OCR text and metadata", () =>
+            {
+                var item = new CaptureLibraryItem
+                {
+                    FileName = "shot_01.png",
+                    SourceApp = "Code",
+                    OcrText = "ConnectionString Timeout Exception"
+                };
+                AssertTrue(CaptureLibraryService.MatchesQuery(item, "Timeout"));
+                AssertTrue(!CaptureLibraryService.MatchesQuery(item, "NonExistentKeyword"));
+            });
+
+            Test("CursorEffectTracker.FormatKeyLabel formats shortcuts and skips bare modifiers", () =>
+            {
+                AssertEqual("Ctrl + C", Services.Recording.CursorEffectTracker.FormatKeyLabel(0x43, ctrl: true, shift: false, alt: false, win: false));
+                AssertEqual("F10", Services.Recording.CursorEffectTracker.FormatKeyLabel(0x79, ctrl: false, shift: false, alt: false, win: false));
+                AssertEqual("", Services.Recording.CursorEffectTracker.FormatKeyLabel(0x11, ctrl: true, shift: false, alt: false, win: false));
+            });
+
+            Test("ClipItem stores compressed PNG bytes and decodes exact full image", () =>
+            {
+                const int w = 320;
+                const int h = 200;
+                var pixels = new byte[w * h * 4];
+                for (int i = 0; i < pixels.Length; i += 4)
+                {
+                    pixels[i] = 30;
+                    pixels[i + 1] = 140;
+                    pixels[i + 2] = 220;
+                    pixels[i + 3] = 255;
+                }
+                var source = System.Windows.Media.Imaging.BitmapSource.Create(
+                    w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+                source.Freeze();
+
+                byte[] pngBytes = ImageIO.EncodePng(source);
+                var item = new ClipItem
+                {
+                    Thumbnail = source,
+                    CompressedPng = pngBytes,
+                    ImageWidth = w,
+                    ImageHeight = h
+                };
+                AssertTrue(item.HasImage);
+                var decoded = item.ResolveFullImage();
+                AssertTrue(decoded != null);
+                AssertEqual(w, decoded!.PixelWidth);
+                AssertEqual(h, decoded.PixelHeight);
+            });
+
+            Test("ThemeService AccentPresets override AccentBrush and frozen HeroBackgroundGradientBrush", () =>
+            {
+                AssertEqual("CryoBlue", ThemeService.NormalizeAccent("unknown-accent"));
+                AssertEqual("Emerald", ThemeService.NormalizeAccent("emerald"));
+
+                var dict = new ResourceDictionary();
+                ThemeService.ApplyToResources(dict, "Dark", "Emerald");
+                var accent = dict["AccentBrush"] as SolidColorBrush;
+                AssertTrue(accent != null && accent.IsFrozen);
+                AssertEqual(ThemeService.GetAccentHex("Emerald", light: false) ?? "", $"#{accent!.Color.R:X2}{accent.Color.G:X2}{accent.Color.B:X2}");
+
+                var hero = dict["HeroBackgroundGradientBrush"] as LinearGradientBrush;
+                AssertTrue(hero != null && hero.IsFrozen);
+                AssertEqual(2, hero!.GradientStops.Count);
+            });
+
+            Test("GifWriter.EncodePngFilesToGif creates valid GIF from spooled PNG files", () =>
+            {
+                string dir = Path.Combine(Path.GetTempPath(), "CryoUtils.Tests", "gif_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(dir);
+                try
+                {
+                    const int w = 16;
+                    const int h = 16;
+                    var framePaths = new List<string>();
+                    for (int idx = 0; idx < 2; idx++)
+                    {
+                        var pixels = new byte[w * h * 4];
+                        for (int p = 0; p < pixels.Length; p += 4)
+                        {
+                            pixels[p] = (byte)(idx * 100);
+                            pixels[p + 1] = 80;
+                            pixels[p + 2] = 200;
+                            pixels[p + 3] = 255;
+                        }
+                        var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                            w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+                        bmp.Freeze();
+                        string framePath = Path.Combine(dir, $"f_{idx:D6}.png");
+                        File.WriteAllBytes(framePath, ImageIO.EncodePng(bmp));
+                        framePaths.Add(framePath);
+                    }
+
+                    string outGif = Path.Combine(dir, "out.gif");
+                    GifWriter.EncodePngFilesToGif(framePaths, w, h, 10, outGif);
+                    AssertTrue(File.Exists(outGif));
+                    byte[] header = File.ReadAllBytes(outGif);
+                    AssertTrue(header.Length > 20);
+                    AssertEqual("GIF89a", Encoding.ASCII.GetString(header, 0, 6));
+                }
+                finally
+                {
+                    if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+                }
+            });
+
+            Test("AnnotationRenderer renders AnnotationKind.Zoom safely at edges and reports bounds", () =>
+            {
+                var pixels = new byte[100 * 80 * 4];
+                var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                    100, 80, 96, 96, PixelFormats.Bgra32, null, pixels, 100 * 4);
+                bmp.Freeze();
+
+                var zoom = new Annotation
+                {
+                    Kind = AnnotationKind.Zoom,
+                    Color = "#2B88D8",
+                    Thickness = 3,
+                    Rect = new Rect(75, 55, 40, 40)
+                };
+                var bounds = AnnotationRenderer.GetAnnotationBounds(zoom);
+                AssertNear(40, bounds.Width, 0.1);
+                AssertNear(40, bounds.Height, 0.1);
+
+                var visual = new DrawingVisual();
+                using (var dc = visual.RenderOpen())
+                {
+                    AnnotationRenderer.Draw(dc, new[] { zoom }, bmp);
+                }
+            });
+
+            Test("OcrService.FindSensitiveBounds detects emails, tokens, cards, and phones while ignoring prose", () =>
+            {
+                var words = new List<WinRtBridge.OcrWordBox>
+                {
+                    new("Hello", new Rect(10, 10, 40, 14)),
+                    new("1920x1080", new Rect(55, 10, 60, 14)),
+                    new("alice@example.com", new Rect(10, 30, 120, 14)),
+                    new("sk-proj-abc123def456ghi789", new Rect(10, 50, 150, 14)),
+                    new("Bearer", new Rect(10, 70, 45, 14)),
+                    new("tok_secret_value_99", new Rect(60, 70, 130, 14)),
+                    new("4111", new Rect(10, 90, 30, 14)),
+                    new("2222", new Rect(44, 90, 30, 14)),
+                    new("3333", new Rect(78, 90, 30, 14)),
+                    new("4444", new Rect(112, 90, 30, 14)),
+                    new("+1", new Rect(10, 110, 18, 14)),
+                    new("555", new Rect(32, 110, 26, 14)),
+                    new("234-5678", new Rect(62, 110, 60, 14))
+                };
+
+                var hits = OcrService.FindSensitiveBounds(words);
+                AssertEqual(5, hits.Count);
+            });
+
+            Test("CaptureController ResolveCaptureProfile and CycleCaptureProfile behave deterministically", () =>
+            {
+                var s = new AppSettings { ActiveCaptureProfile = "Default" };
+                var def = Views.CaptureController.ResolveCaptureProfile(s);
+                AssertEqual("Default", def.Id);
+                AssertTrue(def.InstantCopy == null && def.PrettyFrame == null && !def.DiscordOptimize);
+
+                s.ActiveCaptureProfile = Views.CaptureController.CycleCaptureProfile(s.ActiveCaptureProfile);
+                var discord = Views.CaptureController.ResolveCaptureProfile(s);
+                AssertEqual("Discord", discord.Id);
+                AssertTrue(discord.InstantCopy == true && discord.DiscordOptimize && discord.PrettyFrame == false);
+
+                s.ActiveCaptureProfile = Views.CaptureController.CycleCaptureProfile(s.ActiveCaptureProfile);
+                var bug = Views.CaptureController.ResolveCaptureProfile(s);
+                AssertEqual("BugReport", bug.Id);
+                AssertTrue(bug.PrettyFrame == true && bug.CursorCoords == true && bug.ForcePng);
+
+                s.ActiveCaptureProfile = Views.CaptureController.CycleCaptureProfile(s.ActiveCaptureProfile);
+                var ocr = Views.CaptureController.ResolveCaptureProfile(s);
+                AssertEqual("OcrOnly", ocr.Id);
+                AssertTrue(ocr.InstantCopy == true && ocr.AutoOcrCopy);
+
+                AssertEqual("Default", Views.CaptureController.CycleCaptureProfile(s.ActiveCaptureProfile));
+            });
+
+            Test("RecentCapture compresses unsaved images cleanly and decodes via ResolveFullImage", () =>
+            {
+                const int w = 120;
+                const int h = 80;
+                var pixels = new byte[w * h * 4];
+                for (int i = 0; i < pixels.Length; i += 4)
+                {
+                    pixels[i] = 20;
+                    pixels[i + 1] = 160;
+                    pixels[i + 2] = 240;
+                    pixels[i + 3] = 255;
+                }
+                var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                    w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+                bmp.Freeze();
+
+                RecentCaptureService.Instance.Items.Clear();
+                RecentCaptureService.Instance.Add(bmp, null, "Test");
+                RecentCaptureService.Instance.Add(bmp, null, "Test");
+                RecentCaptureService.Instance.Add(bmp, null, "Test");
+
+                AssertEqual(3, RecentCaptureService.Instance.Items.Count);
+                AssertTrue(RecentCaptureService.Instance.Items[0].CompressedPng != null);
+                AssertTrue(RecentCaptureService.Instance.Items[1].CompressedPng != null);
+                AssertTrue(RecentCaptureService.Instance.Items[2].CompressedPng == null);
+
+                var decoded = RecentCaptureService.Instance.Items[0].ResolveFullImage();
+                AssertTrue(decoded != null);
+                AssertEqual(w, decoded!.PixelWidth);
+                AssertEqual(h, decoded.PixelHeight);
+                RecentCaptureService.Instance.Items.Clear();
+            });
+
+            Test("ImageProcessingService.ToBase64DataUri and MainWindow.FormatRecentMarkdown produce valid snippets", () =>
+            {
+                string dataUri = ImageProcessingService.ToBase64DataUri(new byte[] { 1, 2, 3 }, "image/png");
+                AssertEqual("data:image/png;base64,AQID", dataUri);
+
+                string? diskMd = Views.MainWindow.FormatRecentMarkdown(@"C:\Captures\shot.png", "shot.png");
+                AssertEqual("![shot.png](file:///C:/Captures/shot.png)", diskMd ?? "");
+
+                string? memMd = Views.MainWindow.FormatRecentMarkdown(null, "clip.png", () => dataUri);
+                AssertEqual($"![clip.png]({dataUri})", memMd ?? "");
+            });
+
+            Test("BugReport pretty frame bezel stamp formats cleanly and expands bottom bezel", () =>
+            {
+                string stamp = Views.CaptureController.FormatBugReportBezelStamp("Code.exe", new DateTime(2026, 11, 27, 19, 45, 0));
+                AssertEqual("Code.exe · 2026-11-27 19:45", stamp);
+                string dateOnly = Views.CaptureController.FormatBugReportBezelStamp(null, new DateTime(2026, 11, 27, 19, 45, 0));
+                AssertEqual("2026-11-27 19:45", dateOnly);
+
+                var pixels = new byte[100 * 60 * 4];
+                var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                    100, 60, 96, 96, PixelFormats.Bgra32, null, pixels, 100 * 4);
+                bmp.Freeze();
+
+                var plainFramed = Views.CaptureController.ApplyPrettyFrame(bmp);
+                var stampedFramed = Views.CaptureController.ApplyPrettyFrame(bmp, stamp);
+                AssertTrue(stampedFramed.IsFrozen);
+                AssertTrue(stampedFramed.PixelHeight >= plainFramed.PixelHeight);
+            });
+
+            Test("AnnotationRenderer.BuildPixelation offsets negative multi-monitor origin cleanly", () =>
+            {
+                const int w = 100;
+                const int h = 80;
+                var pixels = new byte[w * h * 4];
+                var bmp = System.Windows.Media.Imaging.BitmapSource.Create(
+                    w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+                bmp.Freeze();
+
+                var pix = AnnotationRenderer.BuildPixelation(
+                    bmp,
+                    new Rect(-1900, -100, 40, 30),
+                    sourceOriginX: -1920,
+                    sourceOriginY: -120);
+                AssertTrue(pix != null && pix.IsFrozen);
+                AssertEqual(40, pix!.PixelWidth);
+                AssertEqual(30, pix.PixelHeight);
+            });
+
             if (Environment.GetEnvironmentVariable("CRYO_RECORDER_SMOKE") == "1")
             {
                 Test("media foundation encoder and replay remux smoke", () =>

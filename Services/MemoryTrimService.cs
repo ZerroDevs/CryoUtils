@@ -23,6 +23,7 @@ namespace CryoUtils.Services
         private static long _lastTrimCompletedUtcTicks;
         private static long _suppressUntilUtcTicks;
         private static bool _shuttingDown;
+        private static int _skipNextWorkingSetTrim;
 
         internal static Action? TrimExecutorForTest { get; set; }
         internal static int ScheduledCountForTest { get; private set; }
@@ -85,7 +86,7 @@ namespace CryoUtils.Services
             }
         }
 
-        public static void ScheduleTrim(int delayMs = DefaultDelayMs, bool skipIfRecentlyTrimmed = false)
+        public static void ScheduleTrim(int delayMs = DefaultDelayMs, bool skipIfRecentlyTrimmed = false, bool trimWorkingSet = true)
         {
             if (skipIfRecentlyTrimmed)
             {
@@ -96,6 +97,7 @@ namespace CryoUtils.Services
                 }
             }
 
+            Interlocked.Exchange(ref _skipNextWorkingSetTrim, trimWorkingSet ? 0 : 1);
             int effectiveDelay = Math.Max(50, delayMs);
 
             lock (Gate)
@@ -204,7 +206,10 @@ namespace CryoUtils.Services
                     return;
                 }
 
-                NativeMethods.EmptyWorkingSet(NativeMethods.GetCurrentProcess());
+                if (Interlocked.Exchange(ref _skipNextWorkingSetTrim, 0) == 0)
+                {
+                    NativeMethods.EmptyWorkingSet(NativeMethods.GetCurrentProcess());
+                }
                 Interlocked.Exchange(ref _lastTrimCompletedUtcTicks, DateTime.UtcNow.Ticks);
             }
             catch

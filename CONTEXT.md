@@ -4,7 +4,7 @@
 
 CryoUtils is a standalone Windows desktop utility suite by `ZeroNuxi | ZerroDevs`. It keeps the CryoTray visual language and the same C# / WPF / .NET family conventions, but runs as a standard user utility instead of a hardware control app.
 
-Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently `0.0.101`). License: Apache-2.0.
+Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently `0.0.102`). License: Apache-2.0.
 
 ## Runtime and platform
 
@@ -21,7 +21,7 @@ Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently
 - `Installer/CryoUtils.iss` is an Inno Setup 6.3+ per-user installer supporting `Full` (self-contained offline) and `Lite` (`CryoUtils-Setup-Lite-<version>.exe`, framework-dependent with automatic `.NET 10 Desktop Runtime` download if missing and leftover runtime DLL cleanup). It installs under `%LOCALAPPDATA%\Programs\CryoUtils`, uses `PrivilegesRequired=lowest`, compresses `{app}` with silent `compact.exe /c /s:"{app}" /i /q`, stops a running `CryoUtils.exe` before install/uninstall, and supports `/VERYSILENT` for the variant-aware updater.
 - `build-installer.ps1 -Variant All|Full|Lite` reads `VERSION`, publishes win-x64 Full and Lite builds, compiles `CryoUtils-Setup-<version>.exe` and `CryoUtils-Setup-Lite-<version>.exe`, and creates `release\CryoUtils-<version>-win-x64.zip` + `release\CryoUtils-Lite-<version>-win-x64.zip` with `.sha256` files.
 - `.github/workflows/release.yml` runs on `VERSION` changes to `main` or manually. It validates the version, builds, compiles Full and Lite installers, optionally signs executables and installers with `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD`, uses `ReleaseNotes/v<version>.md` when present, and publishes installers, portable zips, and checksums.
-- Baseline is `0.0.101`; increment the patch to `0.0.102`, `0.0.103`, etc. Tags use `v<version>`.
+- Baseline is `0.0.102`; increment the patch to `0.0.103`, `0.0.104`, etc. Tags use `v<version>`.
 - `CryoUtils.csproj` copies `VERSION`, `LICENSE`, and `NOTICE` to the output and publish folders and embeds a compact `256x256` `CryoUtils-Icon.png`.
 
 ## Architecture
@@ -29,6 +29,7 @@ Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently
 ### Composition root
 
 `App.xaml.cs` owns:
+
 - settings load
 - localization and theme initialization
 - tray icon lifetime
@@ -37,6 +38,7 @@ Repository identity: `ZerroDevs/CryoUtils`. Version source: `VERSION` (currently
 - update checks and exit cleanup
 
 `App.xaml` merges:
+
 - `Resources/Controls.xaml` (styles and control templates)
 - `Resources/Strings.en.xaml` and `Resources/Strings.ar.xaml`
 - theme dictionaries (`Themes/Dark.xaml`, `Themes/Light.xaml`)
@@ -55,28 +57,28 @@ Startup defaults: `StartWithWindows=false`, `LaunchInBackground=true`. `--backgr
 
 ### Theme engine
 
-`Services/ThemeService.cs` holds token dictionaries for Dark, Light and System. It resolves the effective mode from the Windows app theme and rebuilds dynamic resources. All UI uses `DynamicResource` for colors so a live theme switch updates every open window.
+`Services/ThemeService.cs` holds token dictionaries for Dark, Light and System plus 6 `AccentPresets` (`CryoBlue` default, `Cyan`, `Emerald`, `Violet`, `Amber`, `Rose`). It resolves the effective mode from the Windows app theme and rebuilds dynamic resources (including frozen `HeroBackgroundGradientBrush`). All UI uses `DynamicResource` for colors so a live theme or accent switch updates every open window.
 
 Core tokens:
 
-| Token | Dark | Light |
-|---|---|---|
-| Accent | `#2B88D8` | `#1B6CB3` |
-| Accent strong / button | `#1E6FAE` | `#1B6CB3` |
-| Accent text | `#6FB8F2` | `#1B6CB3` |
+| Token                             | Dark                                          | Light                                         |
+| --------------------------------- | --------------------------------------------- | --------------------------------------------- |
+| Accent                            | `#2B88D8`                                     | `#1B6CB3`                                     |
+| Accent strong / button            | `#1E6FAE`                                     | `#1B6CB3`                                     |
+| Accent text                       | `#6FB8F2`                                     | `#1B6CB3`                                     |
 | Capture / Media / Color / Utility | `#4FC3F7` / `#7CB342` / `#F3C765` / `#62B0E8` | `#0B6E99` / `#4C7A22` / `#8A6500` / `#1D6FA5` |
-| Window / Header | `#141414` / `#1B1B1B` | `#F5F3EF` / `#EDEAE4` |
-| Surface | `#1E1E1E` | `#FFFFFF` |
-| Surface raised | `#242424` | `#F7F4EF` |
-| Border | `#333333` | `#DDD7CD` |
-| Text primary | `#FFFFFF` | `#1C1A17` |
-| Text secondary | `#B8B8B8` | `#5C564D` |
+| Window / Header                   | `#141414` / `#1B1B1B`                         | `#F5F3EF` / `#EDEAE4`                         |
+| Surface                           | `#1E1E1E`                                     | `#FFFFFF`                                     |
+| Surface raised                    | `#242424`                                     | `#F7F4EF`                                     |
+| Border                            | `#333333`                                     | `#DDD7CD`                                     |
+| Text primary                      | `#FFFFFF`                                     | `#1C1A17`                                     |
+| Text secondary                    | `#B8B8B8`                                     | `#5C564D`                                     |
 
 Rules: CryoTray-aligned `141414` / `1E1E1E` / `242424` neutral surfaces, 1 px `CornerRadius="0"` Cryo Blue window border (`#2B88D8` / `#1B6CB3`), purposeful hero gradient (`#1E4F7A -> #18649C`), and semantic 4-accent domain coding matching CryoTray (`Capture`, `Media`, `Color`, `Utility`).Typography uses Segoe UI Variable / Segoe UI with Cascadia Mono for technical values. Arabic uses the same sizes with `FlowDirection=RightToLeft`; filenames, sizes, color codes, PNG/GIF/FPS, paths, and shortcuts stay LTR.
 
 ### Localization
 
-`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 941 keys each.
+`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 1014 keys each.
 
 ### QR Code & Utilities Suite
 
@@ -92,6 +94,7 @@ Exiting the app automatically invokes `Unpin(silent: true)`, clearing `HWND_NOTO
 ### Global hotkeys
 
 `Services/GlobalHotkeyService.cs` registers `WM_HOTKEY` against an `HWND_MESSAGE` sink. Ids:
+
 - capture (`CaptureHotkeyId`)
 - repeat last region (`RepeatLastRegionHotkeyId`)
 - active-window snap (`ActiveWindowSnapHotkeyId`)
@@ -106,6 +109,7 @@ Exiting the app automatically invokes `Unpin(silent: true)`, clearing `HWND_NOTO
 `Register` unregisters the previous combination for an id first. `App.ApplyAllSettings` unregisters disabled modules and registers enabled modules. `UnregisterAll` runs on exit.
 
 Defaults:
+
 - Capture: `PrintScreen`, fallback suggestion `Ctrl+Shift+S`
 - Snap active window (`0 ms`, no overlay): `Ctrl+Alt+S`
 - Color picker: `Ctrl+Shift+C`
@@ -129,6 +133,7 @@ Defaults:
 ### Recording pipeline
 
 `Views/RecordingBarWindow` drives two paths. GIF still uses `Services/RecorderService` and the in-project `Services/GifEncoder.cs` writer; MP4 uses the live recorder in `Services/Recording/`.
+
 - `WgcCaptureEngine` captures the monitor containing the selection with `Windows.Graphics.Capture` and a Direct3D 11 frame pool, then crops to the selected physical region. `D3D11Readback` copies the GPU surface into a CPU-readable staging texture; `SoftwareBitmap` is the compatibility fallback. `GdiCaptureEngine` is the 30 FPS fallback, including cross-monitor selections.
 - `FrameComposer` scales/crops into the output size and draws the optional cursor highlight, click ripples, and webcam bubble.
 - `MfEncoder` writes H.264/AAC directly to a temporary MP4 through Media Foundation `SinkWriter`. It prefers hardware transforms, retries in software, and sets input and output media types separately. Audio is optional; if the AAC encoder or device is unavailable the file is video-only and the bar reports it.
@@ -145,12 +150,13 @@ Defaults:
 ### Annotation model
 
 `Models/Annotation.cs` stores:
-- kind (`Pen`, `Line`, `Arrow`, `Rectangle`, `Highlighter`, `Text`, `StepNumber`, `Blur`)
+
+- kind (`Pen`, `Line`, `Arrow`, `Rectangle`, `Ellipse`, `Spotlight`, `Redaction`, `Highlighter`, `Text`, `Blur`, `Zoom`, `Step`)
 - color, thickness, opacity
 - points, rect, text, font size, RTL flag, step number
 - cached pixel preview for blur
 
-`Services/AnnotationRenderer.cs` draws all vectors into a `DrawingVisual` and applies `Blur` through `BitmapEffect` pixelation. Blur is destructive in the exported bitmap, never a reversible overlay on the saved file.
+`Services/AnnotationRenderer.cs` draws all vectors into a `DrawingVisual`, renders `Zoom` as a 2.0x cropped circular lens from `sourceBitmap`, and applies `Blur` through irreversible pixelation in the exported bitmap.
 
 ### Other services
 
@@ -190,10 +196,10 @@ Defaults:
 
 ## Structural decisions
 
-- The dashboard is a single `1040x710` Cryo-Family borderless window with a 36 px title bar (`BtnQuit`, `BtnClose`, `TxtHeaderHotkey`) and a unified horizontal underline tab strip (`GroupName="MainNav"`, `TabButtonStyle`) across Overview, Screen Capture, Tools & Utilities, Hotkeys, and Settings (with integrated About & Updates).
-- The Overview tab features a single Cryo Blue Hero Command Banner, 4 full-width domain-coded Quick Launch tiles, Recent Captures (`Session` / `All time`), and a 2x3 active module control grid.
+- The dashboard is a single resizable `480x565` (`480x450` in Screenshot-Only Lite mode, `MinWidth=430`, `MinHeight=360`, persisted once resized via `WindowSizeCustomized`/`WindowWidth`/`WindowHeight`) CryoTray-style borderless window with a 38 px minimalist icon title bar (`Ctrl+K` `TxtQuickSearch` + `SearchPopup`, `BtnQuit`, `BtnClose`), a flush underline tab strip (`GroupName="MainNav"`, `TabButtonStyle`) across **Overview**, **Capture**, **Tools**, **Workspace**, **Hotkeys**, and **Settings** (with integrated About & Updates), and a bottom corner resize grip.
+- The Overview tab features a full-bleed CryoTray PCB Hero Banner (`#255D8E -> #1E9FD0`, procedural PCB traces + ExtraLight hotkey trigger), glowing `42x42` Aperture / Full-Suite strip with `48x24` `ON`/`OFF` pill toggle, clean `1 px` hairline utility rows (auto-collapsed in Screenshot-Only Lite mode), and a compact Recent Captures strip (`Session` / `All time`) with drag-out.
 - Capture overlays are separate windows per monitor so mixed DPI is handled by the compositor rather than by manual scaling.
-- The larger tools live in one `PowerToolsWindow` with Library, Recipes, Privacy, File Actions, Colors, Pinner, PDF/Media, and Diagnostics tabs; this avoids a dozen disconnected dialogs and one shared data context.
+- The larger Cryo Workbench tools live inside `MainWindow`'s consolidated **Workspace** tab (`Views/Tabs/WorkbenchTabView.xaml(.cs)`) with flush sub-tabs for Library, Workflows, Privacy, File Actions, Color, Media, Pinner, and Diagnostics (replacing the separate `PowerToolsWindow`).
 - Library metadata references files in the configured save folder rather than copying them into a hidden store. Deletion uses the Recycle Bin.
 - Scrolling capture stitches in memory with a 16,000 px cap; the control bar is positioned outside the selection when the work area allows it.
 - GIF is implemented in-project and lossless WebP uses `SimpleWebpEncoder` (zero `SkiaSharp`).

@@ -36,7 +36,7 @@ namespace CryoUtils.Services
         {
             get
             {
-                var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+                var assembly = Assembly.GetExecutingAssembly();
                 string? informational = assembly
                     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
                     .InformationalVersion;
@@ -46,7 +46,7 @@ namespace CryoUtils.Services
                     return plus >= 0 ? informational[..plus] : informational;
                 }
 
-                return assembly.GetName().Version?.ToString(3) ?? "0.0.101";
+                return assembly.GetName().Version?.ToString(3) ?? "0.0.102";
             }
         }
 

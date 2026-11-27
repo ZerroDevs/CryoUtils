@@ -21,7 +21,15 @@ namespace CryoUtils.Views.Tabs
 
         public ToolsTabView()
         {
-            InitializeComponent();
+            _loading = true;
+            try
+            {
+                InitializeComponent();
+            }
+            finally
+            {
+                _loading = false;
+            }
         }
 
         public void LoadFromSettings()

@@ -96,11 +96,55 @@ namespace CryoUtils.Services
             return new NativeMethods.RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
         }
 
-        /// <summary>Captures a physical-pixel region of the desktop into a 96 DPI bitmap.</summary>
+        /// <summary>Pre-initializes WPF Imaging / InteropBitmap pipeline off the capture hot path.</summary>
+        public static void WarmUpCapturePipeline()
+        {
+            IntPtr section = IntPtr.Zero;
+            try
+            {
+                section = NativeMethods.CreateFileMappingW(
+                    NativeMethods.INVALID_HANDLE_VALUE,
+                    IntPtr.Zero,
+                    NativeMethods.PAGE_READWRITE,
+                    0,
+                    4,
+                    null);
+                if (section != IntPtr.Zero)
+                {
+                    var bmp = System.Windows.Interop.Imaging.CreateBitmapSourceFromMemorySection(
+                        section,
+                        1,
+                        1,
+                        PixelFormats.Bgr32,
+                        4,
+                        0);
+                    bmp.Freeze();
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                if (section != IntPtr.Zero)
+                {
+                    NativeMethods.CloseHandle(section);
+                }
+            }
+        }
+
+        /// <summary>Captures a physical-pixel region of the desktop into a frozen 96 DPI bitmap.</summary>
         public static BitmapSource CaptureRegion(NativeMethods.RECT region)
         {
             int width = Math.Max(1, region.Width);
             int height = Math.Max(1, region.Height);
+
+            if (TryCaptureRegionZeroCopy(region.Left, region.Top, width, height, out BitmapSource? direct) &&
+                direct != null)
+            {
+                return direct;
+            }
+
             using var bitmap = new Drawing.Bitmap(width, height, PixelFormat.Format32bppArgb);
             using (var graphics = Drawing.Graphics.FromImage(bitmap))
             {
@@ -124,7 +168,7 @@ namespace CryoUtils.Services
                     height,
                     96,
                     96,
-                    PixelFormats.Bgra32,
+                    PixelFormats.Bgr32,
                     null,
                     data.Scan0,
                     data.Stride * height,
@@ -135,6 +179,130 @@ namespace CryoUtils.Services
             finally
             {
                 bitmap.UnlockBits(data);
+            }
+        }
+
+        private static bool TryCaptureRegionZeroCopy(
+            int left,
+            int top,
+            int width,
+            int height,
+            out BitmapSource? result)
+        {
+            result = null;
+            int stride = width * 4;
+            long byteCount = (long)stride * height;
+            if (byteCount <= 0 || byteCount > uint.MaxValue)
+            {
+                return false;
+            }
+
+            IntPtr screenDc = IntPtr.Zero;
+            IntPtr memDc = IntPtr.Zero;
+            IntPtr section = IntPtr.Zero;
+            IntPtr hBitmap = IntPtr.Zero;
+            IntPtr oldObj = IntPtr.Zero;
+
+            try
+            {
+                screenDc = NativeMethods.GetDC(IntPtr.Zero);
+                if (screenDc == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                memDc = NativeMethods.CreateCompatibleDC(screenDc);
+                if (memDc == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                section = NativeMethods.CreateFileMappingW(
+                    NativeMethods.INVALID_HANDLE_VALUE,
+                    IntPtr.Zero,
+                    NativeMethods.PAGE_READWRITE,
+                    0,
+                    (uint)byteCount,
+                    null);
+                if (section == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                var bmi = new NativeMethods.BITMAPINFO
+                {
+                    bmiHeader = new NativeMethods.BITMAPINFOHEADER
+                    {
+                        biSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.BITMAPINFOHEADER>(),
+                        biWidth = width,
+                        biHeight = -height, // top-down DIB
+                        biPlanes = 1,
+                        biBitCount = 32,
+                        biCompression = NativeMethods.BI_RGB,
+                        biSizeImage = (uint)byteCount
+                    }
+                };
+
+                hBitmap = NativeMethods.CreateDIBSection(
+                    screenDc,
+                    ref bmi,
+                    NativeMethods.DIB_RGB_COLORS,
+                    out _,
+                    section,
+                    0);
+                if (hBitmap == IntPtr.Zero)
+                {
+                    return false;
+                }
+
+                oldObj = NativeMethods.SelectObject(memDc, hBitmap);
+                if (!NativeMethods.BitBlt(memDc, 0, 0, width, height, screenDc, left, top, NativeMethods.SRCCOPY))
+                {
+                    return false;
+                }
+
+                NativeMethods.SelectObject(memDc, oldObj);
+                oldObj = IntPtr.Zero;
+                NativeMethods.DeleteObject(hBitmap);
+                hBitmap = IntPtr.Zero;
+
+                var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromMemorySection(
+                    section,
+                    width,
+                    height,
+                    PixelFormats.Bgr32,
+                    stride,
+                    0);
+                source.Freeze();
+                result = source;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (oldObj != IntPtr.Zero && memDc != IntPtr.Zero)
+                {
+                    NativeMethods.SelectObject(memDc, oldObj);
+                }
+                if (hBitmap != IntPtr.Zero)
+                {
+                    NativeMethods.DeleteObject(hBitmap);
+                }
+                if (memDc != IntPtr.Zero)
+                {
+                    NativeMethods.DeleteDC(memDc);
+                }
+                if (screenDc != IntPtr.Zero)
+                {
+                    NativeMethods.ReleaseDC(IntPtr.Zero, screenDc);
+                }
+                if (section != IntPtr.Zero)
+                {
+                    NativeMethods.CloseHandle(section);
+                }
             }
         }
 

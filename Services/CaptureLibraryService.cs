@@ -19,6 +19,7 @@ namespace CryoUtils.Services
         public int Height { get; set; }
         public string SourceApp { get; set; } = "";
         public string SourceWindow { get; set; } = "";
+        public string OcrText { get; set; } = "";
         public List<string> Tags { get; set; } = new();
         public bool IsFavorite { get; set; }
 
@@ -87,6 +88,7 @@ namespace CryoUtils.Services
     {
         public string SourceApp { get; set; } = "";
         public string SourceWindow { get; set; } = "";
+        public string OcrText { get; set; } = "";
         public List<string> Tags { get; set; } = new();
         public bool IsFavorite { get; set; }
         public int Width { get; set; }
@@ -175,6 +177,7 @@ namespace CryoUtils.Services
                             Height = metadata?.Height ?? 0,
                             SourceApp = metadata?.SourceApp ?? "",
                             SourceWindow = metadata?.SourceWindow ?? "",
+                            OcrText = metadata?.OcrText ?? "",
                             Tags = metadata?.Tags.ToList() ?? new List<string>(),
                             IsFavorite = metadata?.IsFavorite ?? false
                         };
@@ -208,12 +211,91 @@ namespace CryoUtils.Services
                 .ToList();
         }
 
-        private static bool MatchesQuery(CaptureLibraryItem item, string query)
+        internal static bool MatchesQuery(CaptureLibraryItem item, string query)
         {
             return item.FileName.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
                    item.SourceApp.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
                    item.SourceWindow.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
+                   (!string.IsNullOrEmpty(item.OcrText) &&
+                    item.OcrText.Contains(query, StringComparison.CurrentCultureIgnoreCase)) ||
                    item.Tags.Any(tag => tag.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        }
+
+        public IReadOnlyList<(string Path, string Title, string OcrSnippet)> SearchByText(string query, int limit = 3)
+        {
+            var results = new List<(string Path, string Title, string OcrSnippet)>();
+            string q = (query ?? "").Trim();
+            if (q.Length < 2)
+            {
+                return results;
+            }
+
+            lock (_lock)
+            {
+                foreach (var kv in _metadata)
+                {
+                    if (string.IsNullOrEmpty(kv.Value.OcrText) ||
+                        !kv.Value.OcrText.Contains(q, StringComparison.CurrentCultureIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (!File.Exists(kv.Key))
+                    {
+                        continue;
+                    }
+
+                    string fileName = Path.GetFileName(kv.Key);
+                    string snippet = string.IsNullOrWhiteSpace(kv.Value.SourceApp)
+                        ? fileName
+                        : $"{fileName} · {kv.Value.SourceApp}";
+                    results.Add((kv.Key, snippet, kv.Value.OcrText));
+                    if (results.Count >= limit)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return results;
+        }
+
+        public void SetOcrText(string path, string? ocrText)
+        {
+            string normalized = (ocrText ?? "").Trim();
+            if (normalized.Length > 2000)
+            {
+                normalized = normalized[..2000];
+            }
+            Update(path, metadata => metadata.OcrText = normalized);
+        }
+
+        public void IndexOcrInBackground(string path, BitmapSource bitmap)
+        {
+            if (string.IsNullOrWhiteSpace(path) || bitmap == null)
+            {
+                return;
+            }
+
+            if (!bitmap.IsFrozen)
+            {
+                return;
+            }
+
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    string recognized = await OcrService.RecognizeAsync(bitmap).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(recognized))
+                    {
+                        SetOcrText(path, recognized);
+                    }
+                }
+                catch
+                {
+                }
+            });
         }
 
         public IReadOnlyList<string> GetTags()

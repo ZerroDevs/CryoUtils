@@ -77,6 +77,11 @@ namespace CryoUtils.Views
             // Visually soften opacity when ghosted so click-through pins stay distinguishable.
             Opacity = enabled ? Math.Min(_opacity, 0.72) : _opacity;
             ZoomBadge.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+            if (enabled)
+            {
+                MiniHudBar.Visibility = Visibility.Collapsed;
+                MiniHudBar.IsHitTestVisible = false;
+            }
             App.CurrentApp?.RefreshTrayMenu();
 
             if (enabled)
@@ -92,7 +97,55 @@ namespace CryoUtils.Views
             PinnedImage.Width = _baseWidth * _zoom;
             PinnedImage.Height = _baseHeight * _zoom;
             TxtZoom.Text = LocalizationService.Format("Pin_Zoom", Math.Round(_zoom * 100));
+            if (TxtOpacityPct != null)
+            {
+                TxtOpacityPct.Text = $"{Math.Round(_opacity * 100)}%";
+            }
             Opacity = _clickThrough ? Math.Min(_opacity, 0.72) : _opacity;
+        }
+
+        private void Window_MouseEnter(object sender, MouseEventArgs e)
+        {
+            if (_clickThrough || MiniHudBar == null)
+            {
+                return;
+            }
+
+            MiniHudBar.Visibility = Visibility.Visible;
+            MiniHudBar.IsHitTestVisible = true;
+            var anim = new System.Windows.Media.Animation.DoubleAnimation(1, TimeSpan.FromMilliseconds(90));
+            MiniHudBar.BeginAnimation(OpacityProperty, anim);
+        }
+
+        private void Window_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (MiniHudBar == null)
+            {
+                return;
+            }
+
+            MiniHudBar.IsHitTestVisible = false;
+            var anim = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(90));
+            anim.Completed += (_, _) =>
+            {
+                if (!IsMouseOver && MiniHudBar.Opacity < 0.05)
+                {
+                    MiniHudBar.Visibility = Visibility.Collapsed;
+                }
+            };
+            MiniHudBar.BeginAnimation(OpacityProperty, anim);
+        }
+
+        private void BtnOpacityDown_Click(object sender, RoutedEventArgs e)
+        {
+            _opacity = Math.Clamp(_opacity - 0.1, 0.2, 1);
+            ApplyZoom();
+        }
+
+        private void BtnOpacityUp_Click(object sender, RoutedEventArgs e)
+        {
+            _opacity = Math.Clamp(_opacity + 0.1, 0.2, 1);
+            ApplyZoom();
         }
 
         private void Frame_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

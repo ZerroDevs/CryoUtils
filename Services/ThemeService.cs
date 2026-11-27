@@ -67,12 +67,12 @@ namespace CryoUtils.Services
             ["DangerTextBrush"] = "#FAAA9A",
             ["DangerSoftBackgroundBrush"] = "#3A2424",
             ["DangerSoftHoverBrush"] = "#4A2929",
-            ["ToggleOnTrackBrush"] = "#1E5C91",
+            ["ToggleOnTrackBrush"] = "#2B88D8",
             ["ToggleOnThumbBrush"] = "#FFFFFF",
-            ["ToggleOffTrackBrush"] = "#333333",
-            ["ToggleOffThumbBrush"] = "#8A8A8A",
-            ["ToggleOffTextBrush"] = "#B8B8B8",
-            ["ToggleOnTextBrush"] = "#6FB8F2",
+            ["ToggleOffTrackBrush"] = "#4A2A1E",
+            ["ToggleOffThumbBrush"] = "#E68A57",
+            ["ToggleOffTextBrush"] = "#D9835B",
+            ["ToggleOnTextBrush"] = "#FFFFFF",
             ["OverlayBackgroundBrush"] = "#E6161616",
             ["OverlayLabelBrush"] = "#AAAAAA",
             ["OverlaySecondaryBrush"] = "#A8A8A8",
@@ -96,8 +96,8 @@ namespace CryoUtils.Services
             ["ModuleMutedBrush"] = "#929292",
             ["HeroBackgroundBrush"] = "#1B1B1B",
             ["HeroInsetBrush"] = "#162B3D",
-            ["HeroGradientStartBrush"] = "#1E4F7A",
-            ["HeroGradientEndBrush"] = "#18649C"
+            ["HeroGradientStartBrush"] = "#255D8E",
+            ["HeroGradientEndBrush"] = "#1E9FD0"
         };
 
         private static readonly Dictionary<string, string> LightPalette = new()
@@ -157,10 +157,10 @@ namespace CryoUtils.Services
             ["DangerSoftHoverBrush"] = "#F5D6D0",
             ["ToggleOnTrackBrush"] = "#1B6CB3",
             ["ToggleOnThumbBrush"] = "#FFFFFF",
-            ["ToggleOffTrackBrush"] = "#E6E0D7",
-            ["ToggleOffThumbBrush"] = "#8A847A",
-            ["ToggleOffTextBrush"] = "#746E64",
-            ["ToggleOnTextBrush"] = "#1B6CB3",
+            ["ToggleOffTrackBrush"] = "#EFE0D7",
+            ["ToggleOffThumbBrush"] = "#B86035",
+            ["ToggleOffTextBrush"] = "#9A4D27",
+            ["ToggleOnTextBrush"] = "#FFFFFF",
             ["OverlayBackgroundBrush"] = "#F2F4F2EE",
             ["OverlayLabelBrush"] = "#5F5A53",
             ["OverlaySecondaryBrush"] = "#6F6962",
@@ -193,6 +193,27 @@ namespace CryoUtils.Services
         private static bool _isHighContrast;
         private static string _configuredMode = "Dark";
         private static string _effectiveMode = "Dark";
+        private static string _accentPreset = "CryoBlue";
+
+        private sealed record AccentSpec(
+            string DarkBase, string DarkHover, string DarkPressed, string DarkSoft, string DarkText, string DarkHeroStart, string DarkHeroEnd,
+            string LightBase, string LightHover, string LightPressed, string LightSoft, string LightText, string LightHeroStart, string LightHeroEnd);
+
+        private static readonly Dictionary<string, AccentSpec> AccentPresets = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["CryoBlue"] = new("#2B88D8", "#3A9AE8", "#1E6FAE", "#1E3A4A", "#6FB8F2", "#255D8E", "#1E9FD0",
+                               "#1B6CB3", "#2B88D8", "#0F5C95", "#DCEAF6", "#1B6CB3", "#1B5C96", "#1E73BA"),
+            ["Cyan"]     = new("#1BA8C7", "#2BC0DF", "#1487A1", "#143844", "#6CE0F7", "#195A72", "#1FA7C4",
+                               "#0D819B", "#1BA8C7", "#096176", "#D9F1F6", "#0D819B", "#146078", "#188BA8"),
+            ["Emerald"]  = new("#26A269", "#33B97B", "#1D8052", "#173728", "#6CE0A5", "#1C5A41", "#269E6B",
+                               "#1B7F50", "#26A269", "#13613C", "#DCF2E6", "#1B7F50", "#175C3E", "#21875A"),
+            ["Violet"]   = new("#7C5CE6", "#9073F2", "#6243C7", "#292145", "#B7A6FF", "#463587", "#6E52D4",
+                               "#6244C5", "#7C5CE6", "#4B31A3", "#E9E3FA", "#6244C5", "#483296", "#6649C9"),
+            ["Amber"]    = new("#D98A2B", "#EB9D3E", "#B26C19", "#422E17", "#F7BE72", "#7A4D18", "#C47B24",
+                               "#B56C14", "#D98A2B", "#8D520B", "#F9ECD9", "#B56C14", "#844F11", "#BA7019"),
+            ["Rose"]     = new("#D64B75", "#E8608A", "#B03459", "#421D29", "#F79BB7", "#7A2843", "#C4426B",
+                               "#B8325B", "#D64B75", "#912244", "#FAE1E8", "#B8325B", "#822342", "#B5335C")
+        };
 
         public static event EventHandler? ThemeChanged;
 
@@ -202,7 +223,9 @@ namespace CryoUtils.Services
 
         public static string ConfiguredMode => _configuredMode;
 
-        public static void Initialize(string? mode)
+        public static string AccentPreset => _accentPreset;
+
+        public static void Initialize(string? mode, string? accentPreset = null)
         {
             if (!_systemEventsHooked)
             {
@@ -216,43 +239,134 @@ namespace CryoUtils.Services
                 _systemParametersHooked = true;
             }
 
-            Apply(mode, force: true);
+            Apply(mode, force: true, accentPreset: accentPreset ?? SettingsService.Instance.Current.AccentPreset);
         }
 
-        public static void Apply(string? mode, bool force = false)
+        public static void Apply(string? mode, bool force = false, string? accentPreset = null)
         {
             string normalized = Normalize(mode);
             string effective = normalized == "System"
                 ? (IsSystemLight() ? "Light" : "Dark")
                 : normalized;
+            string nextAccent = NormalizeAccent(accentPreset ?? SettingsService.Instance.Current.AccentPreset);
 
             bool highContrast = SystemParameters.HighContrast;
             _configuredMode = normalized;
             if (!force &&
                 string.Equals(effective, _effectiveMode, StringComparison.Ordinal) &&
+                string.Equals(nextAccent, _accentPreset, StringComparison.Ordinal) &&
                 highContrast == _isHighContrast)
             {
                 return;
             }
 
             _effectiveMode = effective;
+            _accentPreset = nextAccent;
             _isHighContrast = highContrast;
             var resources = Application.Current?.Resources;
             if (resources != null)
             {
-                if (highContrast)
-                {
-                    ApplyHighContrastPalette(resources);
-                }
-                else
-                {
-                    ApplyPalette(
-                        resources,
-                        effective == "Light" ? LightPalette : DarkPalette);
-                }
+                ApplyToResources(resources, effective, nextAccent, highContrast);
             }
 
             ThemeChanged?.Invoke(null, EventArgs.Empty);
+        }
+
+        internal static void ApplyToResources(
+            ResourceDictionary resources,
+            string effectiveMode,
+            string accentPreset,
+            bool highContrast = false)
+        {
+            if (highContrast)
+            {
+                ApplyHighContrastPalette(resources);
+                return;
+            }
+
+            bool light = string.Equals(effectiveMode, "Light", StringComparison.OrdinalIgnoreCase);
+            ApplyPalette(resources, light ? LightPalette : DarkPalette);
+            ApplyAccentOverrides(resources, NormalizeAccent(accentPreset), light);
+        }
+
+        public static string NormalizeAccent(string? preset)
+        {
+            if (!string.IsNullOrWhiteSpace(preset) && AccentPresets.ContainsKey(preset.Trim()))
+            {
+                foreach (string key in AccentPresets.Keys)
+                {
+                    if (string.Equals(key, preset.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return key;
+                    }
+                }
+            }
+            return "CryoBlue";
+        }
+
+        public static string? GetAccentHex(string preset, bool light = false)
+        {
+            string norm = NormalizeAccent(preset);
+            return AccentPresets.TryGetValue(norm, out var spec)
+                ? (light ? spec.LightBase : spec.DarkBase)
+                : null;
+        }
+
+        private static void ApplyAccentOverrides(ResourceDictionary resources, string preset, bool light)
+        {
+            if (!AccentPresets.TryGetValue(NormalizeAccent(preset), out var spec))
+            {
+                return;
+            }
+
+            void Set(string key, string hex)
+            {
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                brush.Freeze();
+                resources[key] = brush;
+            }
+
+            string b = light ? spec.LightBase : spec.DarkBase;
+            string h = light ? spec.LightHover : spec.DarkHover;
+            string p = light ? spec.LightPressed : spec.DarkPressed;
+            string s = light ? spec.LightSoft : spec.DarkSoft;
+            string t = light ? spec.LightText : spec.DarkText;
+            string hs = light ? spec.LightHeroStart : spec.DarkHeroStart;
+            string he = light ? spec.LightHeroEnd : spec.DarkHeroEnd;
+
+            Set("AccentBrush", b);
+            Set("AccentHoverBrush", h);
+            Set("AccentPressedBrush", p);
+            Set("AccentSoftBrush", s);
+            Set("AccentTextBrush", t);
+            Set("AccentButtonBrush", p);
+            Set("SearchMatchBrush", t);
+            Set("WindowBorderBrush", b);
+            Set("ToggleOnTrackBrush", b);
+            Set("OverlaySelectionBorderBrush", b);
+            Set("PinnedBorderBrush", b);
+            Set("FocusBrush", b);
+            Set("ScanFrameBrush", b);
+            Set("HighlightRowBrush", s);
+            Set("HighlightRowBorderBrush", b);
+            Set("HeroGradientStartBrush", hs);
+            Set("HeroGradientEndBrush", he);
+            SetHeroGradient(resources, hs, he);
+        }
+
+        private static void SetHeroGradient(ResourceDictionary resources, string startHex, string endHex)
+        {
+            SetHeroGradient(
+                resources,
+                (Color)ColorConverter.ConvertFromString(startHex),
+                (Color)ColorConverter.ConvertFromString(endHex));
+        }
+
+        private static void SetHeroGradient(ResourceDictionary resources, Color startColor, Color endColor)
+        {
+            var gradient = new LinearGradientBrush(startColor, endColor, new Point(0, 0), new Point(1, 1));
+            gradient.Freeze();
+            resources["HeroBackgroundGradientBrush"] = gradient;
         }
 
         public static string Normalize(string? mode)
@@ -288,6 +402,12 @@ namespace CryoUtils.Services
             return Brushes.Transparent;
         }
 
+        public static string? GetPaletteHex(string key, bool light = false)
+        {
+            var palette = light ? LightPalette : DarkPalette;
+            return palette.TryGetValue(key, out string? hex) ? hex : null;
+        }
+
         private static void ApplyPalette(
             ResourceDictionary resources,
             IReadOnlyDictionary<string, string> palette)
@@ -298,6 +418,12 @@ namespace CryoUtils.Services
                     (Color)ColorConverter.ConvertFromString(entry.Value));
                 brush.Freeze();
                 resources[entry.Key] = brush;
+            }
+
+            if (palette.TryGetValue("HeroGradientStartBrush", out string? heroStart) &&
+                palette.TryGetValue("HeroGradientEndBrush", out string? heroEnd))
+            {
+                SetHeroGradient(resources, heroStart, heroEnd);
             }
         }
 
@@ -386,6 +512,7 @@ namespace CryoUtils.Services
             resources["ToggleOffThumbBrush"] = controlText;
             resources["ScrollThumbBrush"] = controlDark;
             resources["ScrollThumbHoverBrush"] = controlText;
+            SetHeroGradient(resources, SystemColors.WindowColor, SystemColors.WindowColor);
         }
 
         private static SolidColorBrush FrozenBrush(Color color)

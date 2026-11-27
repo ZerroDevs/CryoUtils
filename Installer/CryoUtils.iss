@@ -1,10 +1,10 @@
 ; CryoUtils installer script (Inno Setup 6.3+)
 ; Build from the repository root with build-installer.ps1, or directly:
-;   ISCC.exe /DAppVersion=0.0.101 /DVariant=Full Installer\CryoUtils.iss
-;   ISCC.exe /DAppVersion=0.0.101 /DVariant=Lite Installer\CryoUtils.iss
+;   ISCC.exe /DAppVersion=0.0.102 /DVariant=Full Installer\CryoUtils.iss
+;   ISCC.exe /DAppVersion=0.0.102 /DVariant=Lite Installer\CryoUtils.iss
 
 #ifndef AppVersion
-#define AppVersion "0.0.101"
+#define AppVersion "0.0.102"
 #endif
 
 #ifndef Variant

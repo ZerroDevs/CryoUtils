@@ -18,12 +18,12 @@ namespace CryoUtils
     public partial class App : Application
     {
         public static App? CurrentApp { get; private set; }
+        public bool IsExiting => _exiting;
 
         private TrayIconManager? _tray;
         private MainWindow? _dashboard;
         private ColorPickerWindow? _colorPicker;
         private ClipboardHistoryWindow? _clipboardWindow;
-        private PowerToolsWindow? _workbench;
         private LiveDrawWindow? _liveDraw;
         private ScreenRulerWindow? _screenRuler;
         private FileShelfWindow? _fileShelf;
@@ -181,6 +181,13 @@ namespace CryoUtils
 
             GlobalHotkeyService.Instance.HotkeyPressed += OnHotkeyPressed;
             SettingsService.Instance.SettingsChanged += ApplyAllSettings;
+            ThemeService.ThemeChanged += OnCapturePoolInvalidated;
+            LocalizationService.Instance.LanguageChanged += OnCapturePoolLanguageInvalidated;
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnCapturePoolInvalidated;
+
+            // Pre-load UI resources eagerly so the first hotkey/tray-click capture
+            // does not pay the dictionary-merge cost (~100-300 ms) on the UI thread.
+            EnsureUiResourcesLoaded();
 
             ApplyHotkeys();
             if (!settings.ScreenshotOnlyMode)
@@ -198,6 +205,10 @@ namespace CryoUtils
                 Dispatcher.BeginInvoke(new Action(() => ApplyReplayPreference()));
             }
 
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => CaptureController.Instance.PreWarmIdle()));
+
             bool background = e.Args.Any(argument =>
                 string.Equals(argument, "--background", StringComparison.OrdinalIgnoreCase));
             if (!background && !settings.LaunchInBackground)
@@ -212,7 +223,7 @@ namespace CryoUtils
 
         public bool IsDashboardVisible => _dashboard?.IsVisible == true;
 
-        public void ShowDashboard(string tab = "Overview")
+        public void ShowDashboard(string tab = "Overview", string? subTab = null, bool animateReveal = true)
         {
             if (_exiting)
             {
@@ -234,10 +245,13 @@ namespace CryoUtils
                 };
             }
 
-            _dashboard.ShowTab(tab);
-            if (!_dashboard.IsVisible)
+            _dashboard.ShowTab(tab, subTab);
+            bool wasVisible = _dashboard.IsVisible;
+            if (!wasVisible)
             {
+                _dashboard.PositionAboveTray();
                 _dashboard.Show();
+                _dashboard.PlayTrayRevealAnimation(animateReveal);
             }
             if (_dashboard.WindowState == WindowState.Minimized)
             {
@@ -251,6 +265,7 @@ namespace CryoUtils
 
         public void StartCapture(int delaySeconds = -1)
         {
+            MemoryTrimService.PauseForInteraction(TimeSpan.FromSeconds(5));
             if (!SettingsService.Instance.Current.CaptureEnabled)
             {
                 ShowToast(LocalizationService.Get("Module_OffNote"));
@@ -668,11 +683,7 @@ namespace CryoUtils
             _developerToolbox.Activate();
         }
 
-        public void OpenPrivacy()
-        {
-            OpenWorkbench();
-            _workbench?.SelectTab(2);
-        }
+        public void OpenPrivacy() => OpenWorkbench("Privacy");
 
         public async void OpenOcrFile()
         {
@@ -714,63 +725,60 @@ namespace CryoUtils
             }
         }
 
-        public void OpenWorkbench()
+        public void OpenWorkbench(string? subTab = null)
         {
-            if (_workbench != null)
-            {
-                if (!_workbench.IsVisible)
-                {
-                    _workbench.Show();
-                }
-                _workbench.Activate();
-                return;
-            }
-
-            EnsureUiResourcesLoaded();
-            _workbench = new PowerToolsWindow();
-            _workbench.Closed += (_, _) =>
-            {
-                _workbench = null;
-                if (!_exiting)
-                {
-                    MemoryTrimService.ScheduleTrim(400);
-                }
-            };
-            _workbench.Show();
-            _workbench.Activate();
+            ShowDashboard("Workspace", subTab);
         }
 
-        public void PrepareForCapture()
+        public bool PrepareForCapture()
         {
+            bool hidAny = false;
             if (IsDashboardVisible)
             {
                 _captureRestoresDashboard = true;
                 _dashboard?.Hide();
+                hidAny = true;
             }
 
-            _toast?.Close();
-            _toast = null;
+            if (_toast != null)
+            {
+                _toast.Close();
+                _toast = null;
+                hidAny = true;
+            }
             if (_colorPicker != null)
             {
                 _pickerRestoresDashboard = false;
                 _colorPicker.Close();
+                hidAny = true;
             }
             if (_clipboardWindow != null)
             {
                 _clipboardWindow.Close();
-            }
-            if (_workbench != null)
-            {
-                _workbench.Hide();
+                hidAny = true;
             }
             if (_liveDraw != null)
             {
                 _liveDraw.Close();
+                hidAny = true;
             }
             if (_screenRuler != null)
             {
                 _screenRuler.Close();
+                hidAny = true;
             }
+
+            return hidAny;
+        }
+
+        private void OnCapturePoolInvalidated(object? sender, EventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(() => CaptureController.Instance.InvalidateOverlayPool()));
+        }
+
+        private void OnCapturePoolLanguageInvalidated()
+        {
+            Dispatcher.BeginInvoke(new Action(() => CaptureController.Instance.InvalidateOverlayPool()));
         }
 
         public void FinishCapture()
@@ -783,7 +791,7 @@ namespace CryoUtils
             _captureRestoresDashboard = false;
             Dispatcher.BeginInvoke(
                 DispatcherPriority.Background,
-                new Action(() => ShowDashboard()));
+                new Action(() => ShowDashboard(animateReveal: false)));
         }
 
         public void RepeatLastRegion()
@@ -842,7 +850,7 @@ namespace CryoUtils
             }
 
             var settings = SettingsService.Instance.Current;
-            ThemeService.Apply(settings.Theme);
+            ThemeService.Apply(settings.Theme, accentPreset: settings.AccentPreset);
             LocalizationService.Instance.Apply(settings.Language);
             bool languageChanged = !string.Equals(_lastLanguage, settings.Language, StringComparison.Ordinal);
             if (languageChanged)
@@ -876,8 +884,13 @@ namespace CryoUtils
             }
             ApplyHotkeys();
 
+            bool modeChanged = _lastScreenshotOnly != settings.ScreenshotOnlyMode;
             bool enteredScreenshotOnly = !_lastScreenshotOnly && settings.ScreenshotOnlyMode;
             _lastScreenshotOnly = settings.ScreenshotOnlyMode;
+            if (modeChanged)
+            {
+                CaptureController.Instance.InvalidateOverlayPool();
+            }
             if (!full)
             {
                 CloseNonCaptureUtilityWindows();
@@ -892,7 +905,6 @@ namespace CryoUtils
         private void CloseNonCaptureUtilityWindows()
         {
             CloseUtilityWindow(ref _clipboardWindow);
-            CloseUtilityWindow(ref _workbench);
             CloseUtilityWindow(ref _colorPicker);
             CloseUtilityWindow(ref _liveDraw);
             CloseUtilityWindow(ref _screenRuler);
@@ -1113,6 +1125,10 @@ namespace CryoUtils
             _exiting = true;
             _recordingActive = false;
             MemoryTrimService.Cancel(shuttingDown: true);
+            ThemeService.ThemeChanged -= OnCapturePoolInvalidated;
+            LocalizationService.Instance.LanguageChanged -= OnCapturePoolLanguageInvalidated;
+            Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnCapturePoolInvalidated;
+            CaptureController.Instance.DisposeOverlayPool();
             SettingsService.Instance.Save();
             CloseAllPinWindows();
             _dashboard?.PrepareForShutdown();

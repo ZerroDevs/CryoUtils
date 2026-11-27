@@ -14,7 +14,7 @@
 
 CryoUtils keeps screenshot capture, annotation, OCR, color picking, image compression, clipboard history, and window pinning in one small tray application. Capture a region or a window, mark it up, copy or save it, pull text out of it locally, or record it as a GIF or MP4. The Cryo Workbench adds a capture library, recipes, file actions, privacy controls, color tools, PDF/media jobs, and diagnostics without a second app. It runs as a standard user, keeps its data on the machine except for explicitly consented uploads, and has no account, telemetry, or background service.
 
-The current baseline is `0.0.101`. The application runs locally from the tray and does not require administrator elevation.
+The current baseline is `0.0.102`. The application runs locally from the tray and does not require administrator elevation.
 
 ## Contents
 
@@ -67,9 +67,9 @@ The current baseline is `0.0.101`. The application runs locally from the tray an
 
 ### Dashboard
 
-The dashboard is a compact WPF window with five tabs: **Overview**, **Screen Capture**, **Tools & Utilities**, **Hotkeys**, and **Settings** (with About and Updates integrated). It shows module cards, current versions, recent captures, quick actions, and the state of the tray modules.
+The dashboard is a compact, resizable CryoTray-style WPF window (`680×700`, `Ctrl+K` quick command search) with six tabs: **Overview**, **Capture**, **Tools**, **Workspace** (unified 8-section Cryo Workbench for Library, Workflows, Privacy, File Actions, Color, Media, Pinner, and Diagnostics), **Hotkeys**, and **Settings** (with About and Updates integrated).
 
-The dashboard uses the shared CryoUtils surface language: flat cards, one-pixel borders, the Cryo Blue accent, and small radii. It follows the selected theme and language at runtime.
+The dashboard uses the shared CryoTray visual grammar: edge-to-edge PCB Hero header, glowing Aperture mode strip, `48×24` `ON`/`OFF` pill switches, flat `1 px` divider rows, `#141414` dark surface (`WindowBorderBrush` `#2B88D8`), and small sharp radii (`CornerRadius="0"`). It switches theme and EN/AR RTL layout live at runtime.
 
 ### Capture and annotations
 
@@ -199,7 +199,7 @@ The About tab checks the latest GitHub release for `ZerroDevs/CryoUtils`. When a
 The release assets include SHA-256 checksum files. Verify a downloaded installer or portable archive manually if you want a stronger integrity check before running it:
 
 ```powershell
-Get-FileHash .\CryoUtils-Setup-0.0.101.exe -Algorithm SHA256
+Get-FileHash .\CryoUtils-Setup-0.0.102.exe -Algorithm SHA256
 ```
 
 The in-app updater relies on HTTPS GitHub delivery; it selects the matching `Full` (`CryoUtils-Setup-<version>.exe`) or `Lite` (`CryoUtils-Setup-Lite-<version>.exe`) installer based on whether `coreclr.dll` is present. Signing is applied to release assets when the optional signing secrets are configured in GitHub Actions.
@@ -287,9 +287,9 @@ Each file receives a matching `.sha256` checksum. The Inno script is `Installer\
 
 The root `VERSION` file contains exactly three numeric parts. `CryoUtils.csproj` reads it into the assembly, file, and informational versions.
 
-- Current baseline: `0.0.101`.
-- Next releases: `0.0.102`, `0.0.103`, and so on.
-- Tags: `v0.0.101`, `v0.0.102`, and so on.
+- Current baseline: `0.0.102`.
+- Next releases: `0.0.103`, `0.0.104`, and so on.
+- Tags: `v0.0.102`, `v0.0.103`, and so on.
 
 A push to `main` that changes `VERSION`, or a manual **Release** workflow run, validates the version, builds the Release application, publishes a self-contained win-x64 payload, compiles the Inno installer with Inno Setup, creates checksummed setup and portable assets, and publishes a GitHub release for the matching tag.
 
@@ -356,13 +356,13 @@ CryoUtils is one WPF process with a tray lifetime and short-lived capture window
 CryoUtils.exe
 ├── App.xaml.cs                     startup, tray lifecycle, capture, settings, updates
 ├── Views/
-│   ├── MainWindow                  dashboard and five panels
+│   ├── MainWindow                  resizable CryoTray-style dashboard (6 tabs + Ctrl+K search)
+│   ├── Tabs/WorkbenchTabView       unified 8-subtab Cryo Workbench (Library..Diagnostics)
 │   ├── CaptureOverlayWindow        per-monitor capture surface
 │   ├── OcrResultWindow             editable OCR results and text tools
 │   ├── ColorPickerWindow           magnifier and color formats
 │   ├── ClipboardHistoryWindow      searchable clipboard list
 │   ├── ClipboardTransformWindow    text transform preview
-│   ├── PowerToolsWindow            Cryo Workbench tabs
 │   ├── RecordingBarWindow          GIF/MP4 recording controls
 │   └── PinWindow / PinnedBorder    pinned images and topmost window border
 ├── Services/

@@ -11,12 +11,19 @@ using CryoUtils.Services;
 
 namespace CryoUtils.Views
 {
+    public sealed class WindowCandidate
+    {
+        public Rect Bounds { get; init; }
+        public string Title { get; init; } = "";
+    }
+
     public sealed class CaptureController
     {
         private static CaptureController? _instance;
         public static CaptureController Instance => _instance ??= new CaptureController();
 
         private readonly List<CaptureOverlayWindow> _windows = new();
+        private readonly Dictionary<string, CaptureOverlayWindow> _overlayPool = new();
         private readonly Stack<List<Annotation>> _undo = new();
         private readonly Stack<List<Annotation>> _redo = new();
         private bool _starting;
@@ -24,11 +31,16 @@ namespace CryoUtils.Views
         private bool _oneShotExit;
         private bool? _sessionPrettyFrameOverride;
         private Annotation? _lastWheelStyledAnnotation;
+        private bool _poolDirty;
+        private bool _autoRedacting;
+        private readonly System.Windows.Threading.DispatcherTimer _poolIdleTimer;
 
         public NativeMethods.RECT VirtualBounds { get; private set; }
         public BitmapSource? VirtualBitmap { get; private set; }
         public IReadOnlyList<MonitorInfo> Monitors { get; private set; } = Array.Empty<MonitorInfo>();
         public Rect? Selection { get; private set; }
+        public IReadOnlyList<WindowCandidate> WindowCandidates { get; private set; } = Array.Empty<WindowCandidate>();
+        public WindowCandidate? HoveredWindow { get; private set; }
         public List<Annotation> Annotations { get; } = new();
         public Annotation? SelectedAnnotation { get; private set; }
         public CaptureTool Tool { get; private set; } = CaptureTool.Select;
@@ -42,7 +54,10 @@ namespace CryoUtils.Views
         public bool IsActive { get; private set; }
         public bool IsClosing { get; private set; }
         public bool ShowCrosshair { get; set; } = true;
-        public bool UsePrettyFrame => _sessionPrettyFrameOverride ?? SettingsService.Instance.Current.PrettyFrameExport;
+        public bool UsePrettyFrame =>
+            _sessionPrettyFrameOverride ??
+            GetCurrentProfile().PrettyFrame ??
+            SettingsService.Instance.Current.PrettyFrameExport;
         public bool RecordAfterSelection
         {
             get => _recordAfterSelection;
@@ -53,6 +68,19 @@ namespace CryoUtils.Views
 
         private CaptureController()
         {
+            _poolIdleTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(90)
+            };
+            _poolIdleTimer.Tick += (_, _) =>
+            {
+                _poolIdleTimer.Stop();
+                if (!IsActive && !_starting)
+                {
+                    DisposeOverlayPoolCore();
+                    MemoryTrimService.ScheduleTrim(200, trimWorkingSet: true);
+                }
+            };
         }
 
         public void TogglePrettyFrame()
@@ -124,14 +152,22 @@ namespace CryoUtils.Views
             _starting = true;
             try
             {
+                IntPtr foregroundHwnd = IntPtr.Zero;
                 if (string.IsNullOrEmpty(SourceApp) && string.IsNullOrEmpty(SourceWindow))
                 {
-                    CaptureSourceInfo();
+                    foregroundHwnd = CaptureSourceWindowFast();
                 }
+
                 var app = Application.Current as App;
                 App.EnsureUiResourcesLoaded();
-                app?.PrepareForCapture();
-                await System.Threading.Tasks.Task.Delay(150);
+                bool hidAny = app?.PrepareForCapture() ?? false;
+                if (hidAny)
+                {
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                        () => { },
+                        System.Windows.Threading.DispatcherPriority.Render);
+                    NativeMethods.DwmFlush();
+                }
 
                 var settings = SettingsService.Instance.Current;
                 Tool = CaptureTool.Select;
@@ -211,17 +247,18 @@ namespace CryoUtils.Views
 
                 Selection = new Rect(targetX, targetY, clampedW, clampedH);
 
-                foreach (var monitor in Monitors)
+                if (_poolDirty)
                 {
-                    var overlay = new CaptureOverlayWindow(this, monitor);
+                    DisposeOverlayPoolCore();
+                }
+                for (int i = 0; i < Monitors.Count; i++)
+                {
+                    var overlay = AcquireOverlay(Monitors[i], i);
                     _windows.Add(overlay);
                 }
 
                 IsActive = true;
-                foreach (var overlay in _windows)
-                {
-                    overlay.Show();
-                }
+                ShowAllOverlays();
 
                 ActiveOverlay = _windows.FirstOrDefault(w => w.Monitor == targetMonitor) ?? _windows.FirstOrDefault();
                 if (ActiveOverlay != null)
@@ -231,6 +268,10 @@ namespace CryoUtils.Views
                 }
 
                 NotifyChanged();
+                if (foregroundHwnd != IntPtr.Zero)
+                {
+                    ResolveSourceProcessAsync(foregroundHwnd);
+                }
             }
             catch (Exception ex)
             {
@@ -246,13 +287,21 @@ namespace CryoUtils.Views
         private async System.Threading.Tasks.Task StartAsync(Rect? presetSelection = null)
         {
             _starting = true;
+            _poolIdleTimer.Stop();
             try
             {
-                CaptureSourceInfo();
+                IntPtr foregroundHwnd = CaptureSourceWindowFast();
                 var app = Application.Current as App;
                 App.EnsureUiResourcesLoaded();
-                app?.PrepareForCapture();
-                await System.Threading.Tasks.Task.Delay(150);
+                bool hidAny = app?.PrepareForCapture() ?? false;
+                if (hidAny)
+                {
+                    // Only wait for one render + DWM compose when we actually hid an open window.
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                        () => { },
+                        System.Windows.Threading.DispatcherPriority.Render);
+                    NativeMethods.DwmFlush();
+                }
 
                 var settings = SettingsService.Instance.Current;
                 Tool = CaptureTool.Select;
@@ -271,6 +320,10 @@ namespace CryoUtils.Views
                 VirtualBounds = ScreenCaptureService.GetVirtualBounds();
                 VirtualBitmap = ScreenCaptureService.CaptureRegion(VirtualBounds);
                 Monitors = ScreenCaptureService.GetMonitors();
+                WindowCandidates = SettingsService.Instance.Current.HoverWindowHighlight
+                    ? CaptureVisibleWindowsSnapshot(VirtualBounds)
+                    : Array.Empty<WindowCandidate>();
+                HoveredWindow = null;
 
                 if (presetSelection.HasValue)
                 {
@@ -291,17 +344,18 @@ namespace CryoUtils.Views
                     cursor.X >= monitor.Bounds.Left && cursor.X < monitor.Bounds.Right &&
                     cursor.Y >= monitor.Bounds.Top && cursor.Y < monitor.Bounds.Bottom) ?? Monitors.FirstOrDefault();
 
-                foreach (var monitor in Monitors)
+                if (_poolDirty)
                 {
-                    var overlay = new CaptureOverlayWindow(this, monitor);
+                    DisposeOverlayPoolCore();
+                }
+                for (int i = 0; i < Monitors.Count; i++)
+                {
+                    var overlay = AcquireOverlay(Monitors[i], i);
                     _windows.Add(overlay);
                 }
 
                 IsActive = true;
-                foreach (var overlay in _windows)
-                {
-                    overlay.Show();
-                }
+                ShowAllOverlays();
 
                 if (ActiveOverlay != null)
                 {
@@ -310,6 +364,7 @@ namespace CryoUtils.Views
                 }
 
                 NotifyChanged();
+                ResolveSourceProcessAsync(foregroundHwnd);
             }
             catch (Exception ex)
             {
@@ -319,6 +374,118 @@ namespace CryoUtils.Views
             finally
             {
                 _starting = false;
+            }
+        }
+
+        public void PreWarmIdle()
+        {
+            if (IsActive || _starting || _oneShotExit)
+            {
+                return;
+            }
+
+            try
+            {
+                App.EnsureUiResourcesLoaded();
+                ScreenCaptureService.WarmUpCapturePipeline();
+
+                var monitors = ScreenCaptureService.GetMonitors();
+                for (int i = 0; i < monitors.Count; i++)
+                {
+                    var monitor = monitors[i];
+                    string key = MonitorPoolKey(monitor, i);
+                    if (_overlayPool.ContainsKey(key))
+                    {
+                        continue;
+                    }
+
+                    var overlay = new CaptureOverlayWindow(this, monitor);
+                    new System.Windows.Interop.WindowInteropHelper(overlay).EnsureHandle();
+                    overlay.ParkInPool();
+                    _overlayPool[key] = overlay;
+                }
+                ActiveOverlay = null;
+            }
+            catch
+            {
+            }
+        }
+
+        public void InvalidateOverlayPool()
+        {
+            if (IsActive || _starting)
+            {
+                _poolDirty = true;
+                return;
+            }
+
+            DisposeOverlayPoolCore();
+        }
+
+        public void DisposeOverlayPool()
+        {
+            DisposeOverlayPoolCore();
+        }
+
+        private void DisposeOverlayPoolCore()
+        {
+            _poolIdleTimer.Stop();
+            _poolDirty = false;
+            foreach (var overlay in _overlayPool.Values.ToList())
+            {
+                if (!_windows.Contains(overlay))
+                {
+                    overlay.DisposeFromPool();
+                }
+            }
+            _overlayPool.Clear();
+        }
+
+        private static string MonitorPoolKey(MonitorInfo monitor, int index) =>
+            string.IsNullOrEmpty(monitor.DeviceName) ? $"MON_{index}" : monitor.DeviceName;
+
+        private CaptureOverlayWindow AcquireOverlay(MonitorInfo monitor, int index)
+        {
+            if (!_oneShotExit)
+            {
+                string key = MonitorPoolKey(monitor, index);
+                if (_overlayPool.TryGetValue(key, out var pooled))
+                {
+                    if (pooled.MatchesMonitor(monitor))
+                    {
+                        pooled.PrepareForReuse(this, monitor);
+                        return pooled;
+                    }
+
+                    _overlayPool.Remove(key);
+                    if (!_windows.Contains(pooled))
+                    {
+                        pooled.DisposeFromPool();
+                    }
+                }
+
+                var created = new CaptureOverlayWindow(this, monitor);
+                _overlayPool[key] = created;
+                return created;
+            }
+
+            return new CaptureOverlayWindow(this, monitor);
+        }
+
+        private void ShowAllOverlays()
+        {
+            foreach (var overlay in _windows)
+            {
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(overlay).EnsureHandle();
+                NativeMethods.SetWindowPos(
+                    hwnd,
+                    NativeMethods.HWND_TOPMOST,
+                    overlay.Monitor.Bounds.Left,
+                    overlay.Monitor.Bounds.Top,
+                    overlay.Monitor.Bounds.Width,
+                    overlay.Monitor.Bounds.Height,
+                    NativeMethods.SWP_NOACTIVATE);
+                overlay.Show();
             }
         }
 
@@ -333,6 +500,105 @@ namespace CryoUtils.Views
         public void NotifyChanged()
         {
             StateChanged?.Invoke();
+        }
+
+        public void SetHoveredWindow(WindowCandidate? candidate)
+        {
+            if (HoveredWindow == null && candidate == null)
+            {
+                return;
+            }
+            if (HoveredWindow != null && candidate != null && HoveredWindow.Bounds == candidate.Bounds)
+            {
+                return;
+            }
+            HoveredWindow = candidate;
+            NotifyChanged();
+        }
+
+        public WindowCandidate? HitTestWindowAt(Point globalPhysical) =>
+            FindWindowCandidateAt(WindowCandidates, globalPhysical);
+
+        internal static WindowCandidate? FindWindowCandidateAt(IReadOnlyList<WindowCandidate> candidates, Point point)
+        {
+            if (candidates == null || candidates.Count == 0)
+            {
+                return null;
+            }
+
+            foreach (var candidate in candidates)
+            {
+                if (candidate.Bounds.Contains(point))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        private static IReadOnlyList<WindowCandidate> CaptureVisibleWindowsSnapshot(NativeMethods.RECT virtualBounds)
+        {
+            var results = new List<WindowCandidate>(24);
+            try
+            {
+                uint currentPid = (uint)Process.GetCurrentProcess().Id;
+                var virtualRect = new Rect(virtualBounds.Left, virtualBounds.Top, virtualBounds.Width, virtualBounds.Height);
+                NativeMethods.EnumWindows((hwnd, _) =>
+                {
+                    if (!NativeMethods.IsWindowVisible(hwnd) || NativeMethods.IsIconic(hwnd))
+                    {
+                        return true;
+                    }
+
+                    NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+                    if (pid == currentPid)
+                    {
+                        return true;
+                    }
+
+                    if (NativeMethods.DwmGetWindowAttribute(hwnd, NativeMethods.DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 &&
+                        cloaked != 0)
+                    {
+                        return true;
+                    }
+
+                    long exStyle = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE).ToInt64();
+                    if ((exStyle & NativeMethods.WS_EX_TOOLWINDOW) != 0)
+                    {
+                        return true;
+                    }
+
+                    var bounds = ScreenCaptureService.GetWindowBounds(hwnd);
+                    if (bounds.Width < 30 || bounds.Height < 30)
+                    {
+                        return true;
+                    }
+
+                    var rect = Rect.Intersect(new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height), virtualRect);
+                    if (rect.IsEmpty || rect.Width < 30 || rect.Height < 30)
+                    {
+                        return true;
+                    }
+
+                    // Exclude desktop host covering the entire virtual screen (e.g. Progman / WorkerW)
+                    string title = ScreenCaptureService.GetWindowTitle(hwnd);
+                    if (string.IsNullOrWhiteSpace(title) &&
+                        rect.Width >= virtualRect.Width - 2 &&
+                        rect.Height >= virtualRect.Height - 2)
+                    {
+                        return true;
+                    }
+
+                    results.Add(new WindowCandidate { Bounds = rect, Title = title });
+                    return true;
+                }, IntPtr.Zero);
+            }
+            catch
+            {
+            }
+
+            return results;
         }
 
         public void SetSelection(Rect? selection)
@@ -637,7 +903,7 @@ namespace CryoUtils.Views
             {
                 dc.DrawImage(crop, new Rect(0, 0, physical.Width, physical.Height));
                 dc.PushTransform(new TranslateTransform(-physical.X, -physical.Y));
-                AnnotationRenderer.Draw(dc, Annotations, VirtualBitmap);
+                AnnotationRenderer.Draw(dc, Annotations, VirtualBitmap, VirtualBounds.Left, VirtualBounds.Top);
                 dc.Pop();
             }
 
@@ -650,20 +916,37 @@ namespace CryoUtils.Views
             target.Render(visual);
             target.Freeze();
 
-            return allowFrame && UsePrettyFrame
-                ? ApplyPrettyFrame(target)
-                : target;
+            if (allowFrame && UsePrettyFrame)
+            {
+                string? stamp = GetCurrentProfile().StampBezel
+                    ? FormatBugReportBezelStamp(SourceApp)
+                    : null;
+                return ApplyPrettyFrame(target, stamp);
+            }
+
+            return target;
         }
 
-        internal static BitmapSource ApplyPrettyFrame(BitmapSource source)
+        internal static string FormatBugReportBezelStamp(string? sourceApp, DateTime? timestamp = null)
+        {
+            DateTime now = timestamp ?? DateTime.Now;
+            string datePart = now.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+            return string.IsNullOrWhiteSpace(sourceApp)
+                ? datePart
+                : $"{sourceApp.Trim()} · {datePart}";
+        }
+
+        internal static BitmapSource ApplyPrettyFrame(BitmapSource source, string? footerLabel = null)
         {
             int w = Math.Max(1, source.PixelWidth);
             int h = Math.Max(1, source.PixelHeight);
             int minDim = Math.Min(w, h);
             int pad = Math.Clamp((int)Math.Round(minDim * 0.06), 20, 56);
+            bool hasStamp = !string.IsNullOrWhiteSpace(footerLabel);
+            int bottomPad = hasStamp ? Math.Max(pad, 30) : pad;
             int radius = Math.Clamp((int)Math.Round(minDim * 0.02), 8, 18);
             int outW = w + (pad * 2);
-            int outH = h + (pad * 2);
+            int outH = h + pad + bottomPad;
 
             var bgBrush = new LinearGradientBrush(
                 Color.FromRgb(0x18, 0x22, 0x35),
@@ -688,6 +971,7 @@ namespace CryoUtils.Views
                 {
                     byte alpha = (byte)(18 + (5 - i) * 7);
                     var shadowBrush = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0));
+                    shadowBrush.Freeze();
                     double expand = i * 3.0;
                     double dy = i * 2.5;
                     var shadowRect = new Rect(pad - expand * 0.5, pad + dy, w + expand, h + expand * 0.8);
@@ -701,6 +985,28 @@ namespace CryoUtils.Views
                 dc.DrawImage(source, shotRect);
                 dc.Pop();
                 dc.DrawRoundedRectangle(null, innerStroke, new Rect(pad + 0.5, pad + 0.5, w - 1, h - 1), radius, radius);
+
+                if (hasStamp)
+                {
+                    var stampBrush = new SolidColorBrush(Color.FromArgb(196, 0xB8, 0xCE, 0xE2));
+                    stampBrush.Freeze();
+                    var formatted = new FormattedText(
+                        footerLabel!,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        FlowDirection.LeftToRight,
+                        new Typeface("Segoe UI"),
+                        11,
+                        stampBrush,
+                        1.0)
+                    {
+                        MaxTextWidth = Math.Max(40, w),
+                        MaxLineCount = 1,
+                        Trimming = TextTrimming.CharacterEllipsis
+                    };
+                    double textY = pad + h + Math.Max(6, (bottomPad - formatted.Height) / 2.0);
+                    double textX = Math.Max(pad, pad + w - formatted.Width);
+                    dc.DrawText(formatted, new Point(textX, textY));
+                }
             }
 
             var framed = new RenderTargetBitmap(outW, outH, 96, 96, PixelFormats.Pbgra32);
@@ -724,6 +1030,13 @@ namespace CryoUtils.Views
                         SourceWindow,
                         bitmap.PixelWidth,
                         bitmap.PixelHeight);
+                    var s = SettingsService.Instance.Current;
+                    if (!s.ScreenshotOnlyMode && s.OcrLibraryIndexingEnabled &&
+                        !string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(extension, ".mp4", StringComparison.OrdinalIgnoreCase))
+                    {
+                        CaptureLibraryService.Instance.IndexOcrInBackground(path, bitmap);
+                    }
                 }
                 return path;
             }
@@ -733,27 +1046,49 @@ namespace CryoUtils.Views
             }
         }
 
-        private void CaptureSourceInfo()
+        private IntPtr CaptureSourceWindowFast()
         {
             try
             {
                 IntPtr foreground = NativeMethods.GetForegroundWindow();
-                SourceWindow = ScreenCaptureService.GetWindowTitle(foreground);
-                NativeMethods.GetWindowThreadProcessId(foreground, out uint processId);
-                if (processId == 0)
-                {
-                    SourceApp = "";
-                    return;
-                }
-
-                using var process = Process.GetProcessById((int)processId);
-                SourceApp = process.ProcessName;
+                SourceWindow = foreground != IntPtr.Zero
+                    ? ScreenCaptureService.GetWindowTitle(foreground)
+                    : "";
+                SourceApp = "";
+                return foreground;
             }
             catch
             {
                 SourceApp = "";
                 SourceWindow = "";
+                return IntPtr.Zero;
             }
+        }
+
+        private void ResolveSourceProcessAsync(IntPtr foreground)
+        {
+            if (foreground == IntPtr.Zero)
+            {
+                return;
+            }
+
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    NativeMethods.GetWindowThreadProcessId(foreground, out uint processId);
+                    if (processId == 0)
+                    {
+                        return;
+                    }
+
+                    using var process = Process.GetProcessById((int)processId);
+                    SourceApp = process.ProcessName;
+                }
+                catch
+                {
+                }
+            });
         }
 
         public void UploadSelectionAsync()
@@ -803,6 +1138,13 @@ namespace CryoUtils.Views
                 return;
             }
 
+            var flashRect = GetSelectionPhysical();
+            var profile = GetCurrentProfile();
+            if (profile.DiscordOptimize)
+            {
+                bitmap = FitBitmapUnderByteBudget(bitmap, 8_500_000);
+            }
+
             try
             {
                 Clipboard.SetImage(bitmap);
@@ -821,7 +1163,7 @@ namespace CryoUtils.Views
             }
 
             string? savedPath = SettingsService.Instance.Current.ArchiveCopiedCaptures
-                ? TryQuickSaveCapture(bitmap)
+                ? TryQuickSaveCapture(bitmap, profile.ForcePng ? ".png" : null)
                 : null;
             RecentCaptureService.Instance.Add(bitmap, savedPath, LocalizationService.Get("Nav_Capture"));
             if (SettingsService.Instance.Current.CaptureSound)
@@ -847,7 +1189,11 @@ namespace CryoUtils.Views
                 return;
             }
 
-            string extension = ImageIO.ExtensionForFormat(SettingsService.Instance.Current.ImageFormat);
+            var flashRect = GetSelectionPhysical();
+            var profile = GetCurrentProfile();
+            string extension = profile.ForcePng
+                ? ".png"
+                : ImageIO.ExtensionForFormat(SettingsService.Instance.Current.ImageFormat);
             string path;
             try
             {
@@ -972,6 +1318,185 @@ namespace CryoUtils.Views
             }
         }
 
+        internal readonly record struct CaptureProfileOptions(
+            string Id,
+            bool? InstantCopy,
+            bool? PrettyFrame,
+            bool? CursorCoords,
+            bool AutoOcrCopy,
+            bool ForcePng,
+            bool DiscordOptimize,
+            bool StampBezel = false);
+
+        internal static string NormalizeCaptureProfile(string? profile)
+        {
+            if (string.Equals(profile, "Discord", StringComparison.OrdinalIgnoreCase)) return "Discord";
+            if (string.Equals(profile, "BugReport", StringComparison.OrdinalIgnoreCase)) return "BugReport";
+            if (string.Equals(profile, "OcrOnly", StringComparison.OrdinalIgnoreCase)) return "OcrOnly";
+            return "Default";
+        }
+
+        internal static string CycleCaptureProfile(string? current) =>
+            NormalizeCaptureProfile(current) switch
+            {
+                "Default" => "Discord",
+                "Discord" => "BugReport",
+                "BugReport" => "OcrOnly",
+                _ => "Default"
+            };
+
+        internal static CaptureProfileOptions GetCurrentProfile() =>
+            ResolveCaptureProfile(SettingsService.Instance.Current);
+
+        internal static CaptureProfileOptions ResolveCaptureProfile(AppSettings settings)
+        {
+            return NormalizeCaptureProfile(settings.ActiveCaptureProfile) switch
+            {
+                "Discord" => new CaptureProfileOptions(
+                    Id: "Discord",
+                    InstantCopy: true,
+                    PrettyFrame: false,
+                    CursorCoords: null,
+                    AutoOcrCopy: false,
+                    ForcePng: false,
+                    DiscordOptimize: true),
+                "BugReport" => new CaptureProfileOptions(
+                    Id: "BugReport",
+                    InstantCopy: false,
+                    PrettyFrame: true,
+                    CursorCoords: true,
+                    AutoOcrCopy: false,
+                    ForcePng: true,
+                    DiscordOptimize: false,
+                    StampBezel: true),
+                "OcrOnly" => new CaptureProfileOptions(
+                    Id: "OcrOnly",
+                    InstantCopy: true,
+                    PrettyFrame: false,
+                    CursorCoords: null,
+                    AutoOcrCopy: true,
+                    ForcePng: false,
+                    DiscordOptimize: false),
+                _ => new CaptureProfileOptions(
+                    Id: "Default",
+                    InstantCopy: null,
+                    PrettyFrame: null,
+                    CursorCoords: null,
+                    AutoOcrCopy: false,
+                    ForcePng: false,
+                    DiscordOptimize: false)
+            };
+        }
+
+        private static BitmapSource FitBitmapUnderByteBudget(BitmapSource source, long maxBytes)
+        {
+            BitmapSource candidate = source;
+            foreach (double factor in new[] { 1.0, 0.85, 0.70, 0.55, 0.42 })
+            {
+                if (factor < 1.0)
+                {
+                    var scaled = new TransformedBitmap(source, new ScaleTransform(factor, factor));
+                    scaled.Freeze();
+                    candidate = scaled;
+                }
+
+                if (ImageIO.EncodePng(candidate).Length <= maxBytes)
+                {
+                    return candidate;
+                }
+            }
+
+            return candidate;
+        }
+
+        public async System.Threading.Tasks.Task AutoRedactSelectionAsync()
+        {
+            if (_autoRedacting || !IsActive || IsClosing)
+            {
+                return;
+            }
+
+            if (VirtualBitmap == null || !Selection.HasValue)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            _autoRedacting = true;
+            var physical = GetSelectionPhysical();
+            var bitmap = RenderSelection(allowFrame: false);
+            if (bitmap == null)
+            {
+                _autoRedacting = false;
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            try
+            {
+                var words = await OcrService.RecognizeWordsAsync(bitmap);
+                if (!IsActive || IsClosing || !Selection.HasValue)
+                {
+                    return;
+                }
+
+                var hits = OcrService.FindSensitiveBounds(words);
+                if (hits.Count == 0)
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_AutoRedactNone"));
+                    return;
+                }
+
+                PushUndo();
+                int added = 0;
+                foreach (var box in hits)
+                {
+                    double x = Math.Max(physical.X, physical.X + box.X);
+                    double y = Math.Max(physical.Y, physical.Y + box.Y);
+                    double right = Math.Min(physical.X + physical.Width, physical.X + box.Right);
+                    double bottom = Math.Min(physical.Y + physical.Height, physical.Y + box.Bottom);
+                    double w = right - x;
+                    double h = bottom - y;
+                    if (w < 2 || h < 2)
+                    {
+                        continue;
+                    }
+
+                    Annotations.Add(new Annotation
+                    {
+                        Kind = AnnotationKind.Blur,
+                        Color = CurrentColor,
+                        Thickness = Thickness,
+                        Rect = new Rect(x, y, w, h)
+                    });
+                    added++;
+                }
+
+                if (added > 0)
+                {
+                    NotifyChanged();
+                    (Application.Current as App)?.ShowToast(
+                        LocalizationService.Format("Capture_AutoRedactApplied", added));
+                }
+                else
+                {
+                    if (_undo.Count > 0)
+                    {
+                        _undo.Pop();
+                    }
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_AutoRedactNone"));
+                }
+            }
+            catch (Exception ex)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Format("Error_Body", ex.Message));
+            }
+            finally
+            {
+                _autoRedacting = false;
+            }
+        }
+
         public void SnapForegroundWindow()
         {
             if (IsActive || _starting)
@@ -1091,9 +1616,7 @@ namespace CryoUtils.Views
         {
             foreach (var overlay in _windows)
             {
-                overlay.Opacity = transparent ? 0 : 1;
-                overlay.IsHitTestVisible = !transparent;
-                overlay.Topmost = !transparent;
+                overlay.SetDragTransparentNative(transparent);
             }
 
             if (!transparent)
@@ -1225,21 +1748,35 @@ namespace CryoUtils.Views
             IsClosing = true;
             bool shouldOneShotExit = allowOneShotExit && _oneShotExit;
             _oneShotExit = false;
+            bool canPool = !shouldOneShotExit && !_poolDirty && ((Application.Current as App)?.IsExiting != true);
             foreach (var overlay in _windows.ToList())
             {
                 try
                 {
-                    overlay.Close();
+                    if (canPool && _overlayPool.ContainsValue(overlay))
+                    {
+                        overlay.ParkInPool();
+                    }
+                    else
+                    {
+                        overlay.DisposeFromPool();
+                    }
                 }
                 catch
                 {
                 }
             }
             _windows.Clear();
+            if (_poolDirty)
+            {
+                DisposeOverlayPoolCore();
+            }
             IsActive = false;
             _recordAfterSelection = false;
             ActiveOverlay = null;
             Selection = null;
+            WindowCandidates = Array.Empty<WindowCandidate>();
+            HoveredWindow = null;
             Annotations.Clear();
             SelectedAnnotation = null;
             _lastWheelStyledAnnotation = null;
@@ -1260,7 +1797,12 @@ namespace CryoUtils.Views
                 app?.FinishCapture();
             }
             NotifyChanged();
-            MemoryTrimService.ScheduleTrim(250);
+            if (_overlayPool.Count > 0)
+            {
+                _poolIdleTimer.Stop();
+                _poolIdleTimer.Start();
+            }
+            MemoryTrimService.ScheduleTrim(250, trimWorkingSet: false);
         }
 
         public void RemoveOverlay(CaptureOverlayWindow overlay)
@@ -1275,6 +1817,8 @@ namespace CryoUtils.Views
             {
                 IsActive = false;
                 Selection = null;
+                WindowCandidates = Array.Empty<WindowCandidate>();
+                HoveredWindow = null;
                 Annotations.Clear();
                 SelectedAnnotation = null;
                 _lastWheelStyledAnnotation = null;
@@ -1282,7 +1826,7 @@ namespace CryoUtils.Views
                 _redo.Clear();
                 VirtualBitmap = null;
                 (Application.Current as App)?.FinishCapture();
-                MemoryTrimService.ScheduleTrim(250);
+                MemoryTrimService.ScheduleTrim(250, trimWorkingSet: false);
             }
         }
     }

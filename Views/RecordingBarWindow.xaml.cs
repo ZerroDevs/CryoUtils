@@ -205,6 +205,15 @@ namespace CryoUtils.Views
                         _session.DroppedFrames);
                 }
                 TxtState.Text = state;
+                if (_session.HasAudio && SettingsService.Instance.Current is var s && (s.RecorderSystemAudio || s.RecorderMicrophone))
+                {
+                    AudioMeterPanel.Visibility = Visibility.Visible;
+                    AudioMeterFill.Width = Math.Clamp(_session.AudioLevel * 40.0, 0, 40);
+                }
+                else
+                {
+                    AudioMeterPanel.Visibility = Visibility.Collapsed;
+                }
                 if (_session.IsRecording && !_stopping && elapsed.TotalSeconds >= _maxSeconds)
                 {
                     _ = AutoStopAsync();
@@ -500,8 +509,9 @@ namespace CryoUtils.Views
         private async Task StopGifAsync(bool copyToClipboard, bool showSaveDialog)
         {
             var result = await GetGifResultAsync();
-            if (result == null || result.PngFrames.Count == 0)
+            if (result == null || result.FramePaths.Count == 0)
             {
+                result?.Dispose();
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Rec_NoFrames"));
                 CloseBar();
                 return;
@@ -523,6 +533,7 @@ namespace CryoUtils.Views
                 Directory.CreateDirectory(dialog.InitialDirectory);
                 if (dialog.ShowDialog(this) != true)
                 {
+                    result.Dispose();
                     CloseBar();
                     return;
                 }
@@ -539,13 +550,13 @@ namespace CryoUtils.Views
             UpdateUi();
             try
             {
-                await Task.Run(() => GifWriter.EncodePngFramesToGif(
-                    result.PngFrames,
+                await Task.Run(() => GifWriter.EncodePngFilesToGif(
+                    result.FramePaths,
                     result.Width,
                     result.Height,
                     result.Fps,
                     path));
-                var preview = ImageIO.DecodeBytes(result.PngFrames[0]);
+                var preview = ImageIO.DecodeBytes(File.ReadAllBytes(result.FramePaths[0]));
                 ScreenCaptureService.EnforceSavedCaptureLimit();
                 RecentCaptureService.Instance.Add(
                     preview,
@@ -582,6 +593,8 @@ namespace CryoUtils.Views
             }
             finally
             {
+                result.Dispose();
+                _gifResult = null;
                 _encoding = false;
                 CloseBar();
             }

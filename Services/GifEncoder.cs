@@ -477,5 +477,39 @@ namespace CryoUtils.Services
             }
             writer.Finish();
         }
+
+        public static void EncodePngFilesToGif(
+            IReadOnlyList<string> framePaths,
+            int width,
+            int height,
+            int fps,
+            string path)
+        {
+            var paletteSamples = new List<BitmapSource>();
+            if (framePaths.Count > 0)
+            {
+                int sampleCount = Math.Min(24, framePaths.Count);
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    int index = sampleCount == 1 ? 0 : i * (framePaths.Count - 1) / (sampleCount - 1);
+                    if (File.Exists(framePaths[index]))
+                    {
+                        paletteSamples.Add(ImageIO.DecodeBytes(File.ReadAllBytes(framePaths[index])));
+                    }
+                }
+            }
+
+            using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 65536);
+            using var writer = new GifWriter(stream, width, height, fps, paletteSamples);
+            paletteSamples.Clear();
+            foreach (string framePath in framePaths)
+            {
+                if (File.Exists(framePath))
+                {
+                    writer.AddFrame(ImageIO.DecodeBytes(File.ReadAllBytes(framePath)));
+                }
+            }
+            writer.Finish();
+        }
     }
 }

@@ -29,54 +29,58 @@
             </Grid.RowDefinitions>
 
             <!-- Draggable Cryo-Family Title Bar -->
-            <Grid Grid.Row="0"
-                  Background="{DynamicResource TitleBarBackgroundBrush}"
-                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+            <Border Grid.Row="0"
+                    Background="{DynamicResource TitleBarBackgroundBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,8,0">
-                    <Image Source="pack://application:,,,/Images/CryoUtils-Icon.png"
-                           Width="16" Height="16"
-                           Stretch="Uniform"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Margin="0,0,7,0"/>
-                    <TextBlock Text="{DynamicResource Color_Title}"
-                               Foreground="{DynamicResource TextTitleBrush}"
-                               FontSize="12.5"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,8,0">
+                        <Image Source="pack://application:,,,/Images/CryoUtils-Icon.png"
+                               Width="16" Height="16"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Margin="0,0,7,0"/>
+                        <TextBlock Text="{DynamicResource Color_Title}"
+                                   Foreground="{DynamicResource TextTitleBrush}"
+                                   FontSize="12.5"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
 
-                <Border Grid.Column="1"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Padding="6,2"
-                        CornerRadius="2"
-                        Background="{DynamicResource InsetBackgroundBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}"
-                        BorderThickness="1"
-                        Margin="0,0,6,0">
-                    <TextBlock x:Name="TxtStatusBadge"
-                               Text="{DynamicResource Color_PickingStatus}"
-                               Foreground="{DynamicResource AccentTextBrush}"
-                               FontSize="10"
-                               FontWeight="SemiBold"/>
-                </Border>
+                    <Border Grid.Column="1"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Padding="6,2"
+                            CornerRadius="2"
+                            Background="{DynamicResource InsetBackgroundBrush}"
+                            BorderBrush="{DynamicResource DividerBrush}"
+                            BorderThickness="1"
+                            Margin="0,0,6,0">
+                        <TextBlock x:Name="TxtStatusBadge"
+                                   Text="{DynamicResource Color_PickingStatus}"
+                                   Foreground="{DynamicResource AccentTextBrush}"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"/>
+                    </Border>
 
-                <Button Grid.Column="2"
-                        Style="{StaticResource TitleActionBtn}"
-                        Width="28" Height="28"
-                        Margin="0,0,6,0"
-                        Click="BtnClose_Click"
-                        ToolTip="{DynamicResource Common_Close}"
-                        AutomationProperties.Name="{DynamicResource Common_Close}">
-                    <Path Data="{x:Static views:IconData.Close}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="11" Height="11" Stretch="Uniform"/>
-                </Button>
-            </Grid>
+                    <Button Grid.Column="2"
+                            Style="{StaticResource TitleActionBtn}"
+                            Width="28" Height="28"
+                            Margin="0,0,6,0"
+                            Click="BtnClose_Click"
+                            ToolTip="{DynamicResource Common_Close}"
+                            AutomationProperties.Name="{DynamicResource Common_Close}">
+                        <Path Data="{x:Static views:IconData.Close}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="11" Height="11" Stretch="Uniform"/>
+                    </Button>
+                </Grid>
+            </Border>
 
             <!-- Body -->
             <StackPanel Grid.Row="1" Margin="14,10,14,14">

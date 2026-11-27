@@ -70,12 +70,12 @@
             <SolidColorBrush x:Key="DangerSoftBackgroundBrush" Color="#3A2424"/>
             <SolidColorBrush x:Key="DangerSoftHoverBrush" Color="#4A2929"/>
 
-            <SolidColorBrush x:Key="ToggleOnTrackBrush" Color="#1E5C91"/>
+            <SolidColorBrush x:Key="ToggleOnTrackBrush" Color="#2B88D8"/>
             <SolidColorBrush x:Key="ToggleOnThumbBrush" Color="#FFFFFF"/>
-            <SolidColorBrush x:Key="ToggleOffTrackBrush" Color="#333333"/>
-            <SolidColorBrush x:Key="ToggleOffThumbBrush" Color="#8A8A8A"/>
-            <SolidColorBrush x:Key="ToggleOffTextBrush" Color="#B8B8B8"/>
-            <SolidColorBrush x:Key="ToggleOnTextBrush" Color="#6FB8F2"/>
+            <SolidColorBrush x:Key="ToggleOffTrackBrush" Color="#4A2A1E"/>
+            <SolidColorBrush x:Key="ToggleOffThumbBrush" Color="#E68A57"/>
+            <SolidColorBrush x:Key="ToggleOffTextBrush" Color="#D9835B"/>
+            <SolidColorBrush x:Key="ToggleOnTextBrush" Color="#FFFFFF"/>
 
             <SolidColorBrush x:Key="OverlayBackgroundBrush" Color="#E6161616"/>
             <SolidColorBrush x:Key="OverlayLabelBrush" Color="#AAAAAA"/>
@@ -102,8 +102,8 @@
             <SolidColorBrush x:Key="ModuleMutedBrush" Color="#929292"/>
             <SolidColorBrush x:Key="HeroBackgroundBrush" Color="#1B1B1B"/>
             <SolidColorBrush x:Key="HeroInsetBrush" Color="#162B3D"/>
-            <SolidColorBrush x:Key="HeroGradientStartBrush" Color="#1E4F7A"/>
-            <SolidColorBrush x:Key="HeroGradientEndBrush" Color="#18649C"/>
+            <SolidColorBrush x:Key="HeroGradientStartBrush" Color="#255D8E"/>
+            <SolidColorBrush x:Key="HeroGradientEndBrush" Color="#1E9FD0"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

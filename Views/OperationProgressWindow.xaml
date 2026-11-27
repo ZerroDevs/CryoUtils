@@ -18,23 +18,26 @@
 
     <Border Background="{DynamicResource WindowBackgroundBrush}"
             BorderBrush="{DynamicResource WindowBorderBrush}"
-            BorderThickness="1">
+            BorderThickness="1"
+            CornerRadius="0">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="36"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0"
-                  Background="{DynamicResource TitleBarBackgroundBrush}"
-                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Border Grid.Row="0"
+                    Background="{DynamicResource TitleBarBackgroundBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <TextBlock Text="{DynamicResource Progress_Title}"
                            Foreground="{DynamicResource TextTitleBrush}"
-                           FontSize="12"
+                           FontSize="12.5"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
                            Margin="12,0"/>
-            </Grid>
+            </Border>
 
             <StackPanel Grid.Row="1" Margin="16,12,16,14">
                 <TextBlock x:Name="TxtOperation"

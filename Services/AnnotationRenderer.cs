@@ -19,18 +19,22 @@ namespace CryoUtils.Services
         public static void Draw(
             DrawingContext dc,
             IReadOnlyList<Annotation> annotations,
-            BitmapSource sourceBitmap)
+            BitmapSource sourceBitmap,
+            double sourceOriginX = 0,
+            double sourceOriginY = 0)
         {
             foreach (var annotation in annotations)
             {
-                DrawAnnotation(dc, annotation, sourceBitmap);
+                DrawAnnotation(dc, annotation, sourceBitmap, sourceOriginX, sourceOriginY);
             }
         }
 
         private static void DrawAnnotation(
             DrawingContext dc,
             Annotation annotation,
-            BitmapSource sourceBitmap)
+            BitmapSource sourceBitmap,
+            double sourceOriginX,
+            double sourceOriginY)
         {
             var color = ParseColor(annotation.Color);
             var brush = new SolidColorBrush(color);
@@ -60,7 +64,7 @@ namespace CryoUtils.Services
                     DrawEllipse(dc, annotation, brush);
                     break;
                 case AnnotationKind.Spotlight:
-                    DrawSpotlight(dc, annotation, sourceBitmap);
+                    DrawSpotlight(dc, annotation, sourceBitmap, sourceOriginX, sourceOriginY);
                     break;
                 case AnnotationKind.Redaction:
                     DrawRedaction(dc, annotation, brush);
@@ -69,7 +73,10 @@ namespace CryoUtils.Services
                     DrawText(dc, annotation, brush);
                     break;
                 case AnnotationKind.Blur:
-                    DrawPixelation(dc, annotation, sourceBitmap);
+                    DrawPixelation(dc, annotation, sourceBitmap, sourceOriginX, sourceOriginY);
+                    break;
+                case AnnotationKind.Zoom:
+                    DrawZoom(dc, annotation, sourceBitmap, brush, sourceOriginX, sourceOriginY);
                     break;
                 case AnnotationKind.Step:
                     DrawStep(dc, annotation, brush);
@@ -258,14 +265,19 @@ namespace CryoUtils.Services
                 annotation.Rect.Height / 2);
         }
 
-        private static void DrawSpotlight(DrawingContext dc, Annotation annotation, BitmapSource sourceBitmap)
+        private static void DrawSpotlight(
+            DrawingContext dc,
+            Annotation annotation,
+            BitmapSource sourceBitmap,
+            double sourceOriginX = 0,
+            double sourceOriginY = 0)
         {
             if (annotation.Rect.Width < 2 || annotation.Rect.Height < 2)
             {
                 return;
             }
 
-            var outer = new RectangleGeometry(new Rect(0, 0, sourceBitmap.PixelWidth, sourceBitmap.PixelHeight));
+            var outer = new RectangleGeometry(new Rect(sourceOriginX, sourceOriginY, sourceBitmap.PixelWidth, sourceBitmap.PixelHeight));
             var hole = new EllipseGeometry(
                 new Point(annotation.Rect.Left + annotation.Rect.Width / 2, annotation.Rect.Top + annotation.Rect.Height / 2),
                 Math.Max(2, annotation.Rect.Width / 2),
@@ -275,6 +287,52 @@ namespace CryoUtils.Services
             var dimBrush = new SolidColorBrush(Color.FromArgb(175, 0, 0, 0));
             dimBrush.Freeze();
             dc.DrawGeometry(dimBrush, null, dim);
+        }
+
+        private static void DrawZoom(
+            DrawingContext dc,
+            Annotation annotation,
+            BitmapSource sourceBitmap,
+            Brush brush,
+            double sourceOriginX = 0,
+            double sourceOriginY = 0)
+        {
+            var rect = annotation.Rect;
+            if (rect.Width < 8 || rect.Height < 8 || sourceBitmap.PixelWidth < 2 || sourceBitmap.PixelHeight < 2)
+            {
+                return;
+            }
+
+            double diameter = Math.Min(rect.Width, rect.Height);
+            double radius = diameter / 2.0;
+            var center = new Point(rect.Left + rect.Width / 2.0, rect.Top + rect.Height / 2.0);
+            var lensRect = new Rect(center.X - radius, center.Y - radius, diameter, diameter);
+
+            const double zoomFactor = 2.0;
+            int w = Math.Clamp((int)Math.Ceiling(diameter / zoomFactor), 1, sourceBitmap.PixelWidth);
+            int h = Math.Clamp((int)Math.Ceiling(diameter / zoomFactor), 1, sourceBitmap.PixelHeight);
+            int srcX = Math.Clamp((int)Math.Floor(center.X - sourceOriginX - w / 2.0), 0, Math.Max(0, sourceBitmap.PixelWidth - w));
+            int srcY = Math.Clamp((int)Math.Floor(center.Y - sourceOriginY - h / 2.0), 0, Math.Max(0, sourceBitmap.PixelHeight - h));
+
+            var crop = new CroppedBitmap(sourceBitmap, new Int32Rect(srcX, srcY, w, h));
+            crop.Freeze();
+
+            var clip = new EllipseGeometry(center, radius, radius);
+            clip.Freeze();
+
+            dc.PushClip(clip);
+            dc.DrawImage(crop, lensRect);
+            dc.Pop();
+
+            var shadowBrush = new SolidColorBrush(Color.FromArgb(140, 0, 0, 0));
+            shadowBrush.Freeze();
+            var outerShadow = new Pen(shadowBrush, Math.Max(2, annotation.Thickness + 1.5));
+            outerShadow.Freeze();
+            dc.DrawEllipse(null, outerShadow, center, radius, radius);
+
+            var borderPen = new Pen(brush, Math.Max(2, annotation.Thickness));
+            borderPen.Freeze();
+            dc.DrawEllipse(null, borderPen, center, radius, radius);
         }
 
         private static void DrawRedaction(DrawingContext dc, Annotation annotation, Brush brush)
@@ -408,7 +466,9 @@ namespace CryoUtils.Services
         private static void DrawPixelation(
             DrawingContext dc,
             Annotation annotation,
-            BitmapSource sourceBitmap)
+            BitmapSource sourceBitmap,
+            double sourceOriginX = 0,
+            double sourceOriginY = 0)
         {
             var rect = annotation.Rect;
             if (rect.Width < 2 || rect.Height < 2)
@@ -416,7 +476,7 @@ namespace CryoUtils.Services
                 return;
             }
 
-            annotation.PixelPreview ??= BuildPixelation(sourceBitmap, rect);
+            annotation.PixelPreview ??= BuildPixelation(sourceBitmap, rect, sourceOriginX, sourceOriginY);
             if (annotation.PixelPreview != null)
             {
                 dc.DrawImage(annotation.PixelPreview, rect);
@@ -445,10 +505,14 @@ namespace CryoUtils.Services
                 center.Y - formatted.Height / 2));
         }
 
-        public static BitmapSource? BuildPixelation(BitmapSource source, Rect area)
+        public static BitmapSource? BuildPixelation(
+            BitmapSource source,
+            Rect area,
+            double sourceOriginX = 0,
+            double sourceOriginY = 0)
         {
-            int left = (int)Math.Floor(area.X);
-            int top = (int)Math.Floor(area.Y);
+            int left = (int)Math.Floor(area.X - sourceOriginX);
+            int top = (int)Math.Floor(area.Y - sourceOriginY);
             int width = (int)Math.Ceiling(area.Width);
             int height = (int)Math.Ceiling(area.Height);
             if (width < 2 || height < 2)

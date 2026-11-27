@@ -16,7 +16,15 @@ namespace CryoUtils.Views
 
         public ClipboardHistoryWindow()
         {
-            InitializeComponent();
+            _loadingSettings = true;
+            try
+            {
+                InitializeComponent();
+            }
+            finally
+            {
+                _loadingSettings = false;
+            }
             FlowDirection = LocalizationService.Instance.FlowDirection;
             _service.Changed += RefreshList;
             Closed += (_, _) => _service.Changed -= RefreshList;
@@ -51,6 +59,10 @@ namespace CryoUtils.Views
 
         private void RefreshList()
         {
+            if (_loadingSettings || !IsInitialized || ClipList == null || TxtSearch == null || CmbFilter == null)
+            {
+                return;
+            }
             string query = TxtSearch.Text.Trim();
             IEnumerable<ClipItem> items = _service.Items;
             if (!string.IsNullOrEmpty(query))
@@ -64,7 +76,7 @@ namespace CryoUtils.Views
             items = filter switch
             {
                 "Text" => items.Where(item => item.Text != null && !item.IsSnippet),
-                "Image" => items.Where(item => item.Image != null),
+                "Image" => items.Where(item => item.HasImage),
                 "Snippets" => items.Where(item => item.IsSnippet),
                 "Pinned" => items.Where(item => item.IsPinned),
                 _ => items
@@ -101,14 +113,19 @@ namespace CryoUtils.Views
 
         private async void BtnOcrClip_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as FrameworkElement)?.Tag is not ClipItem item || item.Image == null)
+            if ((sender as FrameworkElement)?.Tag is not ClipItem item || !item.HasImage)
             {
                 return;
             }
 
             try
             {
-                string text = await OcrService.RecognizeAsync(item.Image);
+                var fullImage = item.ResolveFullImage();
+                if (fullImage == null)
+                {
+                    return;
+                }
+                string text = await OcrService.RecognizeAsync(fullImage);
                 if (string.IsNullOrWhiteSpace(text))
                 {
                     (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_OcrEmpty"));

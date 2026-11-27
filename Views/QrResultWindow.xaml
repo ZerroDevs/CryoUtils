@@ -22,19 +22,54 @@
             BorderBrush="{DynamicResource WindowBorderBrush}"
             BorderThickness="1"
             CornerRadius="0">
-        <Grid Margin="18">
+        <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="36"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <StackPanel Orientation="Horizontal">
-                    <Border Width="36" Height="36" CornerRadius="4"
+            <Border Grid.Row="0"
+                    Background="{DynamicResource TitleBarBackgroundBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,40,0">
+                        <Image Source="pack://application:,,,/Images/CryoUtils-Icon.png"
+                               Width="16" Height="16"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               Margin="0,0,8,0"/>
+                        <TextBlock Text="{DynamicResource Qr_ResultTitle}"
+                                   Foreground="{DynamicResource TextTitleBrush}"
+                                   FontSize="12.5"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button Style="{StaticResource TitleActionBtn}"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,0,6,0"
+                            Click="BtnClose_Click"
+                            ToolTip="{DynamicResource Common_Close}"
+                            AutomationProperties.Name="{DynamicResource Common_Close}">
+                        <Path Data="{x:Static views:IconData.Close}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="11" Height="11" Stretch="Uniform"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="18,14,18,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <Border Width="36" Height="36" CornerRadius="2"
                             Background="{DynamicResource InsetBackgroundBrush}"
-                            BorderBrush="{DynamicResource BorderStrongBrush}"
+                            BorderBrush="{DynamicResource DividerBrush}"
                             BorderThickness="1"
                             Margin="0,0,10,0"
                             ClipToBounds="True">
@@ -46,67 +81,69 @@
                                MouseLeftButtonDown="ImgQrThumbnail_MouseLeftButtonDown"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{DynamicResource Qr_ResultTitle}" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock x:Name="TxtFormat" Text="QR_CODE" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12.5" FontWeight="SemiBold"/>
                         <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                            <TextBlock x:Name="TxtFormat" Text="QR_CODE" Style="{StaticResource MutedText}"/>
-                            <TextBlock x:Name="TxtCharCount" Style="{StaticResource UnitText}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtCharCount" Style="{StaticResource UnitText}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtWifiInfo" Foreground="{DynamicResource AccentTextBrush}" FontSize="10.5" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center" Visibility="Collapsed"/>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
 
-                <Button Style="{StaticResource TitleActionBtn}" HorizontalAlignment="Right" VerticalAlignment="Top" Click="BtnClose_Click" ToolTip="{DynamicResource Common_Close}" AutomationProperties.Name="{DynamicResource Common_Close}">
-                    <Path Data="{x:Static views:IconData.Close}" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.5" Width="12" Height="12" Stretch="Uniform"/>
-                </Button>
-            </Grid>
+                <Border Grid.Row="1" Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,12"/>
 
-            <Border Grid.Row="1" Height="1" Background="{DynamicResource DividerBrush}" Margin="0,12,0,12"/>
+                <Border Grid.Row="2"
+                        Background="{DynamicResource InsetBackgroundBrush}"
+                        BorderBrush="{DynamicResource DividerBrush}"
+                        BorderThickness="1"
+                        CornerRadius="2"
+                        Padding="6">
+                    <TextBox x:Name="TxtContent"
+                             Style="{StaticResource CryoTextBox}"
+                             FontFamily="{StaticResource CryoMono}"
+                             FontSize="12"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             IsReadOnly="True"/>
+                </Border>
 
-            <Border Grid.Row="2"
-                    Background="{DynamicResource PanelBackgroundBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="3"
-                    Padding="6">
-                <TextBox x:Name="TxtContent"
-                         Style="{StaticResource CryoTextBox}"
-                         FontFamily="{StaticResource CryoMono}"
-                         FontSize="12"
-                         AcceptsReturn="True"
-                         TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto"
-                         BorderThickness="0"
-                         Background="Transparent"
-                         IsReadOnly="True"/>
-            </Border>
+                <Grid Grid.Row="3" Margin="0,14,0,0">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button x:Name="BtnOpenUrl"
+                                Style="{StaticResource PrimaryButton}"
+                                Content="{DynamicResource Qr_OpenUrl}"
+                                Visibility="Collapsed"
+                                Margin="0,0,8,0"
+                                Click="BtnOpenUrl_Click"/>
+                        <Button x:Name="BtnCopyWifiPassword"
+                                Style="{StaticResource PrimaryButton}"
+                                Content="{DynamicResource Qr_CopyWifiPassword}"
+                                Visibility="Collapsed"
+                                Margin="0,0,8,0"
+                                Click="BtnCopyWifiPassword_Click"/>
+                        <Button x:Name="BtnCopy"
+                                Style="{StaticResource PrimaryButton}"
+                                Content="{DynamicResource Common_Copy}"
+                                Margin="0,0,8,0"
+                                Click="BtnCopy_Click"/>
+                        <Button x:Name="BtnSave"
+                                Style="{StaticResource SecondaryButton}"
+                                Content="{DynamicResource Common_SaveAs}"
+                                Margin="0,0,8,0"
+                                Click="BtnSave_Click"/>
+                        <Button x:Name="BtnSaveQrImage"
+                                Style="{StaticResource SecondaryButton}"
+                                Content="{DynamicResource Tools_QrSave}"
+                                Click="BtnSaveQrImage_Click"/>
+                    </StackPanel>
 
-            <Grid Grid.Row="3" Margin="0,14,0,0">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                    <Button x:Name="BtnOpenUrl"
-                            Style="{StaticResource PrimaryButton}"
-                            Content="{DynamicResource Qr_OpenUrl}"
-                            Visibility="Collapsed"
-                            Margin="0,0,8,0"
-                            Click="BtnOpenUrl_Click"/>
-                    <Button x:Name="BtnCopy"
-                            Style="{StaticResource PrimaryButton}"
-                            Content="{DynamicResource Common_Copy}"
-                            Margin="0,0,8,0"
-                            Click="BtnCopy_Click"/>
-                    <Button x:Name="BtnSave"
-                            Style="{StaticResource SecondaryButton}"
-                            Content="{DynamicResource Common_SaveAs}"
-                            Margin="0,0,8,0"
-                            Click="BtnSave_Click"/>
-                    <Button x:Name="BtnSaveQrImage"
-                            Style="{StaticResource SecondaryButton}"
-                            Content="{DynamicResource Tools_QrSave}"
-                            Click="BtnSaveQrImage_Click"/>
-                </StackPanel>
-
-                <Button Style="{StaticResource SecondaryButton}"
-                        Content="{DynamicResource Common_Close}"
-                        HorizontalAlignment="Right"
-                        Click="BtnClose_Click"/>
+                    <Button Style="{StaticResource SecondaryButton}"
+                            Content="{DynamicResource Common_Close}"
+                            HorizontalAlignment="Right"
+                            Click="BtnClose_Click"/>
+                </Grid>
             </Grid>
         </Grid>
     </Border>

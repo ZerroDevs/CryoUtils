@@ -32,6 +32,10 @@ namespace CryoUtils.Views
         public static Geometry CloudUpload { get; } = Frozen(CryoIcons.CloudUpload);
         public static Geometry ChevronDown { get; } = Frozen(CryoIcons.ChevronDown);
         public static Geometry ChevronRight { get; } = Frozen(CryoIcons.ChevronRight);
+        public static Geometry Search { get; } = Frozen(CryoIcons.Search);
+        public static Geometry Sliders { get; } = Frozen(CryoIcons.Sliders);
+        public static Geometry Layers { get; } = Frozen(CryoIcons.Layers);
+        public static Geometry WindowSnap { get; } = Frozen(CryoIcons.WindowSnap);
 
         private static Geometry Frozen(string data)
         {

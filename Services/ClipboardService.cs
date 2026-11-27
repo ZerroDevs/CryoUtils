@@ -33,7 +33,11 @@ namespace CryoUtils.Services
     {
         public string Id { get; init; } = Guid.NewGuid().ToString("N");
         public string? Text { get; init; }
-        public BitmapSource? Image { get; init; }
+        public BitmapSource? Thumbnail { get; init; }
+        public byte[]? CompressedPng { get; init; }
+        public int ImageWidth { get; init; }
+        public int ImageHeight { get; init; }
+        public bool HasImage => Thumbnail != null || CompressedPng != null;
         public DateTime CreatedAt { get; init; } = DateTime.Now;
         public DateTime? ExpiresAt { get; set; }
         public bool Sensitive { get; init; }
@@ -41,6 +45,22 @@ namespace CryoUtils.Services
         public bool IsSnippet { get; init; }
         public string Name { get; init; } = "";
         public int CharacterCount => Text?.Length ?? 0;
+
+        public BitmapSource? ResolveFullImage()
+        {
+            if (CompressedPng != null && CompressedPng.Length > 0)
+            {
+                try
+                {
+                    return ImageIO.DecodeBytes(CompressedPng);
+                }
+                catch
+                {
+                }
+            }
+
+            return Thumbnail;
+        }
 
         public string DisplayText => IsSnippet
             ? $"{Name}  ·  {Truncate(Text ?? "", 120)}"
@@ -53,7 +73,7 @@ namespace CryoUtils.Services
             get
             {
                 string baseMeta = Text == null
-                    ? $"{Image?.PixelWidth ?? 0} x {Image?.PixelHeight ?? 0}  {CreatedAt:HH:mm}"
+                    ? $"{ImageWidth} x {ImageHeight}  {CreatedAt:HH:mm}"
                     : LocalizationService.Format("Clip_Length", Text.Length) + $"  {CreatedAt:HH:mm}";
                 if (IsSnippet)
                 {
@@ -192,7 +212,9 @@ namespace CryoUtils.Services
 
                 if (Clipboard.ContainsImage() && Clipboard.GetImage() is BitmapSource image)
                 {
-                    if (_items.Count > 0 && _items[0].Image != null)
+                    if (_items.Count > 0 && _items[0].HasImage &&
+                        _items[0].ImageWidth == image.PixelWidth &&
+                        _items[0].ImageHeight == image.PixelHeight)
                     {
                         return;
                     }
@@ -232,9 +254,21 @@ namespace CryoUtils.Services
             }
         }
 
-        private void AddImage(BitmapSource image)
+        internal void AddImage(BitmapSource image)
         {
-            var item = new ClipItem { Image = image };
+            int thumbWidth = Math.Min(180, Math.Max(1, image.PixelWidth));
+            double scale = thumbWidth / (double)Math.Max(1, image.PixelWidth);
+            var thumb = new TransformedBitmap(image, new System.Windows.Media.ScaleTransform(scale, scale));
+            thumb.Freeze();
+            byte[] compressed = ImageIO.EncodePng(image);
+
+            var item = new ClipItem
+            {
+                Thumbnail = thumb,
+                CompressedPng = compressed,
+                ImageWidth = image.PixelWidth,
+                ImageHeight = image.PixelHeight
+            };
             ApplyExpiration(item);
             _items.Insert(0, item);
             Trim();
@@ -457,9 +491,13 @@ namespace CryoUtils.Services
                     Clipboard.SetText(item.Text);
                     _lastText = item.Text;
                 }
-                else if (item.Image != null)
+                else if (item.HasImage)
                 {
-                    Clipboard.SetImage(item.Image);
+                    var full = item.ResolveFullImage();
+                    if (full != null)
+                    {
+                        Clipboard.SetImage(full);
+                    }
                 }
             }
             catch

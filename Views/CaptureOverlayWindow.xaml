@@ -4,8 +4,7 @@
         xmlns:views="clr-namespace:CryoUtils.Views"
         Title="CryoUtils Capture"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="Transparent"
+        Background="#FF000000"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         Topmost="True"
@@ -33,6 +32,22 @@
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            FontFamily="{StaticResource CryoMono}"
                            FontSize="11"
+                           FlowDirection="LeftToRight"/>
+            </Border>
+
+            <Border x:Name="CursorCoordsBadge"
+                    Background="{DynamicResource OverlayBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderStrongBrush}"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    Padding="6,2.5"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="CursorCoordsText"
+                           Text="0, 0"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           FontFamily="{StaticResource CryoMono}"
+                           FontSize="10.5"
                            FlowDirection="LeftToRight"/>
             </Border>
 

@@ -12,36 +12,60 @@
         FontFamily="{StaticResource SegoeUIVariableText}">
     <Border Background="{DynamicResource WindowBackgroundBrush}"
             BorderBrush="{DynamicResource WindowBorderBrush}"
-            BorderThickness="1">
-        <Grid Margin="18">
+            BorderThickness="1"
+            CornerRadius="0">
+        <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="36"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <TextBlock Text="{DynamicResource Editor_ResizeTitle}" Style="{StaticResource PageTitle}" FontSize="17"/>
-            <StackPanel Grid.Row="1" Margin="0,14,0,0">
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="{DynamicResource Editor_Width}" Style="{StaticResource FieldLabel}"/>
-                        <TextBox x:Name="TxtWidth" Style="{StaticResource CryoTextBox}" FlowDirection="LeftToRight" TextAlignment="Center" TextChanged="Size_TextChanged"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="{DynamicResource Editor_Height}" Style="{StaticResource FieldLabel}"/>
-                        <TextBox x:Name="TxtHeight" Style="{StaticResource CryoTextBox}" FlowDirection="LeftToRight" TextAlignment="Center" TextChanged="Size_TextChanged"/>
-                    </StackPanel>
-                </Grid>
-                <CheckBox x:Name="ChkAspect" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Editor_KeepAspect}" IsChecked="True"/>
-            </StackPanel>
-            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="{DynamicResource Common_Cancel}" Style="{StaticResource SecondaryButton}" Click="BtnCancel_Click" Margin="0,0,8,0"/>
-                <Button Content="{DynamicResource Editor_Apply}" Style="{StaticResource PrimaryButton}" Click="BtnApply_Click"/>
-            </StackPanel>
+
+            <Border Grid.Row="0"
+                    Background="{DynamicResource TitleBarBackgroundBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+                    <Image Source="pack://application:,,,/Images/CryoUtils-Icon.png"
+                           Width="16" Height="16"
+                           Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Margin="0,0,8,0"/>
+                    <TextBlock Text="{DynamicResource Editor_ResizeTitle}"
+                               Foreground="{DynamicResource TextTitleBrush}"
+                               FontSize="12.5"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="18,14,18,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0">
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource Editor_Width}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="TxtWidth" Style="{StaticResource CryoTextBox}" FlowDirection="LeftToRight" TextAlignment="Center" TextChanged="Size_TextChanged"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{DynamicResource Editor_Height}" Style="{StaticResource FieldLabel}"/>
+                            <TextBox x:Name="TxtHeight" Style="{StaticResource CryoTextBox}" FlowDirection="LeftToRight" TextAlignment="Center" TextChanged="Size_TextChanged"/>
+                        </StackPanel>
+                    </Grid>
+                    <CheckBox x:Name="ChkAspect" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Editor_KeepAspect}" IsChecked="True"/>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{DynamicResource Common_Cancel}" Style="{StaticResource SecondaryButton}" Click="BtnCancel_Click" Margin="0,0,8,0"/>
+                    <Button Content="{DynamicResource Editor_Apply}" Style="{StaticResource PrimaryButton}" Click="BtnApply_Click"/>
+                </StackPanel>
+            </Grid>
         </Grid>
     </Border>
 </Window>

@@ -15,22 +15,23 @@
 
     <Border Background="{DynamicResource WindowBackgroundBrush}"
             BorderBrush="{DynamicResource WindowBorderBrush}"
-            BorderThickness="1">
+            BorderThickness="1"
+            CornerRadius="0">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="38"/>
+                <RowDefinition Height="36"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Background="{DynamicResource TitleBarBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Border Grid.Row="0" Background="{DynamicResource TitleBarBackgroundBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                 <TextBlock Text="{DynamicResource Rec_TrimTitle}"
                            Foreground="{DynamicResource TextTitleBrush}"
-                           FontSize="12"
+                           FontSize="12.5"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"
                            Margin="14,0"/>
-            </Grid>
+            </Border>
 
             <ScrollViewer Grid.Row="1" Style="{StaticResource CryoScrollViewer}" Padding="18,14,18,8">
                 <StackPanel>

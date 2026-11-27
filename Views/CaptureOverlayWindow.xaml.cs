@@ -58,9 +58,11 @@ namespace CryoUtils.Views
         private Button? _dragButton;
         private Point _dragStartPoint;
         private bool _dragArmed;
+        private bool _disposingFromPool;
+        private bool _builtScreenshotOnly;
 
-        public CaptureController Controller { get; }
-        public MonitorInfo Monitor { get; }
+        public CaptureController Controller { get; private set; }
+        public MonitorInfo Monitor { get; private set; }
         private double Scale => Math.Max(0.1, Monitor.Scale);
 
         public CaptureOverlayWindow(CaptureController controller, MonitorInfo monitor)
@@ -68,11 +70,12 @@ namespace CryoUtils.Views
             Controller = controller;
             Monitor = monitor;
             InitializeComponent();
+            _builtScreenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
 
             Width = monitor.Bounds.Width / Scale;
             Height = monitor.Bounds.Height / Scale;
-            Left = 0;
-            Top = 0;
+            Left = monitor.Bounds.Left / Scale;
+            Top = monitor.Bounds.Top / Scale;
             ShowActivated = ReferenceEquals(monitor, controller.ActiveMonitor);
 
             Surface.Controller = controller;
@@ -103,10 +106,150 @@ namespace CryoUtils.Views
             UpdateChrome();
         }
 
+        internal bool MatchesMonitor(MonitorInfo monitor)
+        {
+            return string.Equals(Monitor.DeviceName, monitor.DeviceName, StringComparison.Ordinal) &&
+                   Monitor.Bounds.Left == monitor.Bounds.Left &&
+                   Monitor.Bounds.Top == monitor.Bounds.Top &&
+                   Monitor.Bounds.Width == monitor.Bounds.Width &&
+                   Monitor.Bounds.Height == monitor.Bounds.Height &&
+                   Math.Abs(Monitor.Scale - monitor.Scale) < 0.001 &&
+                   _builtScreenshotOnly == SettingsService.Instance.Current.ScreenshotOnlyMode;
+        }
+
+        public void PrepareForReuse(CaptureController controller, MonitorInfo monitor)
+        {
+            Controller = controller;
+            Monitor = monitor;
+            _creating = false;
+            _moving = false;
+            _resizing = false;
+            _drawing = false;
+            _handle = -1;
+            _activeAnnotation = null;
+            _selectedAnnotation = null;
+            _movingAnnotation = false;
+            _resizingAnnotation = false;
+            _annotationHandle = -1;
+            _editingTextAnnotation = null;
+            _textCommitting = false;
+            _dragArmed = false;
+
+            SizeBadge.Visibility = Visibility.Collapsed;
+            CursorCoordsBadge.Visibility = Visibility.Collapsed;
+            LoupePanel.Visibility = Visibility.Collapsed;
+            ThicknessPreview.Visibility = Visibility.Collapsed;
+            AnnotationToolbarBorder.Visibility = Visibility.Collapsed;
+            ActionToolbarBorder.Visibility = Visibility.Collapsed;
+            TextEditor.Visibility = Visibility.Collapsed;
+            if (_colorPopup != null)
+            {
+                _colorPopup.IsOpen = false;
+            }
+
+            double s = Scale;
+            Width = monitor.Bounds.Width / s;
+            Height = monitor.Bounds.Height / s;
+            Left = monitor.Bounds.Left / s;
+            Top = monitor.Bounds.Top / s;
+            ShowActivated = ReferenceEquals(monitor, controller.ActiveMonitor);
+            SetDragTransparentNative(false);
+
+            Surface.Controller = controller;
+            Surface.IsActiveMonitor = ReferenceEquals(monitor, controller.ActiveMonitor);
+            Surface.CursorPhysical = null;
+            Surface.SetMonitor(monitor);
+            Surface.Width = Width;
+            Surface.Height = Height;
+            Surface.Cursor = Cursors.Cross;
+
+            Controller.StateChanged -= OnStateChanged;
+            Controller.StateChanged += OnStateChanged;
+            Controller.AttachOverlay(this);
+
+            UpdateChrome();
+            Surface.Refresh();
+        }
+
+        public void ParkInPool()
+        {
+            _thicknessTimer.Stop();
+            _creating = false;
+            _moving = false;
+            _resizing = false;
+            _drawing = false;
+            _handle = -1;
+            _activeAnnotation = null;
+            _selectedAnnotation = null;
+            _movingAnnotation = false;
+            _resizingAnnotation = false;
+            _annotationHandle = -1;
+            _editingTextAnnotation = null;
+            _textCommitting = false;
+            _dragArmed = false;
+
+            if (_colorPopup != null)
+            {
+                _colorPopup.IsOpen = false;
+            }
+            TextEditor.Visibility = Visibility.Collapsed;
+            SizeBadge.Visibility = Visibility.Collapsed;
+            CursorCoordsBadge.Visibility = Visibility.Collapsed;
+            LoupePanel.Visibility = Visibility.Collapsed;
+            ThicknessPreview.Visibility = Visibility.Collapsed;
+            AnnotationToolbarBorder.Visibility = Visibility.Collapsed;
+            ActionToolbarBorder.Visibility = Visibility.Collapsed;
+
+            Controller.StateChanged -= OnStateChanged;
+            Surface.ReleaseBitmap();
+            SetDragTransparentNative(false);
+            Hide();
+        }
+
+        public void DisposeFromPool()
+        {
+            _disposingFromPool = true;
+            try
+            {
+                Controller.StateChanged -= OnStateChanged;
+                Close();
+            }
+            catch
+            {
+            }
+        }
+
+        public void SetDragTransparentNative(bool transparent)
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                long ex = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE).ToInt64();
+                if (transparent)
+                {
+                    ex |= NativeMethods.WS_EX_LAYERED | NativeMethods.WS_EX_TRANSPARENT;
+                    NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(ex));
+                    NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 0, NativeMethods.LWA_ALPHA);
+                }
+                else
+                {
+                    if ((ex & (NativeMethods.WS_EX_LAYERED | NativeMethods.WS_EX_TRANSPARENT)) != 0)
+                    {
+                        ex &= ~(long)(NativeMethods.WS_EX_LAYERED | NativeMethods.WS_EX_TRANSPARENT);
+                        NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(ex));
+                    }
+                }
+            }
+
+            IsHitTestVisible = !transparent;
+            Topmost = !transparent;
+        }
+
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
             var hwnd = new WindowInteropHelper(this).Handle;
+            NativeMethods.DisableWindowTransitions(hwnd);
             NativeMethods.SetWindowPos(
                 hwnd,
                 NativeMethods.HWND_TOPMOST,
@@ -114,7 +257,7 @@ namespace CryoUtils.Views
                 Monitor.Bounds.Top,
                 Monitor.Bounds.Width,
                 Monitor.Bounds.Height,
-                NativeMethods.SWP_SHOWWINDOW);
+                NativeMethods.SWP_NOACTIVATE);
         }
 
         protected override void OnActivated(EventArgs e)
@@ -128,16 +271,22 @@ namespace CryoUtils.Views
             }
         }
 
-
         protected override void OnClosed(EventArgs e)
         {
             Controller.StateChanged -= OnStateChanged;
             Surface.ReleaseBitmap();
-            Controller.RemoveOverlay(this);
-            base.OnClosed(e);
-            if (!Controller.IsClosing)
+            if (!_disposingFromPool)
             {
-                Controller.CloseAll();
+                Controller.RemoveOverlay(this);
+                base.OnClosed(e);
+                if (!Controller.IsClosing)
+                {
+                    Controller.CloseAll();
+                }
+            }
+            else
+            {
+                base.OnClosed(e);
             }
         }
 
@@ -160,6 +309,7 @@ namespace CryoUtils.Views
             AddToolButton(CaptureTool.Highlighter, CryoIcons.Highlighter, "Capture_ToolHighlighter");
             AddToolButton(CaptureTool.Text, CryoIcons.Text, "Capture_ToolText");
             AddToolButton(CaptureTool.Blur, CryoIcons.Blur, "Capture_ToolBlur");
+            AddToolButton(CaptureTool.Zoom, CryoIcons.ZoomLoupe, "Capture_ToolZoom");
             AddStepToolButton();
             AddSeparator();
 
@@ -195,6 +345,47 @@ namespace CryoUtils.Views
             _colorButton.Click += (_, _) => ShowColorPopup();
             AnnotationToolbar.Children.Add(_colorButton);
 
+            var quickSwatchGrid = new System.Windows.Controls.Primitives.UniformGrid
+            {
+                Columns = 2,
+                Rows = 2,
+                Width = 28,
+                Height = 28,
+                Margin = new Thickness(0, 2, 0, 2)
+            };
+            foreach (string hex in new[] { "#FF4F5E", "#2B88D8", "#F5B731", "#26A269" })
+            {
+                string swatchHex = hex;
+                var dotBorder = new Border
+                {
+                    Width = 11,
+                    Height = 11,
+                    CornerRadius = new CornerRadius(2),
+                    BorderThickness = new Thickness(1),
+                    BorderBrush = ThemeService.GetBrush("BorderStrongBrush"),
+                    Background = new SolidColorBrush(AnnotationRenderer.ParseColor(swatchHex))
+                };
+                var dotBtn = new Button
+                {
+                    Style = (Style)FindResource("IconButton"),
+                    Width = 14,
+                    Height = 14,
+                    Padding = new Thickness(0),
+                    Content = dotBorder,
+                    ToolTip = LocalizationService.Get("Capture_Color") + $" ({swatchHex})"
+                };
+                dotBtn.Click += (_, _) =>
+                {
+                    Controller.SetColor(swatchHex);
+                    Controller.UpdateSelectedAnnotationStyle(color: swatchHex);
+                    SettingsService.Instance.Current.AnnotationColor = swatchHex;
+                    SettingsService.Instance.SaveWithoutNotification();
+                    _colorSwatch.Background = new SolidColorBrush(AnnotationRenderer.ParseColor(Controller.CurrentColor));
+                };
+                quickSwatchGrid.Children.Add(dotBtn);
+            }
+            AnnotationToolbar.Children.Add(quickSwatchGrid);
+
             _thicknessText = new TextBlock
             {
                 Foreground = ThemeService.GetBrush("TextTertiaryBrush"),
@@ -226,6 +417,7 @@ namespace CryoUtils.Views
             {
                 AddActionButton(CryoIcons.OcrCopy, "Capture_ToolOcrCopy", () => Controller.OcrSelection(copyOnly: true));
             }
+            AddActionButton(CryoIcons.RedactAuto, "Capture_ToolAutoRedact", () => _ = Controller.AutoRedactSelectionAsync());
             AddActionButton(CryoIcons.QrCode, "Capture_ToolQr", () => Controller.QrSelection());
             if (IsOverlayActionVisible("Pin", screenshotOnly))
             {
@@ -317,18 +509,18 @@ namespace CryoUtils.Views
             var button = new Button
             {
                 Style = (Style)FindResource("IconButton"),
-                Width = 32,
-                Height = 30,
+                Width = 30,
+                Height = 26,
                 Margin = new Thickness(0, 1, 0, 1),
                 Padding = new Thickness(0),
                 ToolTip = LocalizationService.Get(tooltipKey)
             };
             AutomationProperties.SetName(button, LocalizationService.Get(tooltipKey));
-            var icon = CryoIcons.Create(iconData, 18, !filled);
+            var icon = CryoIcons.Create(iconData, 16, !filled);
             button.Content = new Grid
             {
-                Width = 18,
-                Height = 18,
+                Width = 16,
+                Height = 16,
                 Children = { icon }
             };
             button.Click += (_, _) => Controller.ToggleTool(tool);
@@ -341,23 +533,23 @@ namespace CryoUtils.Views
             var button = new Button
             {
                 Style = (Style)FindResource("IconButton"),
-                Width = 32,
-                Height = 30,
+                Width = 30,
+                Height = 26,
                 Margin = new Thickness(0, 1, 0, 1),
                 ToolTip = LocalizationService.Get("Capture_ToolStep")
             };
             AutomationProperties.SetName(button, LocalizationService.Get("Capture_ToolStep"));
-            var circle = CryoIcons.Create(CryoIcons.Step, 18, true);
+            var circle = CryoIcons.Create(CryoIcons.Step, 16, true);
             var number = new TextBlock
             {
                 Text = "1",
                 Foreground = ThemeService.GetBrush("IconBrush"),
-                FontSize = 8.5,
+                FontSize = 8,
                 FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            var grid = new Grid { Width = 18, Height = 18 };
+            var grid = new Grid { Width = 16, Height = 16 };
             grid.Children.Add(circle);
             grid.Children.Add(number);
             button.Content = grid;
@@ -371,14 +563,14 @@ namespace CryoUtils.Views
             var button = new Button
             {
                 Style = (Style)FindResource("IconButton"),
-                Width = 30,
-                Height = 30,
+                Width = 28,
+                Height = 26,
                 Margin = new Thickness(0, 1, 0, 1),
                 Padding = new Thickness(0),
                 ToolTip = LocalizationService.Get(tooltipKey)
             };
             AutomationProperties.SetName(button, LocalizationService.Get(tooltipKey));
-            var icon = CryoIcons.Create(iconData, 17, !filled);
+            var icon = CryoIcons.Create(iconData, 16, !filled);
             button.Content = icon;
             button.Click += (_, _) => click();
             return button;
@@ -880,6 +1072,7 @@ namespace CryoUtils.Views
                 CaptureTool.Redaction => AnnotationKind.Redaction,
                 CaptureTool.Highlighter => AnnotationKind.Highlighter,
                 CaptureTool.Blur => AnnotationKind.Blur,
+                CaptureTool.Zoom => AnnotationKind.Zoom,
                 _ => AnnotationKind.Pen
             };
 
@@ -919,10 +1112,20 @@ namespace CryoUtils.Views
             var local = e.GetPosition(Surface);
             var global = ToPhysical(local);
             Surface.CursorPhysical = global;
-            Surface.Refresh();
             UpdateCursor(global);
 
+            if (!_creating && !Controller.Selection.HasValue && SettingsService.Instance.Current.HoverWindowHighlight)
+            {
+                Controller.SetHoveredWindow(Controller.HitTestWindowAt(global));
+            }
+            else if (Controller.Selection.HasValue && Controller.HoveredWindow != null)
+            {
+                Controller.SetHoveredWindow(null);
+            }
+            Surface.Refresh();
+
             bool overToolbar = AnnotationToolbarBorder.IsMouseOver || ActionToolbarBorder.IsMouseOver;
+            UpdateCursorCoordsBadge(global, local, overToolbar);
             bool drawingFreehand = _drawing &&
                 _activeAnnotation?.Kind is AnnotationKind.Pen or AnnotationKind.Highlighter or AnnotationKind.Redaction;
             if (SettingsService.Instance.Current.ShowCaptureLoupe &&
@@ -1027,8 +1230,16 @@ namespace CryoUtils.Views
                 case AnnotationKind.Ellipse:
                 case AnnotationKind.Spotlight:
                 case AnnotationKind.Blur:
+                case AnnotationKind.Zoom:
                     var rect = NormalizeRect(_startPhysical, global);
-                    if (shift && annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse)
+                    if (annotation.Kind == AnnotationKind.Zoom)
+                    {
+                        double side = Math.Min(Math.Abs(rect.Width), Math.Abs(rect.Height));
+                        double left = global.X < _startPhysical.X ? _startPhysical.X - side : _startPhysical.X;
+                        double top = global.Y < _startPhysical.Y ? _startPhysical.Y - side : _startPhysical.Y;
+                        rect = new Rect(left, top, side, side);
+                    }
+                    else if (shift && annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse)
                     {
                         double side = Math.Min(Math.Abs(rect.Width), Math.Abs(rect.Height));
                         rect = new Rect(
@@ -1052,16 +1263,35 @@ namespace CryoUtils.Views
             }
 
             bool autoRecord = false;
+            bool instantSnapOrCopy = false;
+            var profile = CaptureController.GetCurrentProfile();
+            bool instantCopyEnabled = profile.InstantCopy ?? SettingsService.Instance.Current.InstantCaptureCopy;
+            bool keepToolbarHeld = Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ||
+                                   Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
             if (_creating)
             {
                 var selection = Controller.Selection;
                 if (selection.HasValue && (selection.Value.Width < 4 || selection.Value.Height < 4))
                 {
-                    Controller.SetSelection(null);
+                    if (SettingsService.Instance.Current.HoverWindowHighlight &&
+                        Controller.HoveredWindow != null)
+                    {
+                        Controller.SetSelection(Controller.HoveredWindow.Bounds);
+                        Controller.SetHoveredWindow(null);
+                        instantSnapOrCopy = instantCopyEnabled && !keepToolbarHeld;
+                    }
+                    else
+                    {
+                        Controller.SetSelection(null);
+                    }
                 }
                 else if (selection.HasValue && Controller.RecordAfterSelection)
                 {
                     autoRecord = true;
+                }
+                else if (selection.HasValue && instantCopyEnabled && !keepToolbarHeld)
+                {
+                    instantSnapOrCopy = true;
                 }
             }
 
@@ -1074,7 +1304,7 @@ namespace CryoUtils.Views
                     Controller.NotifyChanged();
                 }
                 else if (_activeAnnotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or
-                    AnnotationKind.Spotlight or AnnotationKind.Blur &&
+                    AnnotationKind.Spotlight or AnnotationKind.Blur or AnnotationKind.Zoom &&
                     (_activeAnnotation.Rect.Width < 2 || _activeAnnotation.Rect.Height < 2))
                 {
                     Controller.Annotations.Remove(_activeAnnotation);
@@ -1097,12 +1327,24 @@ namespace CryoUtils.Views
             }
 
             LoupePanel.Visibility = Visibility.Collapsed;
+            CursorCoordsBadge.Visibility = Visibility.Collapsed;
             e.Handled = true;
 
             if (autoRecord)
             {
                 Controller.RecordAfterSelection = false;
                 Controller.BeginRecording();
+            }
+            else if (instantSnapOrCopy && Controller.Selection.HasValue)
+            {
+                if (profile.AutoOcrCopy)
+                {
+                    Controller.OcrSelection(copyOnly: true);
+                }
+                else
+                {
+                    Controller.CopySelection();
+                }
             }
         }
 
@@ -1115,8 +1357,61 @@ namespace CryoUtils.Views
         private void Surface_MouseLeave(object sender, MouseEventArgs e)
         {
             LoupePanel.Visibility = Visibility.Collapsed;
+            CursorCoordsBadge.Visibility = Visibility.Collapsed;
             Surface.CursorPhysical = null;
             Surface.Refresh();
+        }
+
+        private void UpdateCursorCoordsBadge(Point global, Point local, bool overToolbar)
+        {
+            bool showCursorCoords = CaptureController.GetCurrentProfile().CursorCoords ??
+                                    SettingsService.Instance.Current.ShowCursorCoordinates;
+            if (!showCursorCoords || overToolbar ||
+                (Controller.Selection.HasValue && !_creating && !_resizing))
+            {
+                CursorCoordsBadge.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            int x = (int)Math.Round(global.X);
+            int y = (int)Math.Round(global.Y);
+            if (!Controller.Selection.HasValue && Controller.HoveredWindow != null)
+            {
+                var wb = Controller.HoveredWindow.Bounds;
+                string title = string.IsNullOrWhiteSpace(Controller.HoveredWindow.Title)
+                    ? ""
+                    : (Controller.HoveredWindow.Title.Length > 26
+                        ? Controller.HoveredWindow.Title[..26] + "…"
+                        : Controller.HoveredWindow.Title);
+                CursorCoordsText.Text = string.IsNullOrEmpty(title)
+                    ? $"{x}, {y}  ·  {(int)Math.Round(wb.Width)} × {(int)Math.Round(wb.Height)}"
+                    : $"{title}  ·  {(int)Math.Round(wb.Width)} × {(int)Math.Round(wb.Height)}";
+            }
+            else
+            {
+                CursorCoordsText.Text = $"{x}, {y}";
+            }
+
+            CursorCoordsBadge.Visibility = Visibility.Visible;
+            CursorCoordsBadge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var badgeSize = CursorCoordsBadge.DesiredSize;
+            double offsetY = SettingsService.Instance.Current.ShowCaptureLoupe ? -badgeSize.Height - 12 : 18;
+            double bx = local.X + 16;
+            double by = local.Y + offsetY;
+            if (bx + badgeSize.Width + 8 > ActualWidth)
+            {
+                bx = Math.Max(8, local.X - badgeSize.Width - 14);
+            }
+            if (by < 8)
+            {
+                by = Math.Min(ActualHeight - badgeSize.Height - 8, local.Y + 18);
+            }
+            if (by + badgeSize.Height + 8 > ActualHeight)
+            {
+                by = Math.Max(8, local.Y - badgeSize.Height - 12);
+            }
+            Canvas.SetLeft(CursorCoordsBadge, bx);
+            Canvas.SetTop(CursorCoordsBadge, by);
         }
 
         private Annotation? HitTestAnnotation(Point point)
@@ -1236,7 +1531,7 @@ namespace CryoUtils.Views
             }
 
             if (annotation.Kind is AnnotationKind.Rectangle or AnnotationKind.Ellipse or
-                AnnotationKind.Spotlight or AnnotationKind.Blur &&
+                AnnotationKind.Spotlight or AnnotationKind.Blur or AnnotationKind.Zoom &&
                 annotation.Rect.Width > 0 && annotation.Rect.Height > 0)
             {
                 return HitTestRectHandles(ToLocalRect(annotation.Rect), local);
@@ -1915,6 +2210,21 @@ namespace CryoUtils.Views
             }
 
             if (!control && !shift && !Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) &&
+                e.Key == Key.Space &&
+                !Controller.Selection.HasValue &&
+                Controller.HoveredWindow != null)
+            {
+                Controller.SetSelection(Controller.HoveredWindow.Bounds);
+                Controller.SetHoveredWindow(null);
+                if (SettingsService.Instance.Current.InstantCaptureCopy)
+                {
+                    Controller.CopySelection();
+                }
+                e.Handled = true;
+                return;
+            }
+
+            if (!control && !shift && !Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) &&
                 e.Key == Key.Return &&
                 Controller.Selection.HasValue)
             {
@@ -2004,6 +2314,7 @@ namespace CryoUtils.Views
                 Key.D8 or Key.NumPad8 or Key.H => CaptureTool.Highlighter,
                 Key.D9 or Key.NumPad9 or Key.T => CaptureTool.Text,
                 Key.D0 or Key.NumPad0 or Key.B => CaptureTool.Blur,
+                Key.M => CaptureTool.Zoom,
                 Key.N => CaptureTool.Step,
                 _ => null
             };

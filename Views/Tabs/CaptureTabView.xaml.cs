@@ -18,7 +18,15 @@ namespace CryoUtils.Views.Tabs
 
         public CaptureTabView()
         {
-            InitializeComponent();
+            _loading = true;
+            try
+            {
+                InitializeComponent();
+            }
+            finally
+            {
+                _loading = false;
+            }
         }
 
         public void LoadFromSettings()
@@ -31,11 +39,16 @@ namespace CryoUtils.Views.Tabs
                 TxtSaveFolder.Text = SettingsService.Instance.EffectiveSaveFolder;
                 TxtSaveFolder.FlowDirection = FlowDirection.LeftToRight;
                 ChkAutoCopy.IsChecked = settings.AutoCopyCapture;
+                ChkHoverHighlight.IsChecked = settings.HoverWindowHighlight;
+                ChkInstantCopy.IsChecked = settings.InstantCaptureCopy;
+                ChkCursorCoords.IsChecked = settings.ShowCursorCoordinates;
                 ChkCaptureSound.IsChecked = settings.CaptureSound;
                 ChkShowLoupe.IsChecked = settings.ShowCaptureLoupe;
-        ChkPrettyFrame.IsChecked = settings.PrettyFrameExport;
+                ChkPrettyFrame.IsChecked = settings.PrettyFrameExport;
                 ChkArchiveCopied.IsChecked = settings.ArchiveCopiedCaptures;
                 ChkCloudUpload.IsChecked = settings.CloudUploadEnabled;
+                ChkOcrLibraryIndex.IsChecked = settings.OcrLibraryIndexingEnabled;
+                PopulateOcrLanguages(settings.OcrLanguageTag);
                 MainTabHelpers.SelectTag(CmbImageFormat, settings.ImageFormat);
                 MainTabHelpers.SelectTag(CmbCaptureDelay, settings.CaptureDelaySeconds.ToString(CultureInfo.InvariantCulture));
                 MainTabHelpers.SelectTag(CmbFps, settings.GifFps.ToString(CultureInfo.InvariantCulture));
@@ -68,6 +81,45 @@ namespace CryoUtils.Views.Tabs
             CardRecorder.IsEnabled = !lite;
             ChkCloudUpload.IsEnabled = !lite;
             ChkCloudUpload.Opacity = lite ? 0.45 : 1.0;
+            ChkOcrLibraryIndex.IsEnabled = !lite;
+            ChkOcrLibraryIndex.Opacity = lite ? 0.45 : 1.0;
+        }
+
+        private void PopulateOcrLanguages(string? selectedTag)
+        {
+            if (CmbOcrLanguage == null)
+            {
+                return;
+            }
+
+            CmbOcrLanguage.Items.Clear();
+            CmbOcrLanguage.Items.Add(new ComboBoxItem
+            {
+                Content = LocalizationService.Get("Capture_OcrLanguageAuto"),
+                Tag = ""
+            });
+            try
+            {
+                foreach (var lang in OcrService.GetAvailableLanguages())
+                {
+                    CmbOcrLanguage.Items.Add(new ComboBoxItem
+                    {
+                        Content = string.IsNullOrWhiteSpace(lang.DisplayName)
+                            ? lang.Tag
+                            : $"{lang.DisplayName} ({lang.Tag})",
+                        Tag = lang.Tag
+                    });
+                }
+            }
+            catch
+            {
+            }
+
+            MainTabHelpers.SelectTag(CmbOcrLanguage, selectedTag ?? "");
+            if (CmbOcrLanguage.SelectedIndex < 0 && CmbOcrLanguage.Items.Count > 0)
+            {
+                CmbOcrLanguage.SelectedIndex = 0;
+            }
         }
 
         public void UpdateContestedBanner()
@@ -103,7 +155,7 @@ namespace CryoUtils.Views.Tabs
 
         private void Setting_Changed(object sender, RoutedEventArgs e)
         {
-            if (_loading) return;
+            if (_loading || !IsInitialized || TxtSaveFolder == null) return;
 
             MemoryTrimService.PauseForInteraction();
             var settings = SettingsService.Instance.Current;
@@ -112,11 +164,16 @@ namespace CryoUtils.Views.Tabs
                 ? ""
                 : TxtSaveFolder.Text;
             settings.AutoCopyCapture = ChkAutoCopy.IsChecked == true;
+            settings.HoverWindowHighlight = ChkHoverHighlight.IsChecked == true;
+            settings.InstantCaptureCopy = ChkInstantCopy.IsChecked == true;
+            settings.ShowCursorCoordinates = ChkCursorCoords.IsChecked == true;
             settings.CaptureSound = ChkCaptureSound.IsChecked == true;
             settings.ShowCaptureLoupe = ChkShowLoupe.IsChecked == true;
             settings.PrettyFrameExport = ChkPrettyFrame.IsChecked == true;
             settings.ArchiveCopiedCaptures = ChkArchiveCopied.IsChecked == true;
             settings.CloudUploadEnabled = ChkCloudUpload.IsChecked == true;
+            settings.OcrLanguageTag = MainTabHelpers.SelectedTag(CmbOcrLanguage) ?? "";
+            settings.OcrLibraryIndexingEnabled = ChkOcrLibraryIndex.IsChecked == true;
             settings.ImageFormat = MainTabHelpers.SelectedTag(CmbImageFormat) ?? "PNG";
             settings.CaptureDelaySeconds = int.TryParse(MainTabHelpers.SelectedTag(CmbCaptureDelay), out int delay) ? delay : 0;
             settings.GifFps = Math.Clamp(int.TryParse(MainTabHelpers.SelectedTag(CmbFps), out int fps) ? fps : 15, 5, 30);

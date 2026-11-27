@@ -142,7 +142,7 @@ namespace CryoUtils.Views.Tabs
             {
                 BorderBrush = ThemeService.GetBrush("DividerBrush"),
                 BorderThickness = new Thickness(0, 0, 0, 1),
-                Padding = new Thickness(12, 10, 12, 10),
+                Padding = new Thickness(2, 10, 2, 10),
                 Opacity = enabled ? 1.0 : 0.45,
                 IsEnabled = enabled
             };
@@ -163,7 +163,7 @@ namespace CryoUtils.Views.Tabs
                 Text = enabled ? description : LocalizationService.Get("Module_PausedInLite"),
                 Style = (Style)FindResource("MutedText"),
                 Margin = new Thickness(0, 3, 0, 0),
-                MaxWidth = 500,
+                MaxWidth = 340,
                 TextWrapping = TextWrapping.Wrap,
                 HorizontalAlignment = HorizontalAlignment.Left
             });

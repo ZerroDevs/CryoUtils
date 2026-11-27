@@ -17,7 +17,7 @@ namespace CryoUtils.Services
     {
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public BitmapSource? Image { get; set; }
+        public byte[]? CompressedPng { get; set; }
         public BitmapSource Thumbnail { get; init; } = null!;
         public string? Path { get; init; }
         public DateTime CreatedAt { get; init; } = DateTime.Now;
@@ -25,6 +25,33 @@ namespace CryoUtils.Services
         public long FileSize { get; init; }
         public int PixelWidth { get; init; }
         public int PixelHeight { get; init; }
+
+        public BitmapSource? ResolveFullImage()
+        {
+            if (CompressedPng != null && CompressedPng.Length > 0)
+            {
+                try
+                {
+                    return ImageIO.DecodeBytes(CompressedPng);
+                }
+                catch
+                {
+                }
+            }
+
+            if (!string.IsNullOrEmpty(Path) && File.Exists(Path))
+            {
+                try
+                {
+                    return ImageProcessingService.LoadWpfBitmap(Path);
+                }
+                catch
+                {
+                }
+            }
+
+            return null;
+        }
 
         public bool IsVideo => HasExtension(".mp4");
         public bool IsRecording => IsVideo || HasExtension(".gif");
@@ -53,10 +80,6 @@ namespace CryoUtils.Services
                 if (PixelWidth > 0 && PixelHeight > 0)
                 {
                     return $"{PixelWidth} × {PixelHeight}";
-                }
-                if (Image != null)
-                {
-                    return $"{Image.PixelWidth} × {Image.PixelHeight}";
                 }
                 return Source;
             }
@@ -119,12 +142,12 @@ namespace CryoUtils.Services
             var thumb = CreateThumbnail(image);
             long size = TryGetFileSize(path);
             bool savedOnDisk = !string.IsNullOrEmpty(path) && File.Exists(path);
-            // Only keep the full-resolution BitmapSource in RAM when no saved file backs it on disk.
-            BitmapSource? retainedImage = savedOnDisk ? null : image;
+            // Store compact compressed PNG bytes in RAM only when no saved file backs the capture on disk.
+            byte[]? retainedPng = savedOnDisk ? null : TryEncodeCompressedPng(image);
 
             var entry = new RecentCapture
             {
-                Image = retainedImage,
+                CompressedPng = retainedPng,
                 Thumbnail = thumb,
                 Path = path,
                 CreatedAt = DateTime.Now,
@@ -139,16 +162,16 @@ namespace CryoUtils.Services
             {
                 Items.RemoveAt(Items.Count - 1);
             }
-            // Keep at most 2 unsaved full-resolution bitmaps in RAM to cap session memory spikes.
-            int retainedFull = 0;
+            // Keep at most 2 unsaved compressed PNG buffers in RAM.
+            int retainedCount = 0;
             for (int i = 0; i < Items.Count; i++)
             {
-                if (Items[i].Image != null)
+                if (Items[i].CompressedPng != null)
                 {
-                    retainedFull++;
-                    if (retainedFull > 2)
+                    retainedCount++;
+                    if (retainedCount > 2)
                     {
-                        Items[i].Image = null;
+                        Items[i].CompressedPng = null;
                     }
                 }
             }
@@ -157,7 +180,7 @@ namespace CryoUtils.Services
             {
                 AllTimeItems.Insert(0, new RecentCapture
                 {
-                    Image = null,
+                    CompressedPng = null,
                     Thumbnail = thumb,
                     Path = path,
                     CreatedAt = entry.CreatedAt,
@@ -166,6 +189,18 @@ namespace CryoUtils.Services
                     PixelWidth = image.PixelWidth,
                     PixelHeight = image.PixelHeight
                 });
+            }
+        }
+
+        private static byte[]? TryEncodeCompressedPng(BitmapSource image)
+        {
+            try
+            {
+                return ImageIO.EncodePng(image);
+            }
+            catch
+            {
+                return null;
             }
         }
 
@@ -204,7 +239,7 @@ namespace CryoUtils.Services
 
                 next.Add(new RecentCapture
                 {
-                    Image = null,
+                    CompressedPng = null,
                     Thumbnail = thumb,
                     Path = file.FullName,
                     CreatedAt = file.LastWriteTime,
@@ -236,7 +271,7 @@ namespace CryoUtils.Services
             {
                 if (!string.IsNullOrEmpty(item.Path))
                 {
-                    item.Image = null;
+                    item.CompressedPng = null;
                 }
             }
 
@@ -256,6 +291,29 @@ namespace CryoUtils.Services
             {
                 if (file.Extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase))
                 {
+                    string tempThumb = System.IO.Path.Combine(
+                        System.IO.Path.GetTempPath(),
+                        $"cryo_thumb_{Guid.NewGuid():N}.jpg");
+                    try
+                    {
+                        MediaConversionService.SaveThumbnailAsync(file.FullName, tempThumb).GetAwaiter().GetResult();
+                        if (File.Exists(tempThumb))
+                        {
+                            var bmp = ImageIO.LoadThumbnail(tempThumb, 180);
+                            if (bmp != null)
+                            {
+                                return bmp;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        try { if (File.Exists(tempThumb)) File.Delete(tempThumb); } catch { }
+                    }
+
                     return ImageIO.CreateVideoThumbnailPlaceholder();
                 }
 

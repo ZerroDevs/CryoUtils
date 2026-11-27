@@ -12,6 +12,8 @@
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
         FontFamily="{StaticResource SegoeUIVariableText}"
+        MouseEnter="Window_MouseEnter"
+        MouseLeave="Window_MouseLeave"
         MouseWheel="Window_MouseWheel"
         PreviewKeyDown="Window_PreviewKeyDown">
 
@@ -42,6 +44,39 @@
                     VerticalAlignment="Top"
                     IsHitTestVisible="False">
                 <TextBlock x:Name="TxtZoom" Text="100%" Foreground="{DynamicResource TextPrimaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="10" FlowDirection="LeftToRight"/>
+            </Border>
+
+            <Border x:Name="MiniHudBar"
+                    Background="{DynamicResource OverlayBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderStrongBrush}"
+                    BorderThickness="1"
+                    CornerRadius="2"
+                    Padding="4,3"
+                    Margin="8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Opacity="0"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource IconButton}" Width="22" Height="22" Padding="0" Click="BtnOpacityDown_Click" ToolTip="{DynamicResource Pin_OpacityDown}" AutomationProperties.Name="{DynamicResource Pin_OpacityDown}">
+                        <TextBlock Text="−" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </Button>
+                    <TextBlock x:Name="TxtOpacityPct" Text="100%" Foreground="{DynamicResource TextSecondaryBrush}" FontFamily="{StaticResource CryoMono}" FontSize="9.5" VerticalAlignment="Center" Margin="3,0" FlowDirection="LeftToRight"/>
+                    <Button Style="{StaticResource IconButton}" Width="22" Height="22" Padding="0" Click="BtnOpacityUp_Click" ToolTip="{DynamicResource Pin_OpacityUp}" AutomationProperties.Name="{DynamicResource Pin_OpacityUp}">
+                        <TextBlock Text="+" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </Button>
+                    <Rectangle Width="1" Height="14" Fill="{DynamicResource DividerBrush}" Margin="4,0"/>
+                    <Button x:Name="BtnHudGhost" Style="{StaticResource IconButton}" Width="22" Height="22" Padding="0" Click="MenuGhost_Click" ToolTip="{DynamicResource Pin_ClickThrough}" AutomationProperties.Name="{DynamicResource Pin_ClickThrough}">
+                        <Path Data="{x:Static views:IconData.Pin}" xmlns:views="clr-namespace:CryoUtils.Views" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.35" Width="12" Height="12" Stretch="Uniform"/>
+                    </Button>
+                    <Button Style="{StaticResource IconButton}" Width="22" Height="22" Padding="0" Click="MenuCopy_Click" ToolTip="{DynamicResource Pin_Copy}" AutomationProperties.Name="{DynamicResource Pin_Copy}">
+                        <Path Data="{x:Static views:IconData.Copy}" xmlns:views="clr-namespace:CryoUtils.Views" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.35" Width="12" Height="12" Stretch="Uniform"/>
+                    </Button>
+                    <Button Style="{StaticResource IconButton}" Width="22" Height="22" Padding="0" Click="MenuClose_Click" ToolTip="{DynamicResource Pin_Close}" AutomationProperties.Name="{DynamicResource Pin_Close}">
+                        <Path Data="{x:Static views:IconData.Close}" xmlns:views="clr-namespace:CryoUtils.Views" Stroke="{DynamicResource IconBrush}" StrokeThickness="1.4" Width="10" Height="10" Stretch="Uniform"/>
+                    </Button>
+                </StackPanel>
             </Border>
         </Grid>
     </Border>

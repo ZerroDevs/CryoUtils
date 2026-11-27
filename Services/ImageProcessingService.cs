@@ -205,6 +205,9 @@ namespace CryoUtils.Services
             return count;
         }
 
+        public static string ToBase64DataUri(byte[] bytes, string mimeType = "image/png") =>
+            $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
+
         public static string ToBase64DataUri(string inputPath)
         {
             if (!File.Exists(inputPath))
@@ -223,8 +226,7 @@ namespace CryoUtils.Services
                 _ => "application/octet-stream"
             };
 
-            byte[] bytes = File.ReadAllBytes(inputPath);
-            return $"data:{mime};base64,{Convert.ToBase64String(bytes)}";
+            return ToBase64DataUri(File.ReadAllBytes(inputPath), mime);
         }
 
         public static BitmapSource LoadWpfBitmap(string inputPath) =>

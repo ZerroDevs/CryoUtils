@@ -39,6 +39,7 @@ namespace CryoUtils.Views
             LoadAudioDevices();
             ChkCursor.IsChecked = settings.RecorderCursorHighlight;
             ChkClicks.IsChecked = settings.RecorderClickEffects;
+            ChkKeystrokeHud.IsChecked = settings.RecorderKeystrokeHud;
             ChkWebcam.IsChecked = settings.RecorderWebcam;
             ChkReplay.IsChecked = settings.ReplayEnabled;
             SldReplayLength.Value = Math.Clamp(
@@ -226,6 +227,7 @@ namespace CryoUtils.Views
             settings.RecorderMicrophoneDeviceId = SelectedDeviceId(CmbMicrophoneDevice);
             settings.RecorderCursorHighlight = ChkCursor.IsChecked == true;
             settings.RecorderClickEffects = ChkClicks.IsChecked == true;
+            settings.RecorderKeystrokeHud = ChkKeystrokeHud.IsChecked == true;
             settings.RecorderWebcam = ChkWebcam.IsChecked == true;
             settings.ReplayEnabled = ChkReplay.IsChecked == true;
             settings.ReplaySeconds = (int)Math.Round(SldReplayLength.Value);

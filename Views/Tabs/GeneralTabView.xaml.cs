@@ -18,10 +18,19 @@ namespace CryoUtils.Views.Tabs
 
         public event Action? FullReloadRequested;
         public event Action? SavedLimitChanged;
+        public event Action? AnchorToTrayChanged;
 
         public GeneralTabView()
         {
-            InitializeComponent();
+            _loading = true;
+            try
+            {
+                InitializeComponent();
+            }
+            finally
+            {
+                _loading = false;
+            }
         }
 
         public void LoadFromSettings()
@@ -31,10 +40,12 @@ namespace CryoUtils.Views.Tabs
             {
                 var settings = SettingsService.Instance.Current;
                 MainTabHelpers.SelectTag(CmbTheme, settings.Theme);
+                MainTabHelpers.SelectTag(CmbAccent, ThemeService.NormalizeAccent(settings.AccentPreset));
                 MainTabHelpers.SelectTag(CmbLanguage, settings.Language);
                 ChkStartWithWindows.IsChecked = settings.StartWithWindows;
                 ChkLaunchBackground.IsChecked = settings.LaunchInBackground;
-                ChkNotifications.IsChecked = settings.NotificationsEnabled;
+                ChkAnchorToTray.IsChecked = settings.AnchorToTray;
+                ChkDisableNotifications.IsChecked = !settings.NotificationsEnabled;
                 ChkScreenshotOnly.IsChecked = settings.ScreenshotOnlyMode;
                 MainTabHelpers.SelectTag(
                     CmbTrayClick,
@@ -85,9 +96,11 @@ namespace CryoUtils.Views.Tabs
 
             MemoryTrimService.PauseForInteraction();
             var settings = SettingsService.Instance.Current;
+            bool anchorChanged = settings.AnchorToTray != (ChkAnchorToTray.IsChecked == true);
             settings.StartWithWindows = ChkStartWithWindows.IsChecked == true;
             settings.LaunchInBackground = ChkLaunchBackground.IsChecked == true;
-            settings.NotificationsEnabled = ChkNotifications.IsChecked == true;
+            settings.AnchorToTray = ChkAnchorToTray.IsChecked == true;
+            settings.NotificationsEnabled = ChkDisableNotifications.IsChecked != true;
             settings.ScreenshotOnlyMode = ChkScreenshotOnly.IsChecked == true;
             settings.TrayLeftClickAction = MainTabHelpers.SelectedTag(CmbTrayClick) ?? "Dashboard";
             settings.ShowPinnedBorder = ChkPinnedFrame.IsChecked == true;
@@ -100,6 +113,10 @@ namespace CryoUtils.Views.Tabs
             SettingsService.Instance.Save();
             TopmostService.Instance.ApplySettings();
             ApplyScreenshotOnlyUi();
+            if (anchorChanged && settings.AnchorToTray)
+            {
+                AnchorToTrayChanged?.Invoke();
+            }
         }
 
         private void CmbTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -107,7 +124,16 @@ namespace CryoUtils.Views.Tabs
             if (_loading) return;
             string theme = MainTabHelpers.SelectedTag(CmbTheme) ?? "Dark";
             SettingsService.Instance.Current.Theme = theme;
-            ThemeService.Apply(theme);
+            ThemeService.Apply(theme, force: true, accentPreset: SettingsService.Instance.Current.AccentPreset);
+            SettingsService.Instance.Save();
+        }
+
+        private void CmbAccent_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            string accent = ThemeService.NormalizeAccent(MainTabHelpers.SelectedTag(CmbAccent));
+            SettingsService.Instance.Current.AccentPreset = accent;
+            ThemeService.Apply(SettingsService.Instance.Current.Theme, force: true, accentPreset: accent);
             SettingsService.Instance.Save();
         }
 

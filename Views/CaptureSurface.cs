@@ -8,12 +8,78 @@ namespace CryoUtils.Views
 {
     public sealed class CaptureSurface : FrameworkElement
     {
+        private static Brush? _cachedDimBrush;
+        private static Brush? _cachedBorderBrush;
+        private static Color _cachedBorderColor;
+        private static readonly SolidColorBrush HandleFillBrush = CreateFrozenWhite();
+
+        static CaptureSurface()
+        {
+            ThemeService.ThemeChanged += (_, _) =>
+            {
+                _cachedDimBrush = null;
+                _cachedBorderBrush = null;
+            };
+        }
+
+        private static SolidColorBrush CreateFrozenWhite()
+        {
+            var b = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
+            b.Freeze();
+            return b;
+        }
+
         private BitmapSource? _monitorBitmap;
+        private double _cachedPenScale = -1;
+        private Pen? _selectionPen;
+        private Pen? _crossPen;
+        private Pen? _dashPen;
+        private Pen? _handleBorderPen;
 
         public CaptureController? Controller { get; set; }
         public MonitorInfo? Monitor { get; set; }
         public bool IsActiveMonitor { get; set; }
         public Point? CursorPhysical { get; set; }
+
+        private void EnsureRenderPens(double scale)
+        {
+            if (_cachedDimBrush == null || _cachedBorderBrush == null)
+            {
+                _cachedDimBrush = ThemeService.GetBrush("OverlayDimBrush");
+                _cachedBorderBrush = ThemeService.GetBrush("OverlaySelectionBorderBrush");
+                _cachedBorderColor = ThemeService.GetColor("OverlaySelectionBorderBrush");
+                _cachedPenScale = -1;
+            }
+
+            if (Math.Abs(_cachedPenScale - scale) > 0.001)
+            {
+                _cachedPenScale = scale;
+
+                var selPen = new Pen(_cachedBorderBrush, Math.Max(1, 1.25 * scale));
+                selPen.Freeze();
+                _selectionPen = selPen;
+
+                var crossBrush = new SolidColorBrush(Color.FromArgb(140, _cachedBorderColor.R, _cachedBorderColor.G, _cachedBorderColor.B));
+                crossBrush.Freeze();
+                var cPen = new Pen(crossBrush, Math.Max(1, scale))
+                {
+                    DashStyle = new DashStyle(new double[] { 3, 4 }, 0)
+                };
+                cPen.Freeze();
+                _crossPen = cPen;
+
+                var dPen = new Pen(_cachedBorderBrush, Math.Max(1, 1.2 * scale))
+                {
+                    DashStyle = new DashStyle(new double[] { 4, 3 }, 0)
+                };
+                dPen.Freeze();
+                _dashPen = dPen;
+
+                var hbPen = new Pen(_cachedBorderBrush, Math.Max(1, scale));
+                hbPen.Freeze();
+                _handleBorderPen = hbPen;
+            }
+        }
 
         public void SetMonitor(MonitorInfo monitor)
         {
@@ -54,17 +120,29 @@ namespace CryoUtils.Views
 
             var bounds = Monitor.Bounds;
             double scale = Math.Max(0.1, Monitor.Scale);
+            EnsureRenderPens(scale);
+
             var matrix = new Matrix(1 / scale, 0, 0, 1 / scale, -bounds.Left / scale, -bounds.Top / scale);
             dc.PushTransform(new MatrixTransform(matrix));
 
             var monitorRect = new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
             dc.DrawImage(_monitorBitmap, monitorRect);
 
-            var dim = ThemeService.GetBrush("OverlayDimBrush");
-            dc.DrawRectangle(dim, null, monitorRect);
+            dc.DrawRectangle(_cachedDimBrush, null, monitorRect);
 
             Rect? selection = Controller.Selection;
             Rect? visibleSelection = null;
+            if (!selection.HasValue && Controller.HoveredWindow != null)
+            {
+                var hovered = Rect.Intersect(Controller.HoveredWindow.Bounds, monitorRect);
+                if (!hovered.IsEmpty && hovered.Width > 0 && hovered.Height > 0)
+                {
+                    dc.PushClip(new RectangleGeometry(hovered));
+                    dc.DrawImage(_monitorBitmap, monitorRect);
+                    dc.Pop();
+                    dc.DrawRectangle(null, _dashPen, hovered);
+                }
+            }
             if (selection.HasValue)
             {
                 var selected = selection.Value;
@@ -74,7 +152,12 @@ namespace CryoUtils.Views
                     visibleSelection = intersect;
                     dc.PushClip(new RectangleGeometry(intersect));
                     dc.DrawImage(_monitorBitmap, monitorRect);
-                    AnnotationRenderer.Draw(dc, Controller.Annotations, Controller.VirtualBitmap!);
+                    AnnotationRenderer.Draw(
+                        dc,
+                        Controller.Annotations,
+                        Controller.VirtualBitmap!,
+                        Controller.VirtualBounds.Left,
+                        Controller.VirtualBounds.Top);
                     if (Controller.Tool == Models.CaptureTool.Select &&
                         Controller.SelectedAnnotation != null &&
                         Controller.Annotations.Contains(Controller.SelectedAnnotation))
@@ -87,11 +170,7 @@ namespace CryoUtils.Views
 
             if (visibleSelection.HasValue)
             {
-                double border = Math.Max(1, 1.25 * scale);
-                var borderBrush = ThemeService.GetBrush("OverlaySelectionBorderBrush");
-                var pen = new Pen(borderBrush, border);
-                pen.Freeze();
-                dc.DrawRectangle(null, pen, visibleSelection.Value);
+                dc.DrawRectangle(null, _selectionPen, visibleSelection.Value);
             }
 
             if (CursorPhysical.HasValue && !IsActiveMonitor)
@@ -101,20 +180,11 @@ namespace CryoUtils.Views
 
             if (CursorPhysical.HasValue && Controller.ShowCrosshair)
             {
-                double cross = Math.Max(1, scale);
-                var overlayColor = ThemeService.GetColor("OverlaySelectionBorderBrush");
-                var crossBrush = new SolidColorBrush(Color.FromArgb(140, overlayColor.R, overlayColor.G, overlayColor.B));
-                crossBrush.Freeze();
-                var crossPen = new Pen(crossBrush, cross)
-                {
-                    DashStyle = new DashStyle(new double[] { 3, 4 }, 0)
-                };
-                crossPen.Freeze();
                 var cursor = CursorPhysical.Value;
-                dc.DrawLine(crossPen,
+                dc.DrawLine(_crossPen,
                     new Point(bounds.Left, cursor.Y),
                     new Point(bounds.Right, cursor.Y));
-                dc.DrawLine(crossPen,
+                dc.DrawLine(_crossPen,
                     new Point(cursor.X, bounds.Top),
                     new Point(cursor.X, bounds.Bottom));
             }
@@ -127,30 +197,23 @@ namespace CryoUtils.Views
             dc.Pop();
         }
 
-        private static void DrawHandles(DrawingContext dc, Rect selection, double scale)
+        private void DrawHandles(DrawingContext dc, Rect selection, double scale)
         {
             var points = GetRectHandlePoints(selection);
             DrawHandlePoints(dc, points, scale, circular: false);
         }
 
-        private static void DrawAnnotationSelection(
+        private void DrawAnnotationSelection(
             DrawingContext dc,
             Models.Annotation annotation,
             double scale)
         {
-            var accentBrush = ThemeService.GetBrush("OverlaySelectionBorderBrush");
-            var dashPen = new Pen(accentBrush, Math.Max(1, 1.2 * scale))
-            {
-                DashStyle = new DashStyle(new double[] { 4, 3 }, 0)
-            };
-            dashPen.Freeze();
-
             if (annotation.Kind is Models.AnnotationKind.Line or Models.AnnotationKind.Arrow &&
                 annotation.Points.Count >= 2)
             {
                 var start = annotation.Points[0];
                 var end = annotation.Points[^1];
-                dc.DrawLine(dashPen, start, end);
+                dc.DrawLine(_dashPen, start, end);
                 DrawHandlePoints(dc, new[] { start, end }, scale, circular: true);
                 return;
             }
@@ -161,7 +224,7 @@ namespace CryoUtils.Views
             {
                 var guide = annotation.Rect;
                 guide.Inflate(3 * scale, 3 * scale);
-                dc.DrawRectangle(null, dashPen, guide);
+                dc.DrawRectangle(null, _dashPen, guide);
                 DrawHandlePoints(dc, GetRectHandlePoints(annotation.Rect), scale, circular: false);
                 return;
             }
@@ -170,7 +233,7 @@ namespace CryoUtils.Views
             if (!bounds.IsEmpty && bounds.Width > 0 && bounds.Height > 0)
             {
                 bounds.Inflate(4 * scale, 4 * scale);
-                dc.DrawRectangle(null, dashPen, bounds);
+                dc.DrawRectangle(null, _dashPen, bounds);
             }
         }
 
@@ -189,25 +252,21 @@ namespace CryoUtils.Views
             };
         }
 
-        private static void DrawHandlePoints(DrawingContext dc, Point[] points, double scale, bool circular)
+        private void DrawHandlePoints(DrawingContext dc, Point[] points, double scale, bool circular)
         {
             double size = 7 * scale;
             double half = size / 2;
-            var fill = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF));
-            fill.Freeze();
-            var borderPen = new Pen(ThemeService.GetBrush("OverlaySelectionBorderBrush"), Math.Max(1, scale));
-            borderPen.Freeze();
 
             foreach (var point in points)
             {
                 if (circular)
                 {
                     double radius = 4.5 * scale;
-                    dc.DrawEllipse(fill, borderPen, point, radius, radius);
+                    dc.DrawEllipse(HandleFillBrush, _handleBorderPen, point, radius, radius);
                 }
                 else
                 {
-                    dc.DrawRectangle(fill, borderPen, new Rect(
+                    dc.DrawRectangle(HandleFillBrush, _handleBorderPen, new Rect(
                         point.X - half,
                         point.Y - half,
                         size,

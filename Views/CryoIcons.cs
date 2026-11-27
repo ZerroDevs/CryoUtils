@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -57,12 +58,22 @@ namespace CryoUtils.Views
         public const string OcrCopy = "M3,6 L3,3 L6,3 M12,3 L15,3 L15,6 M3,12 L3,15 L6,15 M8,9 L17,9 L17,17 L8,17 Z M10,12 L15,12 M10,14.5 L14,14.5";
         public const string Drag = "M10,2 L10,18 M2,10 L18,10 M7.5,4.5 L10,2 L12.5,4.5 M7.5,15.5 L10,18 L12.5,15.5 M4.5,7.5 L2,10 L4.5,12.5 M15.5,7.5 L18,10 L15.5,12.5";
         public const string WindowSnap = "M3,4 L17,4 L17,16 L3,16 Z M3,7.5 L17,7.5 M6,5.8 L7,5.8 M8.5,5.8 L9.5,5.8";
+        public const string Search = "M8,2 A6,6 0 1,0 8,14 A6,6 0 1,0 8,2 M12.5,12.5 L17,17";
+        public const string Sliders = "M2,4 L14,4 M5,2.5 L5,5.5 M2,9 L14,9 M11,7.5 L11,10.5 M2,14 L14,14 M6,12.5 L6,15.5";
+        public const string Layers = "M10,3 L17,7 L10,11 L3,7 Z M3,11 L10,15 L17,11 M3,14 L10,18 L17,14";
+        public const string ZoomLoupe = "M8.5,3 A5.5,5.5 0 1 0 8.5,14 A5.5,5.5 0 1 0 8.5,3 M8.5,6.2 L8.5,10.8 M6.2,8.5 L10.8,8.5 M12.6,12.6 L17,17";
+        public const string RedactAuto = "M3,5.5 L12.5,5.5 L12.5,8.5 L3,8.5 Z M3,11.5 L9.5,11.5 L9.5,14.5 L3,14.5 Z M14,3.5 L17,3.5 L17,6.5 L15.5,8 L14,6.5 Z M14,11 L17,11 L14,16 L17,16";
+
+        private static readonly ConcurrentDictionary<string, Geometry> GeometryCache = new();
 
         public static Geometry GeometryFor(string data, bool filled = false)
         {
-            var geometry = System.Windows.Media.Geometry.Parse(data);
-            geometry.Freeze();
-            return geometry;
+            return GeometryCache.GetOrAdd(data, raw =>
+            {
+                var geometry = System.Windows.Media.Geometry.Parse(raw);
+                geometry.Freeze();
+                return geometry;
+            });
         }
 
         public static Path Create(string data, double size, bool stroke, string resourceKey = "IconBrush")

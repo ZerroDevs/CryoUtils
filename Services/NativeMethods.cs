@@ -64,7 +64,43 @@ namespace CryoUtils.Services
         public const uint GW_HWNDNEXT = 2;
 
         // DWM
+        public const int DWMWA_TRANSITIONS_FORCEDISABLED = 3;
         public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+        public const int DWMWA_CLOAKED = 14;
+
+        // ShowWindow commands
+        public const int SW_HIDE = 0;
+        public const int SW_SHOWNA = 8;
+
+        // GDI Blit / DIB section constants
+        public const uint SRCCOPY = 0x00CC0020;
+        public const uint BI_RGB = 0;
+        public const uint DIB_RGB_COLORS = 0;
+        public const uint PAGE_READWRITE = 0x04;
+        public static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BITMAPINFOHEADER
+        {
+            public uint biSize;
+            public int biWidth;
+            public int biHeight;
+            public ushort biPlanes;
+            public ushort biBitCount;
+            public uint biCompression;
+            public uint biSizeImage;
+            public int biXPelsPerMeter;
+            public int biYPelsPerMeter;
+            public uint biClrUsed;
+            public uint biClrImportant;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BITMAPINFO
+        {
+            public BITMAPINFOHEADER bmiHeader;
+            public uint bmiColors;
+        }
 
         // Device caps
         public const int LOGPIXELSX = 88;
@@ -152,7 +188,33 @@ namespace CryoUtils.Services
         public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
 
         [DllImport("dwmapi.dll")]
+        public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out int value, int size);
+
+        [DllImport("dwmapi.dll")]
         public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out RECT rect, int size);
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmFlush();
+
+        public static void DisableWindowTransitions(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero)
+            {
+                return;
+            }
+
+            try
+            {
+                int disabled = 1;
+                DwmSetWindowAttribute(hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, ref disabled, sizeof(int));
+            }
+            catch
+            {
+            }
+        }
 
         [DllImport("user32.dll", SetLastError = true)]
         public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
@@ -181,6 +243,28 @@ namespace CryoUtils.Services
 
         [DllImport("gdi32.dll")]
         public static extern int GetDeviceCaps(IntPtr hDc, int index);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        public static extern bool DeleteDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        public static extern bool BitBlt(
+            IntPtr hdcDest, int xDest, int yDest, int width, int height,
+            IntPtr hdcSrc, int xSrc, int ySrc, uint rop);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        public static extern IntPtr CreateDIBSection(
+            IntPtr hdc, ref BITMAPINFO pbmi, uint usage, out IntPtr ppvBits, IntPtr hSection, uint offset);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateFileMappingW(
+            IntPtr hFile, IntPtr lpAttributes, uint flProtect, uint dwMaxHigh, uint dwMaxLow, string? lpName);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(IntPtr hObject);
 
         [DllImport("user32.dll")]
         public static extern int GetSystemMetrics(int index);
