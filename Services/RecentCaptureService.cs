@@ -85,6 +85,20 @@ namespace CryoUtils.Services
             }
         }
 
+        private bool _isSelected;
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected != value)
+                {
+                    _isSelected = value;
+                    OnPropertyChanged(nameof(IsSelected));
+                }
+            }
+        }
+
         private bool _isConfirmingDelete;
         public bool IsConfirmingDelete
         {
@@ -334,6 +348,36 @@ namespace CryoUtils.Services
                 RemoveByPath(Items, capture.Path);
                 RemoveByPath(AllTimeItems, capture.Path);
             }
+        }
+
+        public (int deleted, int failed) DeleteCaptures(IEnumerable<RecentCapture> captures, bool deleteDiskFiles = true)
+        {
+            var list = captures.Distinct().ToList();
+            if (list.Count == 0)
+            {
+                return (0, 0);
+            }
+
+            int deleted = 0;
+            int failed = 0;
+            foreach (var capture in list)
+            {
+                try
+                {
+                    if (deleteDiskFiles && !string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path))
+                    {
+                        File.Delete(capture.Path);
+                    }
+                    Remove(capture);
+                    deleted++;
+                }
+                catch
+                {
+                    failed++;
+                }
+            }
+
+            return (deleted, failed);
         }
 
         public void NotifyFilesDeleted(IEnumerable<string> paths)

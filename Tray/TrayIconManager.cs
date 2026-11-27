@@ -36,6 +36,7 @@ namespace CryoUtils.Tray
         private bool _recordingBadge;
         private bool _lastScreenshotOnly;
         private string _lastCaptureProfile = "Default";
+        private string _lastRightClickAction = "GoBack";
         private bool _iconAdded;
         private bool _disposed;
 
@@ -67,6 +68,7 @@ namespace CryoUtils.Tray
             _icon = CreateIcon(out _iconHandle, false);
             _lastScreenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
             _lastCaptureProfile = Views.CaptureController.NormalizeCaptureProfile(SettingsService.Instance.Current.ActiveCaptureProfile);
+            _lastRightClickAction = Views.CaptureController.ParseRightClickAction(SettingsService.Instance.Current.CaptureRightClickAction).ToString();
 
             _wndProc = WndProc;
             _hInstance = NativeMethods.GetModuleHandleW(null);
@@ -372,6 +374,7 @@ namespace CryoUtils.Tray
             bool screenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
             _lastScreenshotOnly = screenshotOnly;
             _lastCaptureProfile = Views.CaptureController.NormalizeCaptureProfile(SettingsService.Instance.Current.ActiveCaptureProfile);
+            _lastRightClickAction = Views.CaptureController.ParseRightClickAction(SettingsService.Instance.Current.CaptureRightClickAction).ToString();
 
             _rootMenu = NativeMethods.CreatePopupMenu();
             _ownedMenus.Add(_rootMenu);
@@ -437,6 +440,27 @@ namespace CryoUtils.Tray
             QueueProfile("OcrOnly", "Profile_OcrOnly");
             QueueItem(mainPending, _rootMenu, LocalizationService.Get("Profile_MenuTitle"),
                 null, subMenu: profileMenu);
+
+            IntPtr rightClickMenu = NativeMethods.CreatePopupMenu();
+            _ownedMenus.Add(rightClickMenu);
+            var rightClickPending = new List<(IntPtr Menu, MenuEntry Entry, IntPtr SubMenu)>();
+            void QueueRightClick(string id, string key)
+            {
+                string label = LocalizationService.Get(key) +
+                    (string.Equals(_lastRightClickAction, id, StringComparison.OrdinalIgnoreCase) ? " ✓" : "");
+                QueueItem(rightClickPending, rightClickMenu, label, () =>
+                {
+                    SettingsService.Instance.Current.CaptureRightClickAction = id;
+                    SettingsService.Instance.Save();
+                });
+            }
+            QueueRightClick("GoBack", "Capture_RightClickGoBack");
+            QueueRightClick("GoBackThenClose", "Capture_RightClickGoBackClose");
+            QueueRightClick("Close", "Capture_RightClickClose");
+            QueueRightClick("ContextMenu", "Capture_RightClickMenu");
+            QueueRightClick("Nothing", "Capture_RightClickNothing");
+            QueueItem(mainPending, _rootMenu, LocalizationService.Get("Tray_RightClickMenu"),
+                null, subMenu: rightClickMenu);
 
             var qrPending = new List<(IntPtr Menu, MenuEntry Entry, IntPtr SubMenu)>();
             if (!screenshotOnly)
@@ -764,8 +788,10 @@ namespace CryoUtils.Tray
         {
             var s = SettingsService.Instance.Current;
             string currentProfile = Views.CaptureController.NormalizeCaptureProfile(s.ActiveCaptureProfile);
+            string currentRightClick = Views.CaptureController.ParseRightClickAction(s.CaptureRightClickAction).ToString();
             if (s.ScreenshotOnlyMode != _lastScreenshotOnly ||
-                !string.Equals(currentProfile, _lastCaptureProfile, StringComparison.Ordinal))
+                !string.Equals(currentProfile, _lastCaptureProfile, StringComparison.Ordinal) ||
+                !string.Equals(currentRightClick, _lastRightClickAction, StringComparison.Ordinal))
             {
                 Invoke(RebuildMenu);
             }

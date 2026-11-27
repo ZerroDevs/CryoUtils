@@ -11,6 +11,15 @@ using CryoUtils.Services;
 
 namespace CryoUtils.Views
 {
+    public enum CaptureRightClickAction
+    {
+        GoBack,
+        GoBackThenClose,
+        Close,
+        ContextMenu,
+        Nothing
+    }
+
     public sealed class WindowCandidate
     {
         public Rect Bounds { get; init; }
@@ -21,6 +30,15 @@ namespace CryoUtils.Views
     {
         private static CaptureController? _instance;
         public static CaptureController Instance => _instance ??= new CaptureController();
+
+        public static CaptureRightClickAction ParseRightClickAction(string? value) => value?.Trim() switch
+        {
+            "GoBackThenClose" => CaptureRightClickAction.GoBackThenClose,
+            "Close" => CaptureRightClickAction.Close,
+            "ContextMenu" => CaptureRightClickAction.ContextMenu,
+            "Nothing" => CaptureRightClickAction.Nothing,
+            _ => CaptureRightClickAction.GoBack
+        };
 
         private readonly List<CaptureOverlayWindow> _windows = new();
         private readonly Dictionary<string, CaptureOverlayWindow> _overlayPool = new();
@@ -1178,6 +1196,40 @@ namespace CryoUtils.Views
                 SourceApp,
                 SourceWindow,
                 skipSaveAction: savedPath != null);
+        }
+
+        public void CopySelectionAsBase64()
+        {
+            var bitmap = RenderSelection();
+            if (bitmap == null)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_NoSelection"));
+                return;
+            }
+
+            string dataUri = ImageProcessingService.ToBase64DataUri(ImageIO.EncodePng(bitmap), "image/png");
+            try
+            {
+                Clipboard.SetText(dataUri);
+            }
+            catch
+            {
+                try
+                {
+                    Clipboard.SetDataObject(dataUri, true);
+                }
+                catch
+                {
+                }
+            }
+
+            if (SettingsService.Instance.Current.CaptureSound)
+            {
+                NativeMethods.MessageBeep(0x40);
+            }
+            RememberSelectionBounds();
+            CloseAll(restoreDashboard: true, waitForOneShotToast: true);
+            (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_CopiedBase64"));
         }
 
         public void SaveSelection(bool quick)

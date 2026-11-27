@@ -51,6 +51,7 @@ namespace CryoUtils.Views.Tabs
                 PopulateOcrLanguages(settings.OcrLanguageTag);
                 MainTabHelpers.SelectTag(CmbImageFormat, settings.ImageFormat);
                 MainTabHelpers.SelectTag(CmbCaptureDelay, settings.CaptureDelaySeconds.ToString(CultureInfo.InvariantCulture));
+                MainTabHelpers.SelectTag(CmbRightClickAction, CaptureController.ParseRightClickAction(settings.CaptureRightClickAction).ToString());
                 MainTabHelpers.SelectTag(CmbFps, settings.GifFps.ToString(CultureInfo.InvariantCulture));
                 MainTabHelpers.SelectTag(CmbRecFormat, settings.RecorderFormat);
                 MainTabHelpers.SelectTag(CmbMaxSeconds, settings.MaxRecordingSeconds.ToString(CultureInfo.InvariantCulture));
@@ -176,6 +177,7 @@ namespace CryoUtils.Views.Tabs
             settings.OcrLibraryIndexingEnabled = ChkOcrLibraryIndex.IsChecked == true;
             settings.ImageFormat = MainTabHelpers.SelectedTag(CmbImageFormat) ?? "PNG";
             settings.CaptureDelaySeconds = int.TryParse(MainTabHelpers.SelectedTag(CmbCaptureDelay), out int delay) ? delay : 0;
+            settings.CaptureRightClickAction = MainTabHelpers.SelectedTag(CmbRightClickAction) ?? "GoBack";
             settings.GifFps = Math.Clamp(int.TryParse(MainTabHelpers.SelectedTag(CmbFps), out int fps) ? fps : 15, 5, 30);
             settings.RecorderFormat = MainTabHelpers.SelectedTag(CmbRecFormat) ?? "GIF";
             settings.MaxRecordingSeconds = int.TryParse(MainTabHelpers.SelectedTag(CmbMaxSeconds), out int seconds) ? seconds : 300;

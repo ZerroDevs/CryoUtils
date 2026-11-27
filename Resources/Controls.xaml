@@ -972,7 +972,6 @@
         <Setter Property="BorderBrush" Value="{DynamicResource MenuBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="3"/>
-        <Setter Property="ItemContainerStyle" Value="{StaticResource CryoMenuItem}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
@@ -987,6 +986,7 @@
             </Setter.Value>
         </Setter>
         <Style.Resources>
+            <Style TargetType="MenuItem" BasedOn="{StaticResource CryoMenuItem}"/>
             <Style TargetType="Separator">
                 <Setter Property="Template">
                     <Setter.Value>

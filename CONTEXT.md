@@ -53,7 +53,7 @@ Writes are atomic: temporary file then `File.Move(..., overwrite: true)`. `Save(
 
 Companion local stores: `capture-library.json` (library metadata), `workflows.json` (recipes), `upload-history.json` (links and local expiry), `clipboard.bin` (optional DPAPI text persistence), and `logs/cryoutils.log` (bounded diagnostics). Capture files themselves stay in the configured save folder.
 
-Startup defaults: `StartWithWindows=false`, `LaunchInBackground=true`. `--background` always starts tray-only. The title-bar X and Alt+F4 always hide the dashboard; quitting is only available from the tray's Exit action. The capture pixel magnifier is opt-in with `ShowCaptureLoupe=false`; enable it on the Capture tab.
+Startup defaults: `StartWithWindows=false`, `LaunchInBackground=true`, `ShowCursorCoordinates=false`, `CaptureRightClickAction="GoBack"`. `--background` always starts tray-only. The title-bar X and Alt+F4 always hide the dashboard; quitting is only available from the tray's Exit action. The capture pixel magnifier is opt-in with `ShowCaptureLoupe=false`; enable it on the Capture tab.
 
 ### Theme engine
 
@@ -78,7 +78,7 @@ Rules: CryoTray-aligned `141414` / `1E1E1E` / `242424` neutral surfaces, 1 px `C
 
 ### Localization
 
-`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 1014 keys each.
+`Services/LocalizationService.cs` loads `Strings.en.xaml` or `Strings.ar.xaml` into the application resources and raises `LanguageChanged`. `ApplyWindow` sets `FlowDirection` on windows. Keys must exist in both dictionaries with identical placeholders. Current parity: 1050 keys each.
 
 ### QR Code & Utilities Suite
 

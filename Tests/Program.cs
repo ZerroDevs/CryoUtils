@@ -11,6 +11,7 @@ using System.Windows.Media;
 using CryoUtils.Models;
 using CryoUtils.Services;
 using CryoUtils.Services.Recording;
+using CryoUtils.Views;
 
 namespace CryoUtils.Tests
 {
@@ -664,8 +665,9 @@ namespace CryoUtils.Tests
                 AssertTrue(!s.StartWithWindows);
                 AssertTrue(s.NotificationsEnabled);
                 AssertTrue(s.HoverWindowHighlight);
-                AssertTrue(s.ShowCursorCoordinates);
+                AssertTrue(!s.ShowCursorCoordinates);
                 AssertTrue(!s.InstantCaptureCopy);
+                AssertEqual("GoBack", s.CaptureRightClickAction);
             });
 
             Test("QrResultWindow.TryParseWifiPayload parses WPA and escaped Wi-Fi QR strings", () =>
@@ -954,6 +956,57 @@ namespace CryoUtils.Tests
                 AssertTrue(pix != null && pix.IsFrozen);
                 AssertEqual(40, pix!.PixelWidth);
                 AssertEqual(30, pix.PixelHeight);
+            });
+
+            Test("CaptureController.ParseRightClickAction resolves all 5 modes and defaults to GoBack", () =>
+            {
+                AssertEqual((int)CaptureRightClickAction.GoBack, (int)CaptureController.ParseRightClickAction(null));
+                AssertEqual((int)CaptureRightClickAction.GoBack, (int)CaptureController.ParseRightClickAction(""));
+                AssertEqual((int)CaptureRightClickAction.GoBack, (int)CaptureController.ParseRightClickAction("unknown"));
+                AssertEqual((int)CaptureRightClickAction.GoBack, (int)CaptureController.ParseRightClickAction("GoBack"));
+                AssertEqual((int)CaptureRightClickAction.GoBackThenClose, (int)CaptureController.ParseRightClickAction("GoBackThenClose"));
+                AssertEqual((int)CaptureRightClickAction.Close, (int)CaptureController.ParseRightClickAction("Close"));
+                AssertEqual((int)CaptureRightClickAction.ContextMenu, (int)CaptureController.ParseRightClickAction("ContextMenu"));
+                AssertEqual((int)CaptureRightClickAction.Nothing, (int)CaptureController.ParseRightClickAction("Nothing"));
+            });
+
+            Test("RecentCaptureService.DeleteCaptures removes selected items and disk files safely", () =>
+            {
+                string dir = Path.Combine(Path.GetTempPath(), "CryoUtils.Tests", "del_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(dir);
+                try
+                {
+                    string f1 = Path.Combine(dir, "a.png");
+                    string f2 = Path.Combine(dir, "b.png");
+                    File.WriteAllBytes(f1, new byte[] { 1, 2, 3 });
+                    File.WriteAllBytes(f2, new byte[] { 4, 5, 6 });
+
+                    var svc = new RecentCaptureService();
+                    var thumb = System.Windows.Media.Imaging.BitmapSource.Create(
+                        2, 2, 96, 96, PixelFormats.Bgra32, null, new byte[16], 8);
+                    thumb.Freeze();
+
+                    var c1 = new RecentCapture { Thumbnail = thumb, Path = f1 };
+                    var c2 = new RecentCapture { Thumbnail = thumb, Path = f2 };
+                    var c3 = new RecentCapture { Thumbnail = thumb, Path = null };
+                    svc.Items.Add(c1);
+                    svc.Items.Add(c2);
+                    svc.Items.Add(c3);
+
+                    c1.IsSelected = true;
+                    c3.IsSelected = true;
+                    var (deleted, failed) = svc.DeleteCaptures(new[] { c1, c3 });
+                    AssertEqual(2, deleted);
+                    AssertEqual(0, failed);
+                    AssertTrue(!File.Exists(f1));
+                    AssertTrue(File.Exists(f2));
+                    AssertEqual(1, svc.Items.Count);
+                    AssertTrue(ReferenceEquals(svc.Items[0], c2));
+                }
+                finally
+                {
+                    try { Directory.Delete(dir, recursive: true); } catch { }
+                }
             });
 
             if (Environment.GetEnvironmentVariable("CRYO_RECORDER_SMOKE") == "1")

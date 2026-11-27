@@ -58,6 +58,8 @@ namespace CryoUtils.Views
         private Button? _dragButton;
         private Point _dragStartPoint;
         private bool _dragArmed;
+        private bool _pendingContextMenu;
+        private ContextMenu? _overlayContextMenu;
         private bool _disposingFromPool;
         private bool _builtScreenshotOnly;
 
@@ -88,6 +90,7 @@ namespace CryoUtils.Views
             Surface.MouseMove += Surface_MouseMove;
             Surface.MouseLeftButtonUp += Surface_MouseLeftButtonUp;
             Surface.MouseRightButtonDown += Surface_MouseRightButtonDown;
+            Surface.MouseRightButtonUp += Surface_MouseRightButtonUp;
             Surface.MouseWheel += Surface_MouseWheel;
             Surface.MouseLeave += Surface_MouseLeave;
 
@@ -134,6 +137,8 @@ namespace CryoUtils.Views
             _editingTextAnnotation = null;
             _textCommitting = false;
             _dragArmed = false;
+            _pendingContextMenu = false;
+            CloseOverlayContextMenu();
 
             SizeBadge.Visibility = Visibility.Collapsed;
             CursorCoordsBadge.Visibility = Visibility.Collapsed;
@@ -187,6 +192,8 @@ namespace CryoUtils.Views
             _editingTextAnnotation = null;
             _textCommitting = false;
             _dragArmed = false;
+            _pendingContextMenu = false;
+            CloseOverlayContextMenu();
 
             if (_colorPopup != null)
             {
@@ -875,6 +882,17 @@ namespace CryoUtils.Views
 
         private void ShowHint()
         {
+            var mode = CaptureController.ParseRightClickAction(SettingsService.Instance.Current.CaptureRightClickAction);
+            string suffixKey = mode switch
+            {
+                CaptureRightClickAction.GoBackThenClose => "Capture_SelectHintSuffix_GoBackClose",
+                CaptureRightClickAction.Close => "Capture_SelectHintSuffix_Close",
+                CaptureRightClickAction.ContextMenu => "Capture_SelectHintSuffix_Menu",
+                CaptureRightClickAction.Nothing => "Capture_SelectHintSuffix_Nothing",
+                _ => "Capture_SelectHintSuffix_GoBack"
+            };
+            HintText.Text = LocalizationService.Get("Capture_SelectHint") + " · " + LocalizationService.Get(suffixKey);
+
             HintBanner.Visibility = Visibility.Visible;
             HintBanner.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             double width = HintBanner.DesiredSize.Width > 1 ? HintBanner.DesiredSize.Width : 360;
@@ -1124,7 +1142,9 @@ namespace CryoUtils.Views
             }
             Surface.Refresh();
 
-            bool overToolbar = AnnotationToolbarBorder.IsMouseOver || ActionToolbarBorder.IsMouseOver;
+            bool overToolbar = AnnotationToolbarBorder.IsMouseOver ||
+                               ActionToolbarBorder.IsMouseOver ||
+                               _overlayContextMenu?.IsOpen == true;
             UpdateCursorCoordsBadge(global, local, overToolbar);
             bool drawingFreehand = _drawing &&
                 _activeAnnotation?.Kind is AnnotationKind.Pen or AnnotationKind.Highlighter or AnnotationKind.Redaction;
@@ -1350,8 +1370,142 @@ namespace CryoUtils.Views
 
         private void Surface_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            StepBackOrClose();
+            var mode = CaptureController.ParseRightClickAction(SettingsService.Instance.Current.CaptureRightClickAction);
+            switch (mode)
+            {
+                case CaptureRightClickAction.Nothing:
+                    break;
+                case CaptureRightClickAction.Close:
+                    Controller.CloseAll();
+                    break;
+                case CaptureRightClickAction.GoBackThenClose:
+                    if (!TryStepBack())
+                    {
+                        Controller.CloseAll();
+                    }
+                    break;
+                case CaptureRightClickAction.ContextMenu:
+                    _pendingContextMenu = true;
+                    break;
+                case CaptureRightClickAction.GoBack:
+                default:
+                    TryStepBack();
+                    break;
+            }
             e.Handled = true;
+        }
+
+        private void Surface_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_pendingContextMenu)
+            {
+                _pendingContextMenu = false;
+                ShowOverlayContextMenu();
+            }
+            e.Handled = true;
+        }
+
+        private void CloseOverlayContextMenu()
+        {
+            if (_overlayContextMenu != null)
+            {
+                _overlayContextMenu.IsOpen = false;
+                _overlayContextMenu = null;
+            }
+        }
+
+        private void ShowOverlayContextMenu()
+        {
+            CloseOverlayContextMenu();
+            LoupePanel.Visibility = Visibility.Collapsed;
+            CursorCoordsBadge.Visibility = Visibility.Collapsed;
+
+            var menu = new ContextMenu
+            {
+                Style = (Style)FindResource("CryoContextMenu"),
+                PlacementTarget = Surface,
+                Placement = PlacementMode.MousePoint,
+                StaysOpen = false
+            };
+
+            bool screenshotOnly = SettingsService.Instance.Current.ScreenshotOnlyMode;
+            if (Controller.Selection.HasValue)
+            {
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolCopy"), () => Controller.CopySelection());
+                AddContextMenuItem(menu, LocalizationService.Get("Recent_CopyBase64"), () => Controller.CopySelectionAsBase64());
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolSave"), () => Controller.SaveSelection(quick: false));
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_CtxQuickSave"), () => Controller.SaveSelection(quick: true));
+                menu.Items.Add(new Separator());
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolOcr"), () => Controller.OcrSelection());
+                if (IsOverlayActionVisible("OcrCopy", screenshotOnly))
+                {
+                    AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolOcrCopy"), () => Controller.OcrSelection(copyOnly: true));
+                }
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolAutoRedact"), () => _ = Controller.AutoRedactSelectionAsync());
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolQr"), () => Controller.QrSelection());
+                if (IsOverlayActionVisible("Pin", screenshotOnly))
+                {
+                    AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolPin"), () => Controller.PinSelection());
+                }
+                if (IsOverlayActionVisible("Upload", screenshotOnly))
+                {
+                    AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolUpload"), () => Controller.UploadSelectionAsync());
+                }
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolFrame"), () => Controller.TogglePrettyFrame());
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolPrint"), () => Controller.PrintSelection());
+                menu.Items.Add(new Separator());
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolUndo"), () => Controller.Undo(), enabled: Controller.CanUndo);
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_CtxStepBack"), () => TryStepBack());
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolClose"), () => Controller.CloseAll());
+            }
+            else
+            {
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_CtxSelectFull"), () => Controller.SelectAll());
+                if (Controller.HoveredWindow != null)
+                {
+                    var hoveredBounds = Controller.HoveredWindow.Bounds;
+                    AddContextMenuItem(menu, LocalizationService.Get("Capture_CtxSelectWindow"), () =>
+                    {
+                        Controller.SetSelection(hoveredBounds);
+                        Controller.SetHoveredWindow(null);
+                    });
+                }
+                menu.Items.Add(new Separator());
+                AddContextMenuItem(
+                    menu,
+                    LocalizationService.Get("Capture_CtxStepBack"),
+                    () => TryStepBack(),
+                    enabled: Controller.Tool != CaptureTool.Select || (Controller.Annotations.Count > 0 && Controller.CanUndo));
+                AddContextMenuItem(menu, LocalizationService.Get("Capture_ToolClose"), () => Controller.CloseAll());
+            }
+
+            menu.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_overlayContextMenu, menu))
+                {
+                    _overlayContextMenu = null;
+                }
+                if (IsVisible)
+                {
+                    Focus();
+                }
+            };
+
+            _overlayContextMenu = menu;
+            Activate();
+            Focus();
+            menu.IsOpen = true;
+        }
+
+        private static void AddContextMenuItem(ContextMenu menu, string header, Action onClick, bool enabled = true)
+        {
+            var item = new MenuItem
+            {
+                Header = header,
+                IsEnabled = enabled
+            };
+            item.Click += (_, _) => onClick();
+            menu.Items.Add(item);
         }
 
         private void Surface_MouseLeave(object sender, MouseEventArgs e)
@@ -1474,12 +1628,12 @@ namespace CryoUtils.Views
             Controller.SetSelectedAnnotation(annotation);
         }
 
-        private void StepBackOrClose()
+        private bool TryStepBack()
         {
             if (TextEditor.Visibility == Visibility.Visible)
             {
                 CancelText();
-                return;
+                return true;
             }
 
             if (_drawing && _activeAnnotation != null)
@@ -1493,22 +1647,61 @@ namespace CryoUtils.Views
                 }
                 LoupePanel.Visibility = Visibility.Collapsed;
                 Controller.NotifyChanged();
-                return;
+                return true;
+            }
+
+            if (_creating || _moving || _resizing || _movingAnnotation || _resizingAnnotation)
+            {
+                if (_creating)
+                {
+                    Controller.SetSelection(null);
+                }
+                else if (_moving || _resizing)
+                {
+                    Controller.SetSelection(_initialSelection);
+                }
+
+                _creating = false;
+                _moving = false;
+                _resizing = false;
+                _movingAnnotation = false;
+                _resizingAnnotation = false;
+                _annotationHandle = -1;
+                _handle = -1;
+                if (Surface.IsMouseCaptured)
+                {
+                    Surface.ReleaseMouseCapture();
+                }
+                LoupePanel.Visibility = Visibility.Collapsed;
+                Controller.NotifyChanged();
+                return true;
             }
 
             if (Controller.Tool != CaptureTool.Select)
             {
                 Controller.SetTool(CaptureTool.Select);
-                return;
+                return true;
             }
 
             if (Controller.SelectedAnnotation != null)
             {
                 SelectAnnotation(null);
-                return;
+                return true;
             }
 
-            Controller.CloseAll();
+            if (Controller.Annotations.Count > 0 && Controller.CanUndo)
+            {
+                Controller.Undo();
+                return true;
+            }
+
+            if (Controller.Selection.HasValue)
+            {
+                Controller.SetSelection(null);
+                return true;
+            }
+
+            return false;
         }
 
         private int HitTestAnnotationHandle(Annotation annotation, Point global)

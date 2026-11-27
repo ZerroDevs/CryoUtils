@@ -37,6 +37,7 @@ namespace CryoUtils.Views
         private GeneralTabView? _generalTab;
         private Point _recentDragStart;
         private RecentCapture? _recentDragCandidate;
+        private RecentCapture? _lastRecentSelectAnchor;
         private bool _suppressRecentClick;
         private bool _suppressSearchTextChanged;
         private CancellationTokenSource? _recentReloadCts;
@@ -44,7 +45,18 @@ namespace CryoUtils.Views
         private DispatcherTimer? _inactiveTabTimer;
         private bool _isQuitConfirmPending;
         private DispatcherTimer? _deleteResetTimer;
+        private bool _isDeleteAllConfirmPending;
+        private DispatcherTimer? _deleteAllConfirmTimer;
         private bool _windowResizedByUser;
+
+        public static readonly DependencyProperty IsRecentSelectModeProperty =
+            DependencyProperty.Register(nameof(IsRecentSelectMode), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
+
+        public bool IsRecentSelectMode
+        {
+            get => (bool)GetValue(IsRecentSelectModeProperty);
+            set => SetValue(IsRecentSelectModeProperty, value);
+        }
 
         public MainWindow()
         {
@@ -132,7 +144,7 @@ namespace CryoUtils.Views
                 Width = Math.Clamp(defaultWidth, MinWidth, maxWorkW);
             }
 
-            double defaultHeight = settings.ScreenshotOnlyMode ? 450 : 565;
+            double defaultHeight = settings.ScreenshotOnlyMode ? 490 : 565;
             if (settings.WindowSizeCustomized && settings.WindowHeight is double savedHeight && savedHeight >= MinHeight)
             {
                 Height = Math.Clamp(savedHeight, MinHeight, maxWorkH);
@@ -364,6 +376,12 @@ namespace CryoUtils.Views
                 if (Keyboard.FocusedElement is TextBox)
                 {
                     Keyboard.ClearFocus();
+                    e.Handled = true;
+                    return;
+                }
+                if (IsRecentSelectMode && TglRecentSelect != null)
+                {
+                    TglRecentSelect.IsChecked = false;
                     e.Handled = true;
                     return;
                 }
@@ -950,16 +968,16 @@ namespace CryoUtils.Views
                 ApertureTile.BorderBrush = new SolidColorBrush(Color.FromRgb(230, 138, 87));
                 if (ApertureHaloRing != null)
                 {
-                    ApertureHaloRing.Stroke = new SolidColorBrush(Color.FromRgb(230, 138, 87));
+                    ApertureHaloRing.BorderBrush = new SolidColorBrush(Color.FromRgb(230, 138, 87));
                     ApertureHaloRing.Opacity = 0.28;
                 }
                 ApertureStop1.Color = Color.FromRgb(38, 22, 14);
                 ApertureStop2.Color = Color.FromRgb(62, 34, 21);
                 ApertureStop3.Color = Color.FromRgb(28, 16, 11);
-                ApertureCornerTraces.Stroke = new SolidColorBrush(Color.FromRgb(186, 108, 68));
-                ApertureOuterRing.Stroke = new SolidColorBrush(Color.FromRgb(230, 138, 87));
-                ApertureInnerRing.Stroke = new SolidColorBrush(Color.FromRgb(245, 178, 132));
-                ApertureCoreDot.Fill = new SolidColorBrush(Color.FromRgb(230, 138, 87));
+                ApertureCornerTraces.Stroke = new SolidColorBrush(Color.FromRgb(245, 166, 112));
+                ApertureReticle.Stroke = new SolidColorBrush(Color.FromRgb(230, 138, 87));
+                ApertureOuterRing.Stroke = new SolidColorBrush(Color.FromRgb(255, 220, 194));
+                ApertureCoreDot.Fill = new SolidColorBrush(Color.FromRgb(244, 154, 96));
                 TxtModeSummary.Text = LocalizationService.Get("Overview_ModeLiteSummary");
             }
             else
@@ -967,15 +985,15 @@ namespace CryoUtils.Views
                 ApertureTile.BorderBrush = new SolidColorBrush(Color.FromRgb(53, 215, 255));
                 if (ApertureHaloRing != null)
                 {
-                    ApertureHaloRing.Stroke = new SolidColorBrush(Color.FromRgb(53, 215, 255));
+                    ApertureHaloRing.BorderBrush = new SolidColorBrush(Color.FromRgb(53, 215, 255));
                     ApertureHaloRing.Opacity = 0.34;
                 }
                 ApertureStop1.Color = Color.FromRgb(7, 26, 43);
                 ApertureStop2.Color = Color.FromRgb(11, 42, 64);
                 ApertureStop3.Color = Color.FromRgb(7, 23, 34);
-                ApertureCornerTraces.Stroke = new SolidColorBrush(Color.FromRgb(31, 159, 196));
-                ApertureOuterRing.Stroke = new SolidColorBrush(Color.FromRgb(85, 230, 255));
-                ApertureInnerRing.Stroke = new SolidColorBrush(Color.FromRgb(143, 244, 255));
+                ApertureCornerTraces.Stroke = new SolidColorBrush(Color.FromRgb(85, 230, 255));
+                ApertureReticle.Stroke = new SolidColorBrush(Color.FromRgb(53, 215, 255));
+                ApertureOuterRing.Stroke = new SolidColorBrush(Color.FromRgb(210, 250, 255));
                 ApertureCoreDot.Fill = new SolidColorBrush(Color.FromRgb(53, 215, 255));
                 TxtModeSummary.Text = LocalizationService.Format(
                     "Overview_ModeFullSummary",
@@ -1006,12 +1024,14 @@ namespace CryoUtils.Views
             if (TabWorkspace != null) TabWorkspace.Visibility = lite ? Visibility.Collapsed : Visibility.Visible;
 
             Visibility moduleVis = lite ? Visibility.Collapsed : Visibility.Visible;
+            if (BtnModuleRightClick != null) BtnModuleRightClick.Visibility = moduleVis;
             if (RowSnapModule != null) RowSnapModule.Visibility = lite ? Visibility.Visible : Visibility.Collapsed;
             if (LiteQuickBar != null)
             {
                 LiteQuickBar.Visibility = lite ? Visibility.Visible : Visibility.Collapsed;
                 if (lite) RefreshLiteQuickBar();
             }
+            RefreshRightClickButtons();
             if (RowColorModule != null) RowColorModule.Visibility = moduleVis;
             if (RowPinnerModule != null) RowPinnerModule.Visibility = moduleVis;
             if (RowCompressorModule != null) RowCompressorModule.Visibility = moduleVis;
@@ -1065,6 +1085,8 @@ namespace CryoUtils.Views
                     TxtHeroSubtitle.Text = LocalizationService.Get(lite ? "Main_OverviewSubtitleLite" : "Main_OverviewSubtitle");
                 }
                 RefreshLiteQuickBar();
+                RefreshRightClickButtons();
+                RefreshRecentBulkBar();
                 _hotkeysTab?.RefreshRows();
                 RefreshPinnedState();
                 RefreshClipboardState();
@@ -1153,6 +1175,12 @@ namespace CryoUtils.Views
                 RecentItems.ItemsSource = RecentCaptureService.Instance.Items;
             }
 
+            ClearRecentSelections();
+            ResetDeleteAllConfirm();
+            if (TglRecentSelect != null && TglRecentSelect.IsChecked == true)
+            {
+                TglRecentSelect.IsChecked = false;
+            }
             RefreshRecentStrip();
         }
 
@@ -1275,6 +1303,76 @@ namespace CryoUtils.Views
             Dispatcher.BeginInvoke(new Action(RefreshRecentStrip));
         }
 
+        private List<RecentCapture> GetActiveRecentList() =>
+            (RecentItems?.ItemsSource as IEnumerable<RecentCapture>)?.ToList() ?? new List<RecentCapture>();
+
+        private void ClearRecentSelections()
+        {
+            _lastRecentSelectAnchor = null;
+            foreach (var item in RecentCaptureService.Instance.Items.Concat(RecentCaptureService.Instance.AllTimeItems))
+            {
+                if (item.IsSelected)
+                {
+                    item.IsSelected = false;
+                }
+            }
+        }
+
+        private void ResetDeleteAllConfirm()
+        {
+            _deleteAllConfirmTimer?.Stop();
+            _isDeleteAllConfirmPending = false;
+            if (PathRecentDeleteAll != null)
+            {
+                PathRecentDeleteAll.Data = IconData.Trash;
+            }
+            if (BtnRecentDeleteAll != null)
+            {
+                BtnRecentDeleteAll.ClearValue(BackgroundProperty);
+                BtnRecentDeleteAll.ClearValue(BorderBrushProperty);
+                BtnRecentDeleteAll.ToolTip = LocalizationService.Get("Recent_DeleteAllTip");
+            }
+            if (BtnRecentBulkDeleteAll != null)
+            {
+                BtnRecentBulkDeleteAll.Content = LocalizationService.Get("Recent_DeleteAll");
+            }
+        }
+
+        private void RefreshRecentBulkBar()
+        {
+            var items = GetActiveRecentList();
+            bool hasItems = items.Count > 0;
+            bool selectMode = hasItems && IsRecentSelectMode;
+            if (RecentBulkBar != null)
+            {
+                RecentBulkBar.Visibility = selectMode ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (!selectMode)
+            {
+                return;
+            }
+
+            int selectedCount = items.Count(item => item.IsSelected);
+            bool allSelected = selectedCount == items.Count;
+            if (BtnRecentSelectAll != null)
+            {
+                BtnRecentSelectAll.Content = LocalizationService.Get(allSelected ? "Recent_ClearSelection" : "Recent_SelectAll");
+            }
+            if (TxtRecentSelectedCount != null)
+            {
+                TxtRecentSelectedCount.Text = LocalizationService.Format("Recent_SelectedCount", selectedCount);
+            }
+            if (BtnRecentDeleteSelected != null)
+            {
+                BtnRecentDeleteSelected.Content = LocalizationService.Format("Recent_DeleteSelected", selectedCount);
+                BtnRecentDeleteSelected.IsEnabled = selectedCount > 0;
+            }
+            if (BtnRecentBulkDeleteAll != null && !_isDeleteAllConfirmPending)
+            {
+                BtnRecentBulkDeleteAll.Content = LocalizationService.Get("Recent_DeleteAll");
+            }
+        }
+
         private void RefreshRecentStrip()
         {
             int count = (RecentItems.ItemsSource as System.Collections.ICollection)?.Count ?? 0;
@@ -1285,6 +1383,178 @@ namespace CryoUtils.Views
             bool hasItems = count > 0;
             RecentEmpty.Visibility = hasItems ? Visibility.Collapsed : Visibility.Visible;
             RecentScroll.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+            if (TglRecentSelect != null)
+            {
+                TglRecentSelect.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+                if (!hasItems && TglRecentSelect.IsChecked == true)
+                {
+                    TglRecentSelect.IsChecked = false;
+                }
+            }
+            if (BtnRecentDeleteAll != null)
+            {
+                BtnRecentDeleteAll.Visibility = hasItems ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (!hasItems)
+            {
+                IsRecentSelectMode = false;
+                ClearRecentSelections();
+                ResetDeleteAllConfirm();
+            }
+            RefreshRecentBulkBar();
+        }
+
+        private void TglRecentSelect_Changed(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            IsRecentSelectMode = TglRecentSelect?.IsChecked == true;
+            if (!IsRecentSelectMode)
+            {
+                ClearRecentSelections();
+                ResetDeleteAllConfirm();
+            }
+            else if (SettingsService.Instance.Current.RecentCapturesExpanded == false)
+            {
+                SettingsService.Instance.Current.RecentCapturesExpanded = true;
+                SettingsService.Instance.SaveWithoutNotification();
+                ApplyRecentExpanded(true, reload: true);
+            }
+            RefreshRecentBulkBar();
+        }
+
+        private void RecentSelectCheck_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            if ((sender as FrameworkElement)?.Tag is RecentCapture capture)
+            {
+                HandleRecentSelectionClick(capture, capture.IsSelected);
+                return;
+            }
+            RefreshRecentBulkBar();
+        }
+
+        private void HandleRecentSelectionClick(RecentCapture capture, bool targetState)
+        {
+            var items = GetActiveRecentList();
+            bool shiftHeld = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+            if (shiftHeld && _lastRecentSelectAnchor != null)
+            {
+                int start = items.IndexOf(_lastRecentSelectAnchor);
+                int end = items.IndexOf(capture);
+                if (start >= 0 && end >= 0)
+                {
+                    int lo = Math.Min(start, end);
+                    int hi = Math.Max(start, end);
+                    for (int i = lo; i <= hi; i++)
+                    {
+                        items[i].IsSelected = targetState;
+                    }
+                }
+                else
+                {
+                    capture.IsSelected = targetState;
+                }
+            }
+            else
+            {
+                capture.IsSelected = targetState;
+            }
+
+            _lastRecentSelectAnchor = capture;
+            RefreshRecentBulkBar();
+        }
+
+        private void BtnRecentSelectAll_Click(object sender, RoutedEventArgs e)
+        {
+            var items = GetActiveRecentList();
+            if (items.Count == 0)
+            {
+                return;
+            }
+            bool selectAll = items.Any(item => !item.IsSelected);
+            foreach (var item in items)
+            {
+                item.IsSelected = selectAll;
+            }
+            RefreshRecentBulkBar();
+        }
+
+        private void BtnRecentDeleteSelected_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetActiveRecentList().Where(item => item.IsSelected).ToList();
+            if (selected.Count == 0)
+            {
+                return;
+            }
+
+            var (deleted, failed) = RecentCaptureService.Instance.DeleteCaptures(selected);
+            ResetDeleteAllConfirm();
+            if (GetActiveRecentList().Count == 0 && TglRecentSelect != null)
+            {
+                TglRecentSelect.IsChecked = false;
+            }
+            RefreshRecentStrip();
+
+            if (deleted > 0)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Format("Recent_DeletedMany", deleted));
+            }
+            else if (failed > 0)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_DeleteFailed"));
+            }
+        }
+
+        private void BtnRecentDeleteAll_Click(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            var items = GetActiveRecentList();
+            if (items.Count == 0)
+            {
+                return;
+            }
+
+            if (!_isDeleteAllConfirmPending)
+            {
+                _isDeleteAllConfirmPending = true;
+                if (PathRecentDeleteAll != null)
+                {
+                    PathRecentDeleteAll.Data = IconData.Check;
+                }
+                if (BtnRecentDeleteAll != null)
+                {
+                    BtnRecentDeleteAll.Background = ThemeService.GetBrush("DangerSoftBackgroundBrush");
+                    BtnRecentDeleteAll.BorderBrush = ThemeService.GetBrush("DangerTextBrush");
+                    BtnRecentDeleteAll.ToolTip = LocalizationService.Format("Recent_ConfirmDeleteAll", items.Count);
+                }
+                if (BtnRecentBulkDeleteAll != null)
+                {
+                    BtnRecentBulkDeleteAll.Content = LocalizationService.Format("Recent_ConfirmDeleteAll", items.Count);
+                }
+
+                _deleteAllConfirmTimer?.Stop();
+                _deleteAllConfirmTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3.5) };
+                _deleteAllConfirmTimer.Tick += (_, _) => ResetDeleteAllConfirm();
+                _deleteAllConfirmTimer.Start();
+                return;
+            }
+
+            ResetDeleteAllConfirm();
+            var (deleted, failed) = RecentCaptureService.Instance.DeleteCaptures(items);
+            if (TglRecentSelect != null)
+            {
+                TglRecentSelect.IsChecked = false;
+            }
+            RefreshRecentStrip();
+
+            if (deleted > 0)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Format("Recent_DeletedMany", deleted));
+            }
+            else if (failed > 0)
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_DeleteFailed"));
+            }
         }
 
         private void OpenRecording_Click(object sender, RoutedEventArgs e)
@@ -1309,6 +1579,10 @@ namespace CryoUtils.Views
 
         private void RecentThumbnail_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (IsRecentSelectMode)
+            {
+                return;
+            }
             if (e.ChangedButton == MouseButton.Left &&
                 (sender as FrameworkElement)?.Tag is RecentCapture capture)
             {
@@ -1368,6 +1642,18 @@ namespace CryoUtils.Views
                 return;
             }
 
+            if (IsRecentSelectMode)
+            {
+                bool nextState = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) || !capture.IsSelected;
+                HandleRecentSelectionClick(capture, nextState);
+                return;
+            }
+
+            OpenRecentCapture(capture);
+        }
+
+        private static void OpenRecentCapture(RecentCapture capture)
+        {
             if (!string.IsNullOrEmpty(capture.Path) &&
                 File.Exists(capture.Path) &&
                 string.Equals(IOPath.GetExtension(capture.Path), ".mp4", StringComparison.OrdinalIgnoreCase))
@@ -1423,6 +1709,22 @@ namespace CryoUtils.Views
 
             bool hasDiskFile = !string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path);
 
+            var openItem = new MenuItem
+            {
+                Header = LocalizationService.Get(capture.IsVideo ? "Recent_OpenRecording" : "Recent_OpenInEditor")
+            };
+            openItem.Click += (_, _) => OpenRecentCapture(capture);
+            menu.Items.Add(openItem);
+
+            var openFolderItem = new MenuItem
+            {
+                Header = LocalizationService.Get("Recent_OpenFolder"),
+                IsEnabled = hasDiskFile
+            };
+            openFolderItem.Click += (_, _) => RevealCaptureInExplorer(capture.Path);
+            menu.Items.Add(openFolderItem);
+            menu.Items.Add(new Separator());
+
             var copyPathItem = new MenuItem
             {
                 Header = LocalizationService.Get("Recent_CopyPath"),
@@ -1476,6 +1778,26 @@ namespace CryoUtils.Views
                 }
             };
             menu.Items.Add(copyBase64Item);
+            menu.Items.Add(new Separator());
+
+            var deleteItem = new MenuItem
+            {
+                Header = LocalizationService.Get("Recent_Delete")
+            };
+            deleteItem.Click += (_, _) =>
+            {
+                var (deleted, failed) = RecentCaptureService.Instance.DeleteCaptures(new[] { capture });
+                RefreshRecentStrip();
+                if (deleted > 0)
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_Deleted"));
+                }
+                else if (failed > 0)
+                {
+                    (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_DeleteFailed"));
+                }
+            };
+            menu.Items.Add(deleteItem);
 
             menu.IsOpen = true;
         }
@@ -1621,18 +1943,7 @@ namespace CryoUtils.Views
                 !string.IsNullOrEmpty(capture.Path) &&
                 File.Exists(capture.Path))
             {
-                try
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = "explorer.exe",
-                        Arguments = $"/select,\"{capture.Path}\"",
-                        UseShellExecute = true
-                    });
-                }
-                catch
-                {
-                }
+                RevealCaptureInExplorer(capture.Path);
                 return;
             }
 
@@ -1650,6 +1961,28 @@ namespace CryoUtils.Views
             catch
             {
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_FolderMissing"));
+            }
+        }
+
+        private static void RevealCaptureInExplorer(string? path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_FolderMissing"));
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
             }
         }
 
@@ -1685,16 +2018,12 @@ namespace CryoUtils.Views
             }
 
             _deleteResetTimer?.Stop();
-            try
+            var (deleted, failed) = RecentCaptureService.Instance.DeleteCaptures(new[] { capture });
+            if (deleted > 0)
             {
-                if (!string.IsNullOrEmpty(capture.Path) && File.Exists(capture.Path))
-                {
-                    File.Delete(capture.Path);
-                }
-                RecentCaptureService.Instance.Remove(capture);
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_Deleted"));
             }
-            catch
+            else if (failed > 0)
             {
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Recent_DeleteFailed"));
             }
@@ -1770,7 +2099,9 @@ namespace CryoUtils.Views
                 TglLiteAutoCopy.IsChecked = s.AutoCopyCapture;
                 TglLiteFrame.IsChecked = s.PrettyFrameExport;
                 TglLiteInstant.IsChecked = s.InstantCaptureCopy;
+                if (TglLiteCoords != null) TglLiteCoords.IsChecked = s.ShowCursorCoordinates;
                 BtnLiteDelay.Content = LocalizationService.Format("Lite_QuickDelay", s.CaptureDelaySeconds);
+                RefreshRightClickButtons();
             }
             finally
             {
@@ -1806,6 +2137,62 @@ namespace CryoUtils.Views
             RefreshLiteQuickBar();
         }
 
+        private void RefreshRightClickButtons()
+        {
+            var mode = CaptureController.ParseRightClickAction(SettingsService.Instance.Current.CaptureRightClickAction);
+            string shortKey = mode switch
+            {
+                CaptureRightClickAction.GoBackThenClose => "Capture_RightClickShort_GoBackClose",
+                CaptureRightClickAction.Close => "Capture_RightClickShort_Close",
+                CaptureRightClickAction.ContextMenu => "Capture_RightClickShort_Menu",
+                CaptureRightClickAction.Nothing => "Capture_RightClickShort_Nothing",
+                _ => "Capture_RightClickShort_GoBack"
+            };
+            string label = LocalizationService.Get(shortKey) + " ▾";
+            if (BtnLiteRightClick != null) BtnLiteRightClick.Content = label;
+            if (BtnModuleRightClick != null) BtnModuleRightClick.Content = label;
+        }
+
+        private void BtnRightClickMode_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button anchor) return;
+
+            var current = CaptureController.ParseRightClickAction(SettingsService.Instance.Current.CaptureRightClickAction);
+            var menu = new ContextMenu
+            {
+                Style = (Style)FindResource("CryoContextMenu"),
+                PlacementTarget = anchor,
+                Placement = PlacementMode.Bottom,
+                StaysOpen = false
+            };
+
+            (string Tag, string Key)[] options =
+            {
+                ("GoBack", "Capture_RightClickGoBack"),
+                ("GoBackThenClose", "Capture_RightClickGoBackClose"),
+                ("Close", "Capture_RightClickClose"),
+                ("ContextMenu", "Capture_RightClickMenu"),
+                ("Nothing", "Capture_RightClickNothing")
+            };
+
+            foreach (var (tag, key) in options)
+            {
+                string prefix = current.ToString() == tag ? "✓  " : "     ";
+                var item = new MenuItem { Header = prefix + LocalizationService.Get(key) };
+                string selectedTag = tag;
+                item.Click += (_, _) =>
+                {
+                    SettingsService.Instance.Current.CaptureRightClickAction = selectedTag;
+                    SettingsService.Instance.Save();
+                    _captureTab?.LoadFromSettings();
+                    RefreshRightClickButtons();
+                };
+                menu.Items.Add(item);
+            }
+
+            menu.IsOpen = true;
+        }
+
         private void LiteQuickToggle_Changed(object sender, RoutedEventArgs e)
         {
             if (_loading || _initializing)
@@ -1817,6 +2204,7 @@ namespace CryoUtils.Views
             s.AutoCopyCapture = TglLiteAutoCopy.IsChecked == true;
             s.PrettyFrameExport = TglLiteFrame.IsChecked == true;
             s.InstantCaptureCopy = TglLiteInstant.IsChecked == true;
+            if (TglLiteCoords != null) s.ShowCursorCoordinates = TglLiteCoords.IsChecked == true;
             SettingsService.Instance.Save();
             _captureTab?.LoadFromSettings();
         }

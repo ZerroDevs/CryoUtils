@@ -68,6 +68,16 @@
                     </StackPanel>
                 </Grid>
 
+                <TextBlock Text="{DynamicResource Capture_RightClickAction}" Style="{StaticResource FieldLabel}"/>
+                <ComboBox x:Name="CmbRightClickAction" Style="{StaticResource CryoComboBox}" SelectionChanged="Setting_Changed" AutomationProperties.Name="{DynamicResource Capture_RightClickAction}">
+                    <ComboBoxItem Content="{DynamicResource Capture_RightClickGoBack}" Tag="GoBack"/>
+                    <ComboBoxItem Content="{DynamicResource Capture_RightClickGoBackClose}" Tag="GoBackThenClose"/>
+                    <ComboBoxItem Content="{DynamicResource Capture_RightClickClose}" Tag="Close"/>
+                    <ComboBoxItem Content="{DynamicResource Capture_RightClickMenu}" Tag="ContextMenu"/>
+                    <ComboBoxItem Content="{DynamicResource Capture_RightClickNothing}" Tag="Nothing"/>
+                </ComboBox>
+                <TextBlock Text="{DynamicResource Capture_RightClickActionDesc}" Style="{StaticResource MutedText}" Margin="0,3,0,10"/>
+
                 <TextBlock Text="{DynamicResource Capture_Folder}" Style="{StaticResource FieldLabel}"/>
                 <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
