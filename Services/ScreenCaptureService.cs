@@ -134,12 +134,12 @@ namespace CryoUtils.Services
         }
 
         /// <summary>Captures a physical-pixel region of the desktop into a frozen 96 DPI bitmap.</summary>
-        public static BitmapSource CaptureRegion(NativeMethods.RECT region)
+        public static BitmapSource CaptureRegion(NativeMethods.RECT region, bool includeCursor = false)
         {
             int width = Math.Max(1, region.Width);
             int height = Math.Max(1, region.Height);
 
-            if (TryCaptureRegionZeroCopy(region.Left, region.Top, width, height, out BitmapSource? direct) &&
+            if (TryCaptureRegionZeroCopy(region.Left, region.Top, width, height, includeCursor, out BitmapSource? direct) &&
                 direct != null)
             {
                 return direct;
@@ -155,6 +155,19 @@ namespace CryoUtils.Services
                     0,
                     new Drawing.Size(width, height),
                     Drawing.CopyPixelOperation.SourceCopy);
+
+                if (includeCursor)
+                {
+                    IntPtr hdc = graphics.GetHdc();
+                    try
+                    {
+                        DrawCursorOnDc(hdc, region.Left, region.Top, width, height);
+                    }
+                    finally
+                    {
+                        graphics.ReleaseHdc(hdc);
+                    }
+                }
             }
 
             BitmapData data = bitmap.LockBits(
@@ -187,6 +200,7 @@ namespace CryoUtils.Services
             int top,
             int width,
             int height,
+            bool includeCursor,
             out BitmapSource? result)
         {
             result = null;
@@ -261,6 +275,11 @@ namespace CryoUtils.Services
                     return false;
                 }
 
+                if (includeCursor)
+                {
+                    DrawCursorOnDc(memDc, left, top, width, height);
+                }
+
                 NativeMethods.SelectObject(memDc, oldObj);
                 oldObj = IntPtr.Zero;
                 NativeMethods.DeleteObject(hBitmap);
@@ -328,7 +347,57 @@ namespace CryoUtils.Services
             return new Int32Rect(x, y, right - x, bottom - y);
         }
 
-        public static BitmapSource? CaptureForegroundWindow(out string sourceApp, out string sourceWindow)
+        public static void DrawCursorOnDc(IntPtr hdc, int regionLeft, int regionTop, int width, int height)
+        {
+            if (hdc == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var ci = new NativeMethods.CURSORINFO
+            {
+                cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.CURSORINFO>()
+            };
+            if (!NativeMethods.GetCursorInfo(ref ci) ||
+                ci.flags != NativeMethods.CURSOR_SHOWING ||
+                ci.hCursor == IntPtr.Zero)
+            {
+                return;
+            }
+
+            IntPtr hIcon = NativeMethods.CopyIcon(ci.hCursor);
+            if (hIcon == IntPtr.Zero)
+            {
+                return;
+            }
+
+            NativeMethods.ICONINFO ii = default;
+            try
+            {
+                int hotX = 0;
+                int hotY = 0;
+                if (NativeMethods.GetIconInfo(hIcon, out ii))
+                {
+                    hotX = ii.xHotspot;
+                    hotY = ii.yHotspot;
+                }
+
+                int drawX = ci.ptScreenPos.X - hotX - regionLeft;
+                int drawY = ci.ptScreenPos.Y - hotY - regionTop;
+                if (drawX >= -128 && drawY >= -128 && drawX < width && drawY < height)
+                {
+                    NativeMethods.DrawIconEx(hdc, drawX, drawY, hIcon, 0, 0, 0, IntPtr.Zero, NativeMethods.DI_NORMAL);
+                }
+            }
+            finally
+            {
+                if (ii.hbmMask != IntPtr.Zero) NativeMethods.DeleteObject(ii.hbmMask);
+                if (ii.hbmColor != IntPtr.Zero) NativeMethods.DeleteObject(ii.hbmColor);
+                NativeMethods.DestroyIcon(hIcon);
+            }
+        }
+
+        public static BitmapSource? CaptureForegroundWindow(out string sourceApp, out string sourceWindow, bool includeCursor = false)
         {
             sourceApp = "";
             sourceWindow = "";
@@ -369,7 +438,7 @@ namespace CryoUtils.Services
                 Top = top,
                 Right = right,
                 Bottom = bottom
-            });
+            }, includeCursor);
         }
 
         public static BitmapSource CaptureWindow(IntPtr hwnd)

@@ -43,6 +43,7 @@ namespace CryoUtils.Services
             new DashboardSearchEntry { Id = "cap-hover", TitleKey = "Capture_HoverHighlight", DescriptionKey = "Capture_HoverHighlightDesc", Tab = "Capture", Keywords = "window hover snap highlight border space" },
             new DashboardSearchEntry { Id = "cap-instant", TitleKey = "Capture_InstantCopy", DescriptionKey = "Capture_InstantCopyDesc", Tab = "Capture", Keywords = "1 motion instant copy release drag" },
             new DashboardSearchEntry { Id = "cap-coords", TitleKey = "Capture_CursorCoords", DescriptionKey = "Capture_SettingsTitle", Tab = "Capture", Keywords = "crosshair coordinates xy pixel ruler hover info badge window size" },
+            new DashboardSearchEntry { Id = "cap-cursor", TitleKey = "Capture_MouseCursor", DescriptionKey = "Capture_MouseCursorDesc", Tab = "Capture", Keywords = "mouse cursor pointer screenshot arrow capture include" },
             new DashboardSearchEntry { Id = "cap-rightclick", TitleKey = "Capture_RightClickAction", DescriptionKey = "Capture_RightClickActionDesc", Tab = "Capture", Keywords = "right click back close context menu copy undo mouse" },
             new DashboardSearchEntry { Id = "cap-ocrlang", TitleKey = "Capture_OcrLanguage", DescriptionKey = "Capture_OcrNote", Tab = "Capture", Keywords = "ocr text recognition language arabic english" },
             new DashboardSearchEntry { Id = "cap-prettyframe", TitleKey = "Capture_PrettyFrame", DescriptionKey = "Capture_PrettyFrameDesc", Tab = "Capture", Keywords = "frame rounded shadow padding export" },

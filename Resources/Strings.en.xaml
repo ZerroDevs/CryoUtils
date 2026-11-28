@@ -1093,4 +1093,8 @@
     <sys:String x:Key="Capture_SelectHintSuffix_Close">Right-click / Esc: Close</sys:String>
     <sys:String x:Key="Capture_SelectHintSuffix_Menu">Right-click: Actions menu · Esc: Close</sys:String>
     <sys:String x:Key="Capture_SelectHintSuffix_Nothing">Esc: Close</sys:String>
+    <sys:String x:Key="Lite_QuickCursor">Mouse cursor</sys:String>
+    <sys:String x:Key="Lite_QuickCursorTip">Include the Windows mouse cursor in screenshots (disabled by default)</sys:String>
+    <sys:String x:Key="Capture_MouseCursor">Capture mouse cursor</sys:String>
+    <sys:String x:Key="Capture_MouseCursorDesc">Include the mouse pointer in screenshots and active window snaps (off by default)</sys:String>
 </ResourceDictionary>

@@ -95,6 +95,8 @@
                 <CheckBox x:Name="ChkInstantCopy" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_InstantCopy}" Margin="0,8,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                 <TextBlock Text="{DynamicResource Capture_InstantCopyDesc}" Style="{StaticResource MutedText}" Margin="24,2,0,0"/>
                 <CheckBox x:Name="ChkCursorCoords" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_CursorCoords}" Margin="0,8,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                <CheckBox x:Name="ChkCaptureCursor" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_MouseCursor}" Margin="0,8,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
+                <TextBlock Text="{DynamicResource Capture_MouseCursorDesc}" Style="{StaticResource MutedText}" Margin="24,2,0,0"/>
                 <CheckBox x:Name="ChkCaptureSound" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_Sound}" Margin="0,8,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                 <CheckBox x:Name="ChkShowLoupe" Style="{StaticResource CryoCheckBox}" Content="{DynamicResource Capture_Loupe}" Margin="0,8,0,0" Checked="Setting_Changed" Unchecked="Setting_Changed"/>
                 <TextBlock Text="{DynamicResource Capture_LoupeDesc}" Style="{StaticResource MutedText}" Margin="24,2,0,0"/>

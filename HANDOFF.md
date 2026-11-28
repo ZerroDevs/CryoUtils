@@ -1,9 +1,9 @@
 # HANDOFF - CryoUtils
 
-**Last updated:** 2026-11-27 20:47
+**Last updated:** 2026-11-28 15:28
 
 ## Status
-Ready for `v0.0.102` GitHub update (no version bump): Lite `480x490`, live overlay right-click hint, Full Suite + Lite right-click selector, Shift+Click range selection, Esc exit, enriched Recent right-click menu, and updated `ReleaseNotes/v0.0.102.md`.
+Updated `v0.0.102` with opt-in `CaptureMouseCursor` screenshot cursor capture (default disabled), Lite strip + Capture tab toggles, `ScreenCaptureService.DrawCursorOnDc`, and updated `ReleaseNotes/v0.0.102.md`.
 
 ## Completed This Session
 - **Recent Captures 2-Column Grid, Bulk Delete & Delete All (`MainWindow.xaml(.cs)`, `RecentCaptureService.cs`)**: Switched `RecentCardPanel` to `UniformGrid Columns="2"` without fixed `Width="196"` so 2 capture cards fit side-by-side cleanly per row; added `TglRecentSelect` checkbox selection mode (`RecentItemCheckBox`, `RecentBulkBar`, Select All/Clear, Delete selected), 2-click confirmed `Delete all` (`BtnRecentDeleteAll` / `BtnRecentBulkDeleteAll`), and `RecentCaptureService.DeleteCaptures`.

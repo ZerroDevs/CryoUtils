@@ -336,7 +336,7 @@ namespace CryoUtils.Views
                 _redo.Clear();
                 IsClosing = false;
                 VirtualBounds = ScreenCaptureService.GetVirtualBounds();
-                VirtualBitmap = ScreenCaptureService.CaptureRegion(VirtualBounds);
+                VirtualBitmap = ScreenCaptureService.CaptureRegion(VirtualBounds, settings.CaptureMouseCursor);
                 Monitors = ScreenCaptureService.GetMonitors();
                 WindowCandidates = SettingsService.Instance.Current.HoverWindowHighlight
                     ? CaptureVisibleWindowsSnapshot(VirtualBounds)
@@ -1556,7 +1556,10 @@ namespace CryoUtils.Views
                 return;
             }
 
-            var bitmap = ScreenCaptureService.CaptureForegroundWindow(out string appName, out string windowTitle);
+            var bitmap = ScreenCaptureService.CaptureForegroundWindow(
+                out string appName,
+                out string windowTitle,
+                SettingsService.Instance.Current.CaptureMouseCursor);
             if (bitmap == null)
             {
                 (Application.Current as App)?.ShowToast(LocalizationService.Get("Capture_SnapEmpty"));

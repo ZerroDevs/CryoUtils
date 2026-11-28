@@ -1171,17 +1171,34 @@
                                                     Click="BtnLiteDelay_Click"/>
                                         </WrapPanel>
                                         <Grid Margin="0,6,0,0">
-                                            <TextBlock Text="{DynamicResource Capture_RightClickAction}"
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource Capture_RightClickAction}"
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        FontSize="10.5"
-                                                       VerticalAlignment="Center"/>
-                                            <Button x:Name="BtnLiteRightClick"
-                                                    Style="{StaticResource SecondaryButton}"
-                                                    HorizontalAlignment="Right"
-                                                    Height="22" Padding="8,0" FontSize="10.5"
-                                                    ToolTip="{DynamicResource Capture_RightClickActionDesc}"
-                                                    ToolTipService.InitialShowDelay="250"
-                                                    Click="BtnRightClickMode_Click"/>
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"/>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ToggleButton x:Name="TglLiteCursor"
+                                                              Style="{StaticResource FilterPillButton}"
+                                                              Content="{DynamicResource Lite_QuickCursor}"
+                                                              ToolTip="{DynamicResource Lite_QuickCursorTip}"
+                                                              ToolTipService.InitialShowDelay="250"
+                                                              Height="22" Padding="7,0" FontSize="10.5"
+                                                              Margin="0,0,6,0"
+                                                              Checked="LiteQuickToggle_Changed"
+                                                              Unchecked="LiteQuickToggle_Changed"/>
+                                                <Button x:Name="BtnLiteRightClick"
+                                                        Style="{StaticResource SecondaryButton}"
+                                                        Height="22" Padding="8,0" FontSize="10.5"
+                                                        ToolTip="{DynamicResource Capture_RightClickActionDesc}"
+                                                        ToolTipService.InitialShowDelay="250"
+                                                        Click="BtnRightClickMode_Click"/>
+                                            </StackPanel>
                                         </Grid>
                                     </StackPanel>
                                 </Border>

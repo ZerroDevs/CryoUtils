@@ -1093,4 +1093,8 @@
     <sys:String x:Key="Capture_SelectHintSuffix_Close">نقر أيمن / Esc: إغلاق</sys:String>
     <sys:String x:Key="Capture_SelectHintSuffix_Menu">نقر أيمن: قائمة الإجراءات · Esc: إغلاق</sys:String>
     <sys:String x:Key="Capture_SelectHintSuffix_Nothing">Esc: إغلاق</sys:String>
+    <sys:String x:Key="Lite_QuickCursor">مؤشر الفأرة</sys:String>
+    <sys:String x:Key="Lite_QuickCursorTip">تضمين مؤشر الفأرة في لقطات الشاشة (معطّل افتراضياً)</sys:String>
+    <sys:String x:Key="Capture_MouseCursor">التقاط مؤشر الفأرة</sys:String>
+    <sys:String x:Key="Capture_MouseCursorDesc">تضمين مؤشر الفأرة داخل لقطات الشاشة والتقاط النافذة النشطة (معطّل افتراضياً)</sys:String>
 </ResourceDictionary>

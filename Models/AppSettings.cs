@@ -64,6 +64,7 @@ namespace CryoUtils.Models
         public bool HoverWindowHighlight { get; set; } = true;
         public bool InstantCaptureCopy { get; set; } = false;
         public bool ShowCursorCoordinates { get; set; } = false;
+        public bool CaptureMouseCursor { get; set; } = false;
         public string CaptureRightClickAction { get; set; } = "GoBack"; // GoBack, GoBackThenClose, Close, ContextMenu, Nothing
         public string OcrLanguageTag { get; set; } = "";
         public bool OcrLibraryIndexingEnabled { get; set; } = true;

@@ -666,8 +666,14 @@ namespace CryoUtils.Tests
                 AssertTrue(s.NotificationsEnabled);
                 AssertTrue(s.HoverWindowHighlight);
                 AssertTrue(!s.ShowCursorCoordinates);
+                AssertTrue(!s.CaptureMouseCursor);
                 AssertTrue(!s.InstantCaptureCopy);
                 AssertEqual("GoBack", s.CaptureRightClickAction);
+            });
+
+            Test("ScreenCaptureService.DrawCursorOnDc ignores IntPtr.Zero safely", () =>
+            {
+                ScreenCaptureService.DrawCursorOnDc(IntPtr.Zero, 0, 0, 100, 100);
             });
 
             Test("QrResultWindow.TryParseWifiPayload parses WPA and escaped Wi-Fi QR strings", () =>

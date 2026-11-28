@@ -2100,6 +2100,7 @@ namespace CryoUtils.Views
                 TglLiteFrame.IsChecked = s.PrettyFrameExport;
                 TglLiteInstant.IsChecked = s.InstantCaptureCopy;
                 if (TglLiteCoords != null) TglLiteCoords.IsChecked = s.ShowCursorCoordinates;
+                if (TglLiteCursor != null) TglLiteCursor.IsChecked = s.CaptureMouseCursor;
                 BtnLiteDelay.Content = LocalizationService.Format("Lite_QuickDelay", s.CaptureDelaySeconds);
                 RefreshRightClickButtons();
             }
@@ -2205,6 +2206,7 @@ namespace CryoUtils.Views
             s.PrettyFrameExport = TglLiteFrame.IsChecked == true;
             s.InstantCaptureCopy = TglLiteInstant.IsChecked == true;
             if (TglLiteCoords != null) s.ShowCursorCoordinates = TglLiteCoords.IsChecked == true;
+            if (TglLiteCursor != null) s.CaptureMouseCursor = TglLiteCursor.IsChecked == true;
             SettingsService.Instance.Save();
             _captureTab?.LoadFromSettings();
         }

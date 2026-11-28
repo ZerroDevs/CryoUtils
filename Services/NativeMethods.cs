@@ -686,5 +686,49 @@ namespace CryoUtils.Services
 
         [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern bool ChooseColorW(ref CHOOSECOLORW lpcc);
+
+        // Win32 Cursor capture helpers
+        public const int CURSOR_SHOWING = 0x00000001;
+        public const uint DI_NORMAL = 0x0003;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CURSORINFO
+        {
+            public int cbSize;
+            public int flags;
+            public IntPtr hCursor;
+            public POINT ptScreenPos;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ICONINFO
+        {
+            [MarshalAs(UnmanagedType.Bool)] public bool fIcon;
+            public int xHotspot;
+            public int yHotspot;
+            public IntPtr hbmMask;
+            public IntPtr hbmColor;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool GetCursorInfo(ref CURSORINFO pci);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr CopyIcon(IntPtr hIcon);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool GetIconInfo(IntPtr hIcon, out ICONINFO piconinfo);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DrawIconEx(
+            IntPtr hdc,
+            int xLeft,
+            int yTop,
+            IntPtr hIcon,
+            int cxWidth,
+            int cyWidth,
+            uint istepIfAniCur,
+            IntPtr hbrFlickerFreeDraw,
+            uint diFlags);
     }
 }

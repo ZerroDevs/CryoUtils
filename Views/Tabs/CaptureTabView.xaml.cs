@@ -42,6 +42,7 @@ namespace CryoUtils.Views.Tabs
                 ChkHoverHighlight.IsChecked = settings.HoverWindowHighlight;
                 ChkInstantCopy.IsChecked = settings.InstantCaptureCopy;
                 ChkCursorCoords.IsChecked = settings.ShowCursorCoordinates;
+                ChkCaptureCursor.IsChecked = settings.CaptureMouseCursor;
                 ChkCaptureSound.IsChecked = settings.CaptureSound;
                 ChkShowLoupe.IsChecked = settings.ShowCaptureLoupe;
                 ChkPrettyFrame.IsChecked = settings.PrettyFrameExport;
@@ -168,6 +169,7 @@ namespace CryoUtils.Views.Tabs
             settings.HoverWindowHighlight = ChkHoverHighlight.IsChecked == true;
             settings.InstantCaptureCopy = ChkInstantCopy.IsChecked == true;
             settings.ShowCursorCoordinates = ChkCursorCoords.IsChecked == true;
+            settings.CaptureMouseCursor = ChkCaptureCursor.IsChecked == true;
             settings.CaptureSound = ChkCaptureSound.IsChecked == true;
             settings.ShowCaptureLoupe = ChkShowLoupe.IsChecked == true;
             settings.PrettyFrameExport = ChkPrettyFrame.IsChecked == true;
